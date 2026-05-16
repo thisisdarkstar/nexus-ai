@@ -34,29 +34,49 @@ export class OpenAIProvider {
         return [];
     }
 
-    async *streamPrompt(messages, systemPrompt = null) {
+    async *streamPrompt(messages, systemPrompt = null, signal = null, options = {}) {
+        if (!this.model) {
+            throw new Error('No model selected. Pick a model from the model menu or Settings.');
+        }
         let formattedMessages = [];
         if (systemPrompt && systemPrompt.trim() !== '') {
             formattedMessages.push({ role: 'system', content: systemPrompt });
         }
-        
+
         formattedMessages = formattedMessages.concat(messages.map(m => ({
             role: m.role === 'ai' ? 'assistant' : 'user',
             content: m.content
         })));
 
-        const response = await fetch(`${this.baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
-            },
-            body: JSON.stringify({
-                model: this.model,
-                messages: formattedMessages,
-                stream: true
-            })
-        });
+        const body = {
+            model: this.model,
+            messages: formattedMessages,
+            stream: true,
+        };
+        if (options.temperature !== undefined) body.temperature = options.temperature;
+        if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+
+        // Merge user abort with a 90-second timeout
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 90000);
+        const combinedSignal = signal
+            ? AbortSignal.any ? AbortSignal.any([signal, timeoutController.signal]) : signal
+            : timeoutController.signal;
+
+        let response;
+        try {
+            response = await fetch(`${this.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                body: JSON.stringify(body),
+                signal: combinedSignal
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));

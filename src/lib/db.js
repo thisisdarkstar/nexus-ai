@@ -1,7 +1,7 @@
 export class StorageDB {
     constructor() {
         this.dbName = 'nexus_ai_react_db';
-        this.dbVersion = 2;
+        this.dbVersion = 3;
         this.db = null;
     }
 
@@ -15,11 +15,22 @@ export class StorageDB {
             };
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
+                let chatsStore;
                 if (!db.objectStoreNames.contains('chats')) {
-                    db.createObjectStore('chats', { keyPath: 'id' });
+                    chatsStore = db.createObjectStore('chats', { keyPath: 'id' });
+                } else {
+                    chatsStore = e.target.transaction.objectStore('chats');
                 }
                 if (!db.objectStoreNames.contains('projects')) {
                     db.createObjectStore('projects', { keyPath: 'id' });
+                }
+                if (e.oldVersion < 3) {
+                    if (!chatsStore.indexNames.contains('projectId')) {
+                        chatsStore.createIndex('projectId', 'projectId', { unique: false });
+                    }
+                    if (!chatsStore.indexNames.contains('updatedAt')) {
+                        chatsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+                    }
                 }
             };
         });
@@ -105,17 +116,27 @@ export class StorageDB {
 
     async exportAll() {
         const chats = await this.getChats();
-        return JSON.stringify(chats, null, 2);
+        const projects = await this.getProjects();
+        return JSON.stringify({ chats, projects }, null, 2);
     }
 
     async importData(jsonData) {
         try {
-            const chats = JSON.parse(jsonData);
+            const parsed = JSON.parse(jsonData);
+            // Support both old format (plain array) and new format ({ chats, projects })
+            const chats = Array.isArray(parsed) ? parsed : (parsed.chats || []);
+            const projects = Array.isArray(parsed) ? [] : (parsed.projects || []);
+
             if (!Array.isArray(chats)) throw new Error("Invalid format");
-            
+
             for (const chat of chats) {
                 if (chat.id && chat.messages) {
                     await this.saveChat(chat);
+                }
+            }
+            for (const project of projects) {
+                if (project.id && project.name) {
+                    await this.saveProject(project);
                 }
             }
         } catch (e) {

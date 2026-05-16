@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Download, Upload, Monitor } from 'lucide-react';
+import { X, Download, Upload, Monitor, Volume2 } from 'lucide-react';
 import { db } from '../lib/db';
 
-export default function SettingsModal({ settings, onSave, onClose, onClearChats, reloadChats }) {
+export default function SettingsModal({ settings, onSave, onClose, onClearChats, reloadChats, availableVoices = [] }) {
   const [provider, setProvider] = useState(settings.provider || 'chrome');
   const [theme, setTheme] = useState(settings.theme || 'dark');
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '');
@@ -10,8 +10,37 @@ export default function SettingsModal({ settings, onSave, onClose, onClearChats,
   const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || 'sk-local');
   const [openaiModel, setOpenaiModel] = useState(settings.openaiModel || '');
   const [availableModels, setAvailableModels] = useState([]);
-  
+  const [temperature, setTemperature] = useState(settings.temperature ?? 0.7);
+  const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 2048);
+  const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice || '');
+
   const fileInputRef = useRef(null);
+
+  // English voices sorted: Natural/Online first, then alphabetical
+  const enVoices = availableVoices
+    .filter(v => v.lang.startsWith('en'))
+    .sort((a, b) => {
+      const score = v => {
+        if (/natural/i.test(v.name)) return 0;
+        if (/google/i.test(v.name)) return 1;
+        if (/(enhanced|premium)/i.test(v.name)) return 2;
+        if (/online/i.test(v.name)) return 3;
+        return 4;
+      };
+      return score(a) - score(b) || a.name.localeCompare(b.name);
+    });
+
+  const testVoice = () => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance("Hello! This is how I sound.");
+    u.rate = 0.95;
+    if (ttsVoice) {
+      const v = availableVoices.find(v => v.name === ttsVoice);
+      if (v) u.voice = v;
+    }
+    window.speechSynthesis.speak(u);
+  };
 
   useEffect(() => {
     if (provider === 'openai') {
@@ -24,7 +53,7 @@ export default function SettingsModal({ settings, onSave, onClose, onClearChats,
              const data = await res.json();
              const models = data.data || [];
              setAvailableModels(models);
-             if (models.length > 0 && !models.find(m => m.id === openaiModel)) {
+             if (models.length > 0 && !openaiModel) {
                  setOpenaiModel(models[0].id);
              }
           }
@@ -37,7 +66,7 @@ export default function SettingsModal({ settings, onSave, onClose, onClearChats,
   }, [provider, openaiBaseUrl, openaiApiKey]);
 
   const handleSave = () => {
-    onSave({ provider, theme, systemPrompt, openaiBaseUrl, openaiApiKey, openaiModel });
+    onSave({ provider, theme, systemPrompt, openaiBaseUrl, openaiApiKey, openaiModel, temperature: parseFloat(temperature), maxTokens: parseInt(maxTokens, 10), ttsVoice });
     onClose();
   };
 
@@ -48,8 +77,10 @@ export default function SettingsModal({ settings, onSave, onClose, onClearChats,
     const a = document.createElement('a');
     a.href = url;
     a.download = 'nexus_backup.json';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const handleImport = async (e) => {
@@ -131,12 +162,76 @@ export default function SettingsModal({ settings, onSave, onClose, onClearChats,
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Global System Prompt</label>
-            <textarea 
-              value={systemPrompt} 
+            <textarea
+              value={systemPrompt}
               onChange={e => setSystemPrompt(e.target.value)}
               placeholder="e.g. You are an expert coding assistant..."
               style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', minHeight: '100px', fontSize: '1rem', lineHeight: 1.5 }}
             />
+          </div>
+
+          <div style={{ display: 'flex', gap: '20px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                Temperature <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{parseFloat(temperature).toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="0" max="2" step="0.1"
+                value={temperature}
+                onChange={e => setTemperature(e.target.value)}
+                style={{ accentColor: '#8b5cf6', cursor: 'pointer' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span>Focused</span><span>Balanced</span><span>Creative</span>
+              </div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Max Tokens</label>
+              <input
+                type="number"
+                min="256" max="32768" step="256"
+                value={maxTokens}
+                onChange={e => setMaxTokens(e.target.value)}
+                style={{ padding: '12px', borderRadius: '12px', border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', outline: 'none', fontSize: '1rem' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--sidebar-border)', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Volume2 size={14} /> Voice &amp; TTS
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {enVoices.length} English voice{enVoices.length !== 1 ? 's' : ''} available
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>TTS Voice</label>
+                <select
+                  value={ttsVoice}
+                  onChange={e => setTtsVoice(e.target.value)}
+                  style={{ padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', outline: 'none', fontSize: '0.9rem' }}
+                >
+                  <option value="">Best available (auto)</option>
+                  {enVoices.map(v => (
+                    <option key={v.name} value={v.name}>
+                      {v.name}{v.lang !== 'en-US' ? ` [${v.lang}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={testVoice}
+                style={{ padding: '10px 16px', background: 'var(--card-glass)', color: 'var(--text-primary)', border: '1px solid var(--card-border)', borderRadius: '10px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(139,92,246,0.1)'}
+                onMouseOut={e => e.currentTarget.style.background = 'var(--card-glass)'}
+              >
+                <Volume2 size={14} /> Test
+              </button>
+            </div>
           </div>
 
           <div style={{ borderTop: '1px solid var(--sidebar-border)', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

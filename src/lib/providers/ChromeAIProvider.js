@@ -28,18 +28,20 @@ export class ChromeAIProvider {
         }
     }
 
-    async initialize() {
+    async initialize(temperature) {
         const lm = (window.ai && window.ai.languageModel) || window.LanguageModel;
         if (lm) {
-            this.session = await lm.create();
+            const opts = {};
+            if (temperature !== undefined) opts.temperature = temperature;
+            this.session = await lm.create(Object.keys(opts).length ? opts : undefined);
         } else if (window.ai && window.ai.canCreateTextSession) {
             this.session = await window.ai.createTextSession();
         }
     }
 
-    async *streamPrompt(messages, systemPrompt = null) {
-        if (!this.session) await this.initialize();
-        
+    async *streamPrompt(messages, systemPrompt = null, signal = null, options = {}) {
+        await this.initialize(options.temperature);
+
         let promptText = "";
         if (systemPrompt && systemPrompt.trim() !== '') {
             promptText += `System: ${systemPrompt}\n`;
@@ -49,10 +51,12 @@ export class ChromeAIProvider {
         }
         promptText += "Assistant:";
 
+        const opts = signal ? { signal } : undefined;
+
         if (this.session.promptStreaming) {
-            const stream = this.session.promptStreaming(promptText);
+            const stream = this.session.promptStreaming(promptText, opts);
             let currentText = '';
-            
+
             for await (const chunk of stream) {
                 if (currentText.length > 0 && chunk.startsWith(currentText)) {
                     yield chunk.substring(currentText.length);
@@ -63,7 +67,7 @@ export class ChromeAIProvider {
                 }
             }
         } else {
-            const response = await this.session.prompt(promptText);
+            const response = await this.session.prompt(promptText, opts);
             yield response;
         }
     }

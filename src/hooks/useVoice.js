@@ -2,13 +2,42 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+function pickBestVoice(voices) {
+  const en = voices.filter(v => v.lang.startsWith('en'));
+  if (!en.length) return voices[0] || null;
+
+  // 1. Microsoft Neural / Natural voices (Windows — best quality)
+  const msNatural = en.find(v => /natural/i.test(v.name));
+  if (msNatural) return msNatural;
+
+  // 2. Google voices (Chrome on any OS)
+  const google = en.find(v => /google/i.test(v.name) && v.lang === 'en-US');
+  if (google) return google;
+
+  // 3. macOS Enhanced / Premium voices
+  const enhanced = en.find(v => /(enhanced|premium)/i.test(v.name));
+  if (enhanced) return enhanced;
+
+  // 4. Any other Microsoft Online voice
+  const msOnline = en.find(v => /microsoft.*online/i.test(v.name));
+  if (msOnline) return msOnline;
+
+  // 5. Known good macOS voices
+  const macGood = en.find(v => /\b(samantha|ava|alex|karen|moira)\b/i.test(v.name));
+  if (macGood) return macGood;
+
+  // 6. en-US fallback, then any English
+  return en.find(v => v.lang === 'en-US') || en[0];
+}
+
 export function useVoice() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isSupported, setIsSupported] = useState(!!SpeechRecognition);
-  
+  const [availableVoices, setAvailableVoices] = useState([]);
+
   const recognitionRef = useRef(null);
   const synthRef = useRef(null);
   const currentUtteranceRef = useRef(null);
@@ -16,10 +45,26 @@ export function useVoice() {
   const isManualStopRef = useRef(false);
   const restartTimerRef = useRef(null);
   const onTranscriptRef = useRef(null);
+  const preferredVoiceNameRef = useRef('');
+
+  const setPreferredVoice = useCallback((name) => {
+    preferredVoiceNameRef.current = name || '';
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       synthRef.current = window.speechSynthesis;
+      const load = () => {
+        const voices = synthRef.current?.getVoices() || [];
+        if (voices.length) setAvailableVoices(voices);
+      };
+      load();
+      window.speechSynthesis.addEventListener('voiceschanged', load);
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', load);
+        stopListening();
+        stopSpeaking();
+      };
     }
     return () => {
       stopListening();
@@ -157,14 +202,15 @@ export function useVoice() {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = 1.0;
+    utterance.rate = 0.95;
     utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
     const voices = synthRef.current.getVoices();
-    const englishVoice = voices.find(v => v.lang.startsWith('en-')) || voices[0];
-    if (englishVoice) {
-      utterance.voice = englishVoice;
-    }
+    const preferred = preferredVoiceNameRef.current
+      ? voices.find(v => v.name === preferredVoiceNameRef.current)
+      : null;
+    utterance.voice = preferred || pickBestVoice(voices);
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -188,6 +234,12 @@ export function useVoice() {
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    if (currentUtteranceRef.current) {
+      // Null out handlers before cancel so the browser-triggered onend/onerror
+      // don't fire stale callbacks (e.g. closing the overlay for the next utterance).
+      currentUtteranceRef.current.onend = null;
+      currentUtteranceRef.current.onerror = null;
+    }
     if (synthRef.current) {
       synthRef.current.cancel();
     }
@@ -209,6 +261,8 @@ export function useVoice() {
     transcript,
     interimTranscript,
     isSupported,
+    availableVoices,
+    setPreferredVoice,
     startListening,
     stopListening,
     speak,
