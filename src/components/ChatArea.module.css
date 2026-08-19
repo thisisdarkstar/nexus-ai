@@ -1,0 +1,348 @@
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: rgba(16, 185, 129, 0.06);
+  border: 2px dashed rgba(16, 185, 129, 0.45);
+  border-radius: 8px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropLabel {
+  background: var(--sidebar-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 20px 40px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: rgba(16, 185, 129, 0.9);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.header {
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sidebar-border);
+  background: var(--sidebar-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  min-height: 70px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.regenerateTitleBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  font-family: 'Outfit', sans-serif;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.regenerateTitleBtn:hover:not(:disabled) {
+  color: var(--accent-color);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.regenerateTitleBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.headerNoBorder {
+  border-bottom: none;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.promptBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 12px;
+  transition: all 0.2s;
+  font-family: 'Outfit', sans-serif;
+}
+
+.promptBtn:hover {
+  background: var(--card-glass);
+  color: var(--text-primary);
+}
+
+.promptBtnActive {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.exportBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 12px;
+  transition: background 0.2s;
+  font-family: 'Outfit', sans-serif;
+}
+
+.exportBtn:hover {
+  background: var(--card-glass);
+  color: var(--text-primary);
+}
+
+.modelBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--card-glass);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.modelBadgeName {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--card-glass);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.statusText {
+  font-weight: 500;
+}
+
+.promptPanel {
+  padding: 12px 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+[data-theme='light'] .promptPanel {
+  background: #ffffff;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.promptLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.promptLabelHint {
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.activeTemplateLabel {
+  color: #10b981;
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+}
+
+.promptTextarea {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: #e2e8f0;
+  outline: none;
+  resize: vertical;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+[data-theme='light'] .promptTextarea {
+  background: #f1f5f9;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #0f172a;
+}
+
+.messageArea {
+  flex: 1;
+  position: relative;
+}
+
+.messageWrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 12px 20px;
+}
+
+.emptyState {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.emptyIcon {
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  background: var(--accent-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4);
+}
+
+.emptyTitle {
+  font-size: 2.5rem;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  letter-spacing: -1px;
+}
+
+.emptySubtitle {
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+.headerSpacer {
+  height: 40px;
+}
+
+.footerSpacer {
+  height: 140px;
+}
+
+.loadingContainer {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0 16px;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title {
+    font-size: 0.95rem;
+  }
+
+  .headerActions {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .promptBtn span,
+  .exportBtn {
+    display: none;
+  }
+
+  .modelBadgeName {
+    display: none;
+  }
+
+  .statusText {
+    display: none;
+  }
+
+  .promptPanel {
+    padding: 10px 16px;
+  }
+
+  .messageWrapper {
+    padding: 10px 12px;
+  }
+
+  .emptyTitle {
+    font-size: 1.8rem;
+  }
+
+  .emptySubtitle {
+    font-size: 0.95rem;
+  }
+
+  .dropLabel {
+    padding: 16px 24px;
+    font-size: 0.9rem;
+  }
+
+  .footerSpacer {
+    height: 120px;
+  }
+}

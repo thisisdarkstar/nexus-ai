@@ -1,0 +1,146 @@
+.container {
+  position: relative;
+}
+
+.trigger {
+  height: 44px;
+  background: var(--card-glass);
+  border: 1px solid var(--card-border);
+  color: var(--accent-color);
+  border-radius: 16px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  white-space: nowrap;
+  font-family: 'Outfit', sans-serif;
+}
+
+.trigger:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.triggerDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.triggerDisabled:hover {
+  background: var(--card-glass);
+}
+
+.chevron {
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+}
+
+.menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 12px;
+  width: 300px;
+  background: rgba(23, 23, 33, 0.98);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 20px;
+  padding: 10px;
+  z-index: 100;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(50px);
+  -webkit-backdrop-filter: blur(50px);
+  max-height: 400px;
+  overflow-y: auto;
+  border-bottom: 2px solid var(--accent-color);
+}
+
+.menuHeader {
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.divider {
+  margin: 8px 0;
+  height: 1px;
+  background: var(--sidebar-border);
+}
+
+.option {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  font-family: 'Outfit', sans-serif;
+}
+
+.option:hover {
+  background: var(--card-glass);
+  color: var(--text-primary);
+}
+
+.optionActive {
+  background: rgba(16, 185, 129, 0.2);
+  color: #fff;
+}
+
+.optionActive:hover {
+  background: rgba(16, 185, 129, 0.2);
+  color: #fff;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  margin-left: auto;
+  color: #34d399;
+}
+
+@media (max-width: 768px) {
+  .trigger {
+    height: 40px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    gap: 4px;
+  }
+
+  .menu {
+    width: calc(100vw - 48px);
+    right: -8px;
+  }
+}
