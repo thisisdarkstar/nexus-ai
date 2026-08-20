@@ -40,21 +40,90 @@ interface MessageItemProps {
   settings: Settings;
 }
 
-function injectCopyButtons(el: HTMLElement) {
+function injectActionButtons(el: HTMLElement) {
   el.querySelectorAll('pre').forEach((pre) => {
-    if (pre.querySelector('.code-copy-btn')) return;
-    const btn = document.createElement('button');
-    btn.className = 'code-copy-btn';
-    btn.innerHTML = `${COPY_SVG} Copy`;
-    btn.onclick = () => {
-      navigator.clipboard.writeText(pre.querySelector('code')?.innerText || '');
-      btn.innerHTML = `${CHECK_SVG} Copied`;
+    if (pre.querySelector('.code-action-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'code-action-bar';
+
+    const getCode = () => pre.querySelector('code')?.innerText || '';
+
+    // Sandbox button
+    const sandBtn = document.createElement('button');
+    sandBtn.className = 'code-action-btn';
+    sandBtn.innerHTML = '🐍 Sandbox';
+    sandBtn.title = 'Execute in isolated Pyodide Wasm sandbox';
+    sandBtn.onclick = (e) => {
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('nexus:open-security', {
+          detail: { tab: 'sandbox', code: getCode() },
+        })
+      );
+    };
+    bar.appendChild(sandBtn);
+
+    // Audit button
+    const auditBtn = document.createElement('button');
+    auditBtn.className = 'code-action-btn';
+    auditBtn.innerHTML = '🛡️ Audit';
+    auditBtn.title = 'Inspect in SAST Code Auditor';
+    auditBtn.onclick = (e) => {
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('nexus:open-security', {
+          detail: { tab: 'auditor', code: getCode() },
+        })
+      );
+    };
+    bar.appendChild(auditBtn);
+
+    // Decode button
+    const decBtn = document.createElement('button');
+    decBtn.className = 'code-action-btn';
+    decBtn.innerHTML = '🔄 Decode';
+    decBtn.title = 'Inspect in Decoders & JWT Hub';
+    decBtn.onclick = (e) => {
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('nexus:open-security', {
+          detail: { tab: 'decoders', code: getCode() },
+        })
+      );
+    };
+    bar.appendChild(decBtn);
+
+    // Report button
+    const repBtn = document.createElement('button');
+    repBtn.className = 'code-action-btn';
+    repBtn.innerHTML = '📑 Report';
+    repBtn.title = 'Open in VAPT Report Studio';
+    repBtn.onclick = (e) => {
+      e.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('nexus:open-security', {
+          detail: { tab: 'reports', code: getCode() },
+        })
+      );
+    };
+    bar.appendChild(repBtn);
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'code-action-btn code-copy-btn';
+    copyBtn.innerHTML = `${COPY_SVG} Copy`;
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(getCode());
+      copyBtn.innerHTML = `${CHECK_SVG} Copied`;
       setTimeout(() => {
-        btn.innerHTML = `${COPY_SVG} Copy`;
+        copyBtn.innerHTML = `${COPY_SVG} Copy`;
       }, 2000);
     };
+    bar.appendChild(copyBtn);
+
     pre.style.position = 'relative';
-    pre.appendChild(btn);
+    pre.appendChild(bar);
   });
 }
 
@@ -80,14 +149,14 @@ export default memo(function MessageItem({
   useEffect(() => {
     if (showRaw || !bodyRef.current) return;
     requestAnimationFrame(() => {
-      if (bodyRef.current) injectCopyButtons(bodyRef.current);
+      if (bodyRef.current) injectActionButtons(bodyRef.current);
     });
   }, [msg.content, showRaw, renderKey]);
 
   useEffect(() => {
     if (!bodyRef.current || showRaw) return;
     const observer = new MutationObserver(() => {
-      if (bodyRef.current) injectCopyButtons(bodyRef.current);
+      if (bodyRef.current) injectActionButtons(bodyRef.current);
     });
     if (bodyRef.current) {
       observer.observe(bodyRef.current, { childList: true, subtree: true });
