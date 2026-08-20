@@ -403,7 +403,7 @@ export function useChatEngine({
         }
       }
     } catch {
-      // silently fail — title stays as-is
+      // silently fail - title stays as-is
     }
   };
 

@@ -96,7 +96,7 @@ export class OpenAIProvider implements AIProvider {
     } catch (e) {
       if (e instanceof Error) {
         if (e.name === 'AbortError' && combinedSignal === timeoutController.signal) {
-          throw new Error('Request timed out (90s). The model may be overloaded — try again or use a smaller prompt.');
+          throw new Error('Request timed out (90s). The model may be overloaded - try again or use a smaller prompt.');
         }
         if (e.name === 'AbortError') {
           throw e;

@@ -246,15 +246,18 @@ export default function SettingsModal({
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Max Tokens</label>
-              <input
-                type="number"
-                min="256"
-                max="32768"
-                step="256"
+              <select
                 value={maxTokens}
-                onChange={(e) => setMaxTokens(parseInt(e.target.value, 10) || 4096)}
+                onChange={(e) => setMaxTokens(parseInt(e.target.value, 10))}
                 className={styles.select}
-              />
+              >
+                <option value={1024}>1,024 - Short responses</option>
+                <option value={2048}>2,048 - Standard</option>
+                <option value={4096}>4,096 - Detailed (default)</option>
+                <option value={8192}>8,192 - Long code / analysis</option>
+                <option value={16384}>16,384 - Very long outputs</option>
+                <option value={32768}>32,768 - Maximum</option>
+              </select>
             </div>
           </div>
 
