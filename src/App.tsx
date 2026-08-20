@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
+import SecurityCanvas from './components/security/SecurityCanvas';
 import VoiceOverlay from './components/VoiceOverlay';
 import ConfirmModal from './components/ConfirmModal';
 import { ToastProvider, useToast } from './lib/toast';
@@ -16,21 +18,35 @@ import type {
   VoiceOverlayState,
   ConfirmModalState,
   AvailableModel,
+  SecurityTab,
 } from './types';
 
 const SettingsModal = lazy(() => import('./components/SettingsModal'));
 
 const DEFAULT_SETTINGS: Settings = {
-  provider: 'chrome',
+  provider: 'openai',
   theme: 'dark',
   systemPrompt: '',
-    openaiBaseUrl: DEFAULT_OPENAI_BASE_URL,
+  openaiBaseUrl: DEFAULT_OPENAI_BASE_URL,
   openaiApiKey: 'sk-local',
   openaiModel: '',
   temperature: 0.7,
-    maxTokens: 4096,
+  maxTokens: 4096,
   ttsVoice: '',
 };
+
+function getInitialSettings(): Settings {
+  const savedSettings = localStorage.getItem('nexus_settings');
+  if (savedSettings) {
+    try {
+      const parsed = JSON.parse(savedSettings);
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      localStorage.removeItem('nexus_settings');
+    }
+  }
+  return DEFAULT_SETTINGS;
+}
 
 export default function App() {
   return (
@@ -51,7 +67,7 @@ function AppContent() {
     reason: null,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(getInitialSettings);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
     isOpen: false,
     title: '',
@@ -66,8 +82,53 @@ function AppContent() {
     text: '',
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [securityWorkbenchOpen, setSecurityWorkbenchOpen] = useState(false);
+  const [activeSecurityTab, setActiveSecurityTab] = useState<SecurityTab>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_security_active_tab') as SecurityTab;
+      if (saved) return saved;
+    } catch {
+      // fallback
+    }
+    return 'reports';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_security_active_tab', activeSecurityTab);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [activeSecurityTab]);
+
+  const [securityInitialCode, setSecurityInitialCode] = useState<string | undefined>(undefined);
+  const [securityInitialDecoderInput, setSecurityInitialDecoderInput] = useState<string | undefined>(undefined);
 
   const voice = useVoice();
+
+  useEffect(() => {
+    const handleOpenSecurity = (e: Event) => {
+      const custom = e as CustomEvent<{ tab?: SecurityTab; code?: string; input?: string }>;
+      if (custom.detail?.tab) {
+        setActiveSecurityTab(custom.detail.tab);
+      }
+      if (custom.detail?.code) {
+        setSecurityInitialCode(custom.detail.code);
+      }
+      if (custom.detail?.input) {
+        setSecurityInitialDecoderInput(custom.detail.input);
+      }
+      setSecurityWorkbenchOpen(true);
+    };
+    window.addEventListener('nexus:open-security', handleOpenSecurity);
+    return () => window.removeEventListener('nexus:open-security', handleOpenSecurity);
+  }, []);
+
+  const handleSendToAIFromSecurity = (prompt: string) => {
+    window.dispatchEvent(
+      new CustomEvent('nexus:send-ai-prompt', { detail: { prompt } })
+    );
+  };
 
   useEffect(() => {
     voice.setPreferredVoice(settings.ttsVoice || '');
@@ -129,7 +190,11 @@ function AppContent() {
         setProviderStatus({ state: 'ready', reason: null });
       } else {
         setProviderStatus({ state: 'error', reason: status.reason || null });
-        toast('error', `Provider unavailable: ${status.reason || 'unknown error'}`);
+        if (settings.provider === 'chrome') {
+          toast('warning', 'Chrome Built-in AI not detected. Switch to OpenAI/Ollama in Settings (⚙️) or enable Chrome flags.');
+        } else {
+          toast('error', `Provider unavailable: ${status.reason || 'unknown error'}`);
+        }
       }
 
       const models = await providerManager.fetchAvailableModels();
@@ -305,22 +370,58 @@ function AppContent() {
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      <ChatArea
-        currentChatId={currentChatId}
-        setCurrentChatId={setCurrentChatId}
-        currentProjectId={currentProjectId}
-        providerStatus={providerStatus}
-        reloadChats={reloadChats}
-        settings={settings}
-        availableModels={availableModels}
-        onModelChange={(p, m) => {
-          if (settings.provider !== p || (p === 'openai' && settings.openaiModel !== m)) {
-            saveSettings({ provider: p as Settings['provider'], openaiModel: m });
-          }
-        }}
-        voice={voice}
-        setVoiceOverlay={setVoiceOverlay}
-      />
+      <div style={{ flex: 1, display: 'flex', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
+        <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
+          <Panel
+            defaultSize={securityWorkbenchOpen ? '45%' : '100%'}
+            minSize="30%"
+            style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+          >
+            <ChatArea
+              currentChatId={currentChatId}
+              setCurrentChatId={setCurrentChatId}
+              currentProjectId={currentProjectId}
+              providerStatus={providerStatus}
+              reloadChats={reloadChats}
+              settings={settings}
+              availableModels={availableModels}
+              onModelChange={(p, m) => {
+                if (settings.provider !== p || (p === 'openai' && settings.openaiModel !== m)) {
+                  saveSettings({ provider: p as Settings['provider'], openaiModel: m });
+                }
+              }}
+              voice={voice}
+              setVoiceOverlay={setVoiceOverlay}
+              onToggleSecurityWorkbench={() => setSecurityWorkbenchOpen(!securityWorkbenchOpen)}
+              securityWorkbenchOpen={securityWorkbenchOpen}
+            />
+          </Panel>
+
+          {securityWorkbenchOpen && (
+            <>
+              <Separator
+                style={{
+                  width: '5px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  cursor: 'col-resize',
+                  transition: 'background 0.2s',
+                  zIndex: 20,
+                }}
+              />
+              <Panel defaultSize="55%" minSize="32%" style={{ height: '100%', overflow: 'hidden' }}>
+                <SecurityCanvas
+                  activeTab={activeSecurityTab}
+                  onTabChange={setActiveSecurityTab}
+                  onClose={() => setSecurityWorkbenchOpen(false)}
+                  onSendToAI={handleSendToAIFromSecurity}
+                  initialCode={securityInitialCode}
+                  initialDecoderInput={securityInitialDecoderInput}
+                />
+              </Panel>
+            </>
+          )}
+        </Group>
+      </div>
       <VoiceOverlay
         isActive={voiceOverlay.active}
         type={voiceOverlay.type}
