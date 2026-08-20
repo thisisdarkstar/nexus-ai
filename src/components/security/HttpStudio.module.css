@@ -327,5 +327,13 @@
 @media (max-width: 768px) {
   .editorGrid {
     flex-direction: column;
+    overflow-y: auto;
+  }
+}
+
+@container workbench (max-width: 768px) {
+  .editorGrid {
+    flex-direction: column;
+    overflow-y: auto;
   }
 }

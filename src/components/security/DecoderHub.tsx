@@ -435,7 +435,7 @@ Please suggest:
                   ))}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '0.75rem' }}>
+              <div className={styles.jwtGrid}>
                 <div className={styles.inputGroup}>
                   <span className={styles.inputLabel}>Header (Algorithm & Typ)</span>
                   <pre className={styles.jsonBox}>{JSON.stringify(jwt.header, null, 2)}</pre>

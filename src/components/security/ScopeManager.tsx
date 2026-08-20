@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Target, Plus, Trash2, Globe, Shield, Sparkles, AlertCircle, RotateCcw } from 'lucide-react';
+import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw } from 'lucide-react';
+import ConfirmModal from '../ConfirmModal';
 import type { ScopeItem } from '../../types';
 import styles from './ScopeManager.module.css';
 
@@ -36,6 +37,20 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
   const [newType, setNewType] = useState<ScopeItem['type']>('domain');
   const [isInScope, setIsInScope] = useState(true);
 
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'primary' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopeItems));
@@ -59,8 +74,18 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
     setNewTarget('');
   };
 
-  const handleDelete = (id: string) => {
-    setScopeItems((prev) => prev.filter((s) => s.id !== id));
+  const handleDelete = (id: string, targetName: string) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Remove Target from Scope',
+      message: `Are you sure you want to remove "${targetName}" from this engagement scope?`,
+      confirmLabel: 'Remove Target',
+      variant: 'danger',
+      onConfirm: () => {
+        setScopeItems((prev) => prev.filter((s) => s.id !== id));
+        setModalConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const handleToggleScope = (id: string) => {
@@ -70,9 +95,17 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
   };
 
   const handleResetDefaults = () => {
-    if (window.confirm('Reset scope list back to sample targets?')) {
-      setScopeItems(DEFAULT_SCOPE_ITEMS);
-    }
+    setModalConfig({
+      isOpen: true,
+      title: 'Reset Scope Matrix',
+      message: 'Reset scope list back to sample starter target (*.targetapp.com)?',
+      confirmLabel: 'Reset Scope',
+      variant: 'warning',
+      onConfirm: () => {
+        setScopeItems(DEFAULT_SCOPE_ITEMS);
+        setModalConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const inScopeCount = scopeItems.filter((s) => s.inScope).length;
@@ -121,7 +154,7 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
         <input
           type="text"
           className={styles.input}
-          placeholder="e.g. sub.target.com or 192.168.1.0/24"
+          placeholder="Add Target (e.g. *.domain.com, 192.168.1.0/24, /api/v2/auth)"
           value={newTarget}
           onChange={(e) => setNewTarget(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
@@ -131,11 +164,10 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
           value={newType}
           onChange={(e) => setNewType(e.target.value as ScopeItem['type'])}
         >
-          <option value="domain">Domain / Host</option>
-          <option value="api">REST / GraphQL API</option>
-          <option value="ip">IP / CIDR Block</option>
-          <option value="mobile">Mobile / Android App</option>
-          <option value="cloud">Cloud Resource / S3</option>
+          <option value="domain">Domain / Subdomain</option>
+          <option value="ip">IP / CIDR Range</option>
+          <option value="api">API Endpoint</option>
+          <option value="mobile">Mobile App / Binary</option>
         </select>
         <button
           className={styles.btn}
@@ -160,53 +192,64 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
       ) : (
         <div className={styles.scopeGrid}>
           {scopeItems.map((item) => (
-          <div key={item.id} className={styles.scopeCard}>
-            <div className={styles.scopeHeader}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Globe size={14} color="var(--accent-color)" />
-                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.target}</span>
+            <div key={item.id} className={styles.scopeCard}>
+              <div className={styles.scopeHeader}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Globe size={14} color="var(--accent-color)" />
+                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.target}</span>
+                </div>
+                <button
+                  onClick={() => handleToggleScope(item.id)}
+                  className={item.inScope ? styles.inScopeBadge : styles.outScopeBadge}
+                  style={{ cursor: 'pointer', border: 'none' }}
+                  title="Click to toggle In-Scope / Out-of-Scope"
+                >
+                  {item.inScope ? 'IN-SCOPE' : 'OUT-OF-SCOPE'}
+                </button>
               </div>
-              <button
-                onClick={() => handleToggleScope(item.id)}
-                className={item.inScope ? styles.inScopeBadge : styles.outScopeBadge}
-                style={{ cursor: 'pointer', border: 'none' }}
-                title="Click to toggle In-Scope / Out-of-Scope"
-              >
-                {item.inScope ? 'IN-SCOPE' : 'OUT-OF-SCOPE'}
-              </button>
-            </div>
 
-            {item.notes && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {item.notes}
-              </span>
-            )}
+              {item.notes && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  {item.notes}
+                </span>
+              )}
 
-            {item.techStack && item.techStack.length > 0 && (
-              <div className={styles.tagList}>
-                {item.techStack.map((tech, i) => (
-                  <span key={i} className={styles.tag}>
-                    {tech}
-                  </span>
-                ))}
+              {item.techStack && item.techStack.length > 0 && (
+                <div className={styles.tagList}>
+                  {item.techStack.map((tech, i) => (
+                    <span key={i} className={styles.tag}>
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  Status: <strong>{item.status.toUpperCase()}</strong>
+                </span>
+                <button
+                  onClick={() => handleDelete(item.id, item.target)}
+                  style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                  title="Delete target"
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                Status: <strong>{item.status.toUpperCase()}</strong>
-              </span>
-              <button
-                onClick={() => handleDelete(item.id)}
-                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                title="Delete target"
-              >
-                <Trash2 size={12} />
-              </button>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {modalConfig.isOpen && (
+        <ConfirmModal
+          title={modalConfig.title}
+          message={modalConfig.message}
+          confirmLabel={modalConfig.confirmLabel}
+          variant={modalConfig.variant}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
       )}
     </div>
   );

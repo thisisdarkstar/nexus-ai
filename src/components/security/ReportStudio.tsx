@@ -19,6 +19,7 @@ import {
   generateHTMLReport,
   SAMPLE_VAPT_REPORT,
 } from '../../lib/security/reportGenerator';
+import ConfirmModal from '../ConfirmModal';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
 import styles from './ReportStudio.module.css';
 
@@ -53,11 +54,33 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
   );
   const [copied, setCopied] = useState(false);
 
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'primary' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   const handleResetReport = () => {
-    if (window.confirm('Reset report findings back to sample report?')) {
-      setReport(SAMPLE_VAPT_REPORT);
-      setSelectedFindingId(SAMPLE_VAPT_REPORT.findings[0]?.id || null);
-    }
+    setModalConfig({
+      isOpen: true,
+      title: 'Reset Report Findings',
+      message: 'Are you sure you want to reset report findings back to the default vulnerability template?',
+      confirmLabel: 'Reset Report',
+      variant: 'warning',
+      onConfirm: () => {
+        setReport(SAMPLE_VAPT_REPORT);
+        setSelectedFindingId(SAMPLE_VAPT_REPORT.findings[0]?.id || null);
+        setModalConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   // CVSS Modal state for currently edited finding
@@ -94,14 +117,24 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     setSelectedFindingId(newId);
   };
 
-  const handleDeleteFinding = (findingId: string) => {
-    setReport((prev) => ({
-      ...prev,
-      findings: prev.findings.filter((f) => f.id !== findingId),
-    }));
-    if (selectedFindingId === findingId) {
-      setSelectedFindingId(report.findings[0]?.id || null);
-    }
+  const handleDeleteFinding = (findingId: string, findingTitle: string) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Delete Finding',
+      message: `Are you sure you want to delete finding "${findingTitle}" (${findingId})?`,
+      confirmLabel: 'Delete Finding',
+      variant: 'danger',
+      onConfirm: () => {
+        setReport((prev) => ({
+          ...prev,
+          findings: prev.findings.filter((f) => f.id !== findingId),
+        }));
+        if (selectedFindingId === findingId) {
+          setSelectedFindingId(report.findings[0]?.id || null);
+        }
+        setModalConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const handleCvssMetricChange = (metric: keyof CVSSMetrics, val: string) => {
@@ -350,7 +383,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     <button
                       className={styles.btn}
                       style={{ color: '#ef4444' }}
-                      onClick={() => handleDeleteFinding(selectedFinding.id)}
+                      onClick={() => handleDeleteFinding(selectedFinding.id, selectedFinding.title)}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -387,10 +420,25 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                         {(['N', 'A', 'L', 'P'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssOptionBtn} ${activeCvss.av === v ? styles.active : ''}`}
+                            className={`${styles.cvssBtn} ${activeCvss.av === v ? styles.cvssBtnActive : ''}`}
                             onClick={() => handleCvssMetricChange('av', v)}
                           >
-                            {v === 'N' ? 'Network' : v === 'A' ? 'Adjacent' : v === 'L' ? 'Local' : 'Physical'}
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.cvssRow}>
+                      <span>Attack Complexity (AC):</span>
+                      <div className={styles.cvssBtnGroup}>
+                        {(['L', 'H'] as const).map((v) => (
+                          <button
+                            key={v}
+                            className={`${styles.cvssBtn} ${activeCvss.ac === v ? styles.cvssBtnActive : ''}`}
+                            onClick={() => handleCvssMetricChange('ac', v)}
+                          >
+                            {v}
                           </button>
                         ))}
                       </div>
@@ -402,10 +450,40 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                         {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssOptionBtn} ${activeCvss.pr === v ? styles.active : ''}`}
+                            className={`${styles.cvssBtn} ${activeCvss.pr === v ? styles.cvssBtnActive : ''}`}
                             onClick={() => handleCvssMetricChange('pr', v)}
                           >
-                            {v === 'N' ? 'None' : v === 'L' ? 'Low' : 'High'}
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.cvssRow}>
+                      <span>User Interaction (UI):</span>
+                      <div className={styles.cvssBtnGroup}>
+                        {(['N', 'R'] as const).map((v) => (
+                          <button
+                            key={v}
+                            className={`${styles.cvssBtn} ${activeCvss.ui === v ? styles.cvssBtnActive : ''}`}
+                            onClick={() => handleCvssMetricChange('ui', v)}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.cvssRow}>
+                      <span>Scope (S):</span>
+                      <div className={styles.cvssBtnGroup}>
+                        {(['U', 'C'] as const).map((v) => (
+                          <button
+                            key={v}
+                            className={`${styles.cvssBtn} ${activeCvss.s === v ? styles.cvssBtnActive : ''}`}
+                            onClick={() => handleCvssMetricChange('s', v)}
+                          >
+                            {v}
                           </button>
                         ))}
                       </div>
@@ -414,13 +492,43 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     <div className={styles.cvssRow}>
                       <span>Confidentiality (C):</span>
                       <div className={styles.cvssBtnGroup}>
-                        {(['H', 'L', 'N'] as const).map((v) => (
+                        {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssOptionBtn} ${activeCvss.c === v ? styles.active : ''}`}
+                            className={`${styles.cvssBtn} ${activeCvss.c === v ? styles.cvssBtnActive : ''}`}
                             onClick={() => handleCvssMetricChange('c', v)}
                           >
-                            {v === 'H' ? 'High' : v === 'L' ? 'Low' : 'None'}
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.cvssRow}>
+                      <span>Integrity (I):</span>
+                      <div className={styles.cvssBtnGroup}>
+                        {(['N', 'L', 'H'] as const).map((v) => (
+                          <button
+                            key={v}
+                            className={`${styles.cvssBtn} ${activeCvss.i === v ? styles.cvssBtnActive : ''}`}
+                            onClick={() => handleCvssMetricChange('i', v)}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.cvssRow}>
+                      <span>Availability (A):</span>
+                      <div className={styles.cvssBtnGroup}>
+                        {(['N', 'L', 'H'] as const).map((v) => (
+                          <button
+                            key={v}
+                            className={`${styles.cvssBtn} ${activeCvss.a === v ? styles.cvssBtnActive : ''}`}
+                            onClick={() => handleCvssMetricChange('a', v)}
+                          >
+                            {v}
                           </button>
                         ))}
                       </div>
@@ -428,27 +536,47 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   </div>
                 )}
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Finding Title</label>
-                  <input
-                    className={styles.input}
-                    value={selectedFinding.title}
-                    onChange={(e) =>
-                      handleUpdateFinding(selectedFinding.id, { title: e.target.value })
-                    }
-                  />
+                <div className={styles.twoColGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Finding Title</label>
+                    <input
+                      className={styles.input}
+                      value={selectedFinding.title}
+                      onChange={(e) =>
+                        handleUpdateFinding(selectedFinding.id, { title: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Severity Level</label>
+                    <select
+                      className={styles.select}
+                      value={selectedFinding.severity}
+                      onChange={(e) =>
+                        handleUpdateFinding(selectedFinding.id, {
+                          severity: e.target.value as VulnerabilitySeverity,
+                        })
+                      }
+                    >
+                      <option value="critical">Critical</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                      <option value="info">Informational</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className={styles.twoColGrid}>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>CWE ID</label>
+                    <label className={styles.label}>CWE Identifier</label>
                     <input
                       className={styles.input}
                       value={selectedFinding.cweId || ''}
+                      placeholder="e.g. CWE-89 or CWE-79"
                       onChange={(e) =>
                         handleUpdateFinding(selectedFinding.id, { cweId: e.target.value })
                       }
-                      placeholder="e.g. CWE-89"
                     />
                   </div>
                   <div className={styles.formGroup}>
@@ -456,10 +584,10 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     <input
                       className={styles.input}
                       value={selectedFinding.targetEndpoint || ''}
+                      placeholder="e.g. POST /api/v1/auth/login"
                       onChange={(e) =>
                         handleUpdateFinding(selectedFinding.id, { targetEndpoint: e.target.value })
                       }
-                      placeholder="e.g. POST /api/v1/login"
                     />
                   </div>
                 </div>
@@ -467,8 +595,8 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                 <div className={styles.formGroup}>
                   <label className={styles.label}>Vulnerability Description & Impact</label>
                   <textarea
-                    rows={4}
                     className={styles.textarea}
+                    rows={3}
                     value={selectedFinding.description}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { description: e.target.value })
@@ -477,10 +605,10 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Remediation & Fix Instructions</label>
+                  <label className={styles.label}>Remediation Guidance</label>
                   <textarea
-                    rows={3}
                     className={styles.textarea}
+                    rows={2}
                     value={selectedFinding.remediation}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { remediation: e.target.value })
@@ -495,6 +623,21 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
 
       {subTab === 'markdown' && (
         <div className={styles.previewContainer}>
+          <div className={styles.copyRow}>
+            <button
+              className={styles.btn}
+              onClick={() => handleCopy(markdownContent)}
+            >
+              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+              {copied ? 'Copied' : 'Copy Markdown'}
+            </button>
+            <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => handleDownload(markdownContent, `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`, 'text/markdown')}
+            >
+              <Download size={12} /> Download .md
+            </button>
+          </div>
           <textarea
             className={styles.previewCode}
             value={markdownContent}
@@ -558,6 +701,17 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             title="HTML Report Preview"
           />
         </div>
+      )}
+
+      {modalConfig.isOpen && (
+        <ConfirmModal
+          title={modalConfig.title}
+          message={modalConfig.message}
+          confirmLabel={modalConfig.confirmLabel}
+          variant={modalConfig.variant}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        />
       )}
     </div>
   );

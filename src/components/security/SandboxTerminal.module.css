@@ -58,13 +58,12 @@
 .editorArea {
   display: flex;
   flex-direction: column;
-  min-height: 160px;
-  max-height: 260px;
+  min-height: 180px;
+  flex: 1;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
 .editorHeader {
