@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Download, Terminal, RefreshCw } from 'lucide-react';
+import { Sparkles, Download, Terminal, RefreshCw, Shield } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useChatEngine } from '../hooks/useChatEngine';
 import MessageItem from './chat/MessageItem';
@@ -28,6 +28,8 @@ interface ChatAreaProps {
   availableModels: AvailableModel[];
   voice: VoiceHook;
   setVoiceOverlay: (overlay: VoiceOverlayState) => void;
+  onToggleSecurityWorkbench?: () => void;
+  securityWorkbenchOpen?: boolean;
 }
 
 export default function ChatArea({
@@ -41,6 +43,8 @@ export default function ChatArea({
   availableModels,
   voice,
   setVoiceOverlay,
+  onToggleSecurityWorkbench,
+  securityWorkbenchOpen,
 }: ChatAreaProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [attachModalOpen, setAttachModalOpen] = useState(false);
@@ -86,6 +90,17 @@ export default function ChatArea({
     setVoiceOverlay,
     onModelChange,
   });
+
+  useEffect(() => {
+    const handleAIRequest = (e: Event) => {
+      const customEvent = e as CustomEvent<{ prompt: string }>;
+      if (customEvent.detail?.prompt) {
+        handleSend(customEvent.detail.prompt);
+      }
+    };
+    window.addEventListener('nexus:send-ai-prompt', handleAIRequest);
+    return () => window.removeEventListener('nexus:send-ai-prompt', handleAIRequest);
+  }, [handleSend]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -154,6 +169,29 @@ export default function ChatArea({
           )}
         </div>
         <div className={styles.headerActions}>
+          {onToggleSecurityWorkbench && (
+            <button
+              onClick={onToggleSecurityWorkbench}
+              className={`${styles.promptBtn} ${securityWorkbenchOpen ? styles.promptBtnActive : ''}`}
+              title={
+                securityWorkbenchOpen
+                  ? 'Close Security Workbench'
+                  : 'Open Security Workbench (SAST Auditor, Sandbox, Decoders)'
+              }
+              style={
+                securityWorkbenchOpen
+                  ? {
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      borderColor: 'rgba(16, 185, 129, 0.4)',
+                      color: '#10b981',
+                    }
+                  : undefined
+              }
+            >
+              <Shield size={14} color={securityWorkbenchOpen ? '#10b981' : 'var(--accent-color)'} />
+              <span className={styles.btnLabel}>Workbench</span>
+            </button>
+          )}
           <TemplateSelector
             currentPrompt={chatSystemPrompt}
             onSelect={(prompt) => {
@@ -165,18 +203,18 @@ export default function ChatArea({
             onClick={() => setShowConvPrompt((s) => !s)}
             className={`${styles.promptBtn} ${showConvPrompt ? styles.promptBtnActive : ''}`}
             title={
-              chatSystemPrompt ? 'Custom system prompt active' : 'Set conversation system prompt'
+              chatSystemPrompt ? `Active Prompt: ${chatSystemPrompt.slice(0, 100)}` : 'Set conversation system prompt'
             }
           >
-            <Terminal size={16} />
-            <span>
+            <Terminal size={14} />
+            <span className={styles.btnLabel}>
               {chatSystemPrompt
                 ? (() => {
                     const all = [...PRESET_TEMPLATES, ...getCustomTemplates()];
                     const match = all.find((t) => t.prompt === chatSystemPrompt);
-                    return match ? match.name : 'Prompt Active';
+                    return match ? match.name : 'Active';
                   })()
-                : 'Set Prompt'}
+                : 'Prompt'}
             </span>
           </button>
           {messages.length > 0 && (
@@ -185,15 +223,23 @@ export default function ChatArea({
               className={styles.exportBtn}
               title="Export as Markdown"
             >
-              <Download size={16} /> Export
+              <Download size={14} />
+              <span>Export</span>
             </button>
           )}
-          <div className={styles.modelBadge}>
-            <Sparkles size={14} color="var(--accent-color)" />
+          <div
+            className={styles.modelBadge}
+            title={
+              settings.provider === 'openai'
+                ? settings.openaiModel || 'Default Model'
+                : 'Gemini Nano'
+            }
+          >
+            <Sparkles size={13} color="var(--accent-color)" />
             <span className={styles.modelBadgeName}>
               {settings.provider === 'openai'
-                ? settings.openaiModel || 'Default Model'
-                : 'Gemini Nano'}
+                ? settings.openaiModel || 'Default'
+                : 'Nano'}
             </span>
           </div>
           <div className={styles.statusBadge} style={{ color: statusColor }}>
@@ -205,8 +251,8 @@ export default function ChatArea({
               {providerStatus.state === 'ready'
                 ? 'Ready'
                 : providerStatus.state === 'checking'
-                  ? 'Checking...'
-                  : providerStatus.reason}
+                  ? '...'
+                  : 'Error'}
             </span>
           </div>
         </div>

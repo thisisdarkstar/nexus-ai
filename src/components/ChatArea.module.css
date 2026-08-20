@@ -5,6 +5,9 @@
   min-width: 0;
   position: relative;
   z-index: 10;
+  height: 100%;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .dropOverlay {
@@ -33,7 +36,7 @@
 }
 
 .header {
-  padding: 0 30px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -41,14 +44,20 @@
   background: var(--sidebar-glass);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  min-height: 70px;
+  min-height: 52px;
+  max-height: 52px;
+  gap: 6px;
+  overflow: hidden;
+  flex-wrap: nowrap;
 }
 
 .titleRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .regenerateTitleBtn {
@@ -56,7 +65,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 3px;
   display: flex;
   align-items: center;
   border-radius: 6px;
@@ -80,30 +89,45 @@
 }
 
 .title {
-  font-size: 1.1rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+}
+
+.headerActions::-webkit-scrollbar {
+  display: none;
 }
 
 .promptBtn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  padding: 6px 10px;
-  border-radius: 12px;
+  gap: 4px;
+  font-size: 0.76rem;
+  padding: 4px 7px;
+  border-radius: 8px;
   transition: all 0.2s;
   font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .promptBtn:hover {
@@ -117,19 +141,29 @@
   color: #34d399;
 }
 
+.btnLabel {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
 .exportBtn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  padding: 6px 10px;
-  border-radius: 12px;
+  gap: 4px;
+  font-size: 0.76rem;
+  padding: 4px 7px;
+  border-radius: 8px;
   transition: background 0.2s;
   font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .exportBtn:hover {
@@ -138,43 +172,61 @@
 }
 
 .modelBadge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  padding: 6px 12px;
-  border-radius: 20px;
+  gap: 5px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 16px;
   background: var(--card-glass);
   border: 1px solid var(--card-border);
   color: var(--text-secondary);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 100px;
 }
 
 .modelBadgeName {
   font-weight: 500;
-  opacity: 0.8;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .statusBadge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  padding: 6px 12px;
-  border-radius: 20px;
+  gap: 5px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 16px;
   background: var(--card-glass);
   border: 1px solid var(--card-border);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .statusText {
   font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .btnLabel {
+    display: none;
+  }
+  .modelBadgeName {
+    display: none;
+  }
 }
 
 .promptPanel {
@@ -236,6 +288,10 @@
 .messageArea {
   flex: 1;
   position: relative;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .messageWrapper {

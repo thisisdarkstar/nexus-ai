@@ -59,9 +59,19 @@ export function useChatEngine({
 
   const stopRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const queuedPromptRef = useRef('');
+  const queuedPromptsRef = useRef<string[]>([]);
   const handleSendRef = useRef<((textOverride?: string) => Promise<void>) | null>(null);
   const skipNextLoadRef = useRef(false);
+  const currentChatIdRef = useRef<string | null>(currentChatId);
+  const messagesRef = useRef<Message[]>(messages);
+
+  useEffect(() => {
+    currentChatIdRef.current = currentChatId;
+  }, [currentChatId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     async function loadChat() {
@@ -154,16 +164,18 @@ export function useChatEngine({
 
     const existingBranches = oldMsg.branches || [];
     const branchIndex = existingBranches.length;
-    const newBranch = { ...oldMsg, branches: undefined, branchIndex: undefined };
-    const newMsg: Message = {
+    const newBranch: Message = { ...oldMsg, branches: undefined, branchIndex: undefined };
+    const placeholderAi: Message = {
       role: 'ai',
       content: '',
       branches: [...existingBranches, newBranch],
       branchIndex: branchIndex + 1,
     };
-    setMessages([...history, newMsg]);
+    setMessages([...history, placeholderAi]);
 
     let accumulated = '';
+    let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+
     try {
       const provider = providerManager.getProvider();
       if (!provider) throw new Error('No provider available');
@@ -177,24 +189,46 @@ export function useChatEngine({
         if (stopRef.current) break;
         accumulated += delta;
         setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...updated[updated.length - 1], content: accumulated };
-          return updated;
+          const newMsgs = [...prev];
+          const last = newMsgs[newMsgs.length - 1];
+          if (last) {
+            newMsgs[newMsgs.length - 1] = { ...last, content: accumulated };
+          }
+          return newMsgs;
         });
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(() => {
+          if (accumulated && currentChatId) {
+            db.saveChat({
+              id: currentChatId,
+              workspaceId: currentProjectId || 'default',
+              title,
+              messages: [...history, { ...placeholderAi, content: accumulated }],
+              systemPrompt: chatSystemPrompt,
+              provider: settings.provider,
+              model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
+              updatedAt: Date.now(),
+            } as Chat).catch((err) => console.error('Autosave failed:', err));
+          }
+        }, 4000);
       }
     } catch (e) {
       if (e instanceof Error && e.name !== 'AbortError') {
         accumulated = e.message;
         setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...updated[updated.length - 1], content: accumulated, error: true };
-          return updated;
+          const newMsgs = [...prev];
+          const last = newMsgs[newMsgs.length - 1];
+          if (last) {
+            newMsgs[newMsgs.length - 1] = { ...last, content: accumulated, error: true };
+          }
+          return newMsgs;
         });
       }
     } finally {
+      clearTimeout(autosaveTimer);
       if (retryProvider) {
         providerManager.setProvider(originalProviderId || '');
-        if (originalOpenAIModel !== undefined && openai) {
+        if (openai && originalOpenAIModel) {
           openai.model = originalOpenAIModel;
         }
       }
@@ -202,25 +236,28 @@ export function useChatEngine({
       const finalMessages: Message[] = [
         ...history,
         {
-          role: 'ai',
+          ...placeholderAi,
           content: accumulated,
           generationTime: duration,
           tokens: estimateTokens(accumulated),
           createdAt: Date.now(),
         },
       ];
+      messagesRef.current = finalMessages;
       setMessages(finalMessages);
       setIsGenerating(false);
-      db.saveChat({
-        id: currentChatId || '',
-        workspaceId: currentProjectId || 'default',
-        title,
-        messages: finalMessages,
-        systemPrompt: chatSystemPrompt,
-        provider: settings.provider,
-        model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
-        updatedAt: Date.now(),
-      } as Chat).then(() => reloadChats()).catch((err) => console.error('Failed to save chat:', err));
+      if (currentChatId) {
+        db.saveChat({
+          id: currentChatId,
+          workspaceId: currentProjectId || 'default',
+          title,
+          messages: finalMessages,
+          systemPrompt: chatSystemPrompt,
+          provider: settings.provider,
+          model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
+          updatedAt: Date.now(),
+        } as Chat).then(() => reloadChats()).catch((err) => console.error('Failed to save chat:', err));
+      }
     }
   };
 
@@ -228,28 +265,40 @@ export function useChatEngine({
     const text = (textOverride !== undefined ? textOverride : input).trim();
     if (!text) return;
 
-    if (isGenerating && textOverride === undefined) {
-      queuedPromptRef.current = text;
+    if (isGenerating) {
+      queuedPromptsRef.current.push(text);
       setHasQueuedPrompt(true);
-      setQueuedPromptDisplay(text);
-      setInput('');
+      const queueLen = queuedPromptsRef.current.length;
+      setQueuedPromptDisplay(
+        queueLen === 1
+          ? text
+          : `${queuedPromptsRef.current[0]} (+${queueLen - 1} queued)`
+      );
+      if (textOverride === undefined) setInput('');
       return;
     }
 
     if (textOverride === undefined) setInput('');
-    undoRedo.pushSnapshot(messages);
+    undoRedo.pushSnapshot(messagesRef.current);
     setIsGenerating(true);
     stopRef.current = false;
     abortRef.current = new AbortController();
     const startTime = Date.now();
 
-    const sessionChatId = currentChatId || Date.now().toString();
-    const isNewChat = !currentChatId;
+    let sessionChatId = currentChatIdRef.current;
+    let isNewChat = false;
+    if (!sessionChatId) {
+      sessionChatId = Date.now().toString();
+      currentChatIdRef.current = sessionChatId;
+      isNewChat = true;
+    }
+
     const effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
     const providerOptions = { temperature: settings.temperature, maxTokens: settings.maxTokens };
 
+    const currentHistory = messagesRef.current;
     const history: Message[] = [
-      ...messages,
+      ...currentHistory,
       { role: 'user', content: text, createdAt: Date.now() },
     ];
     const chatTitle =
@@ -282,7 +331,7 @@ export function useChatEngine({
         autosaveTimer = setTimeout(() => {
           if (accumulated) {
             db.saveChat({
-              id: sessionChatId,
+              id: sessionChatId!,
               workspaceId: currentProjectId || 'default',
               title: chatTitle,
               messages: [...history, { role: 'ai', content: accumulated }],
@@ -316,6 +365,7 @@ export function useChatEngine({
           createdAt: Date.now(),
         },
       ];
+      messagesRef.current = finalMessages;
       setMessages(finalMessages);
       setIsGenerating(false);
 
@@ -324,7 +374,7 @@ export function useChatEngine({
         setCurrentChatId(sessionChatId);
       }
       db.saveChat({
-        id: sessionChatId,
+        id: sessionChatId!,
         workspaceId: currentProjectId || 'default',
         title: chatTitle,
         messages: finalMessages,
@@ -337,23 +387,28 @@ export function useChatEngine({
       if (finalMessages.length === 2) {
         handleRegenerateTitle(finalMessages);
       }
+
+      if (queuedPromptsRef.current.length > 0) {
+        const nextPrompt = queuedPromptsRef.current.shift()!;
+        const remaining = queuedPromptsRef.current.length;
+        setHasQueuedPrompt(remaining > 0);
+        setQueuedPromptDisplay(
+          remaining === 0
+            ? ''
+            : remaining === 1
+            ? queuedPromptsRef.current[0]
+            : `${queuedPromptsRef.current[0]} (+${remaining - 1} queued)`
+        );
+        setTimeout(() => {
+          handleSendRef.current?.(nextPrompt);
+        }, 100);
+      }
     }
   };
 
   useLayoutEffect(() => {
     handleSendRef.current = handleSend;
   });
-
-  useEffect(() => {
-    if (!isGenerating && queuedPromptRef.current) {
-      const queued = queuedPromptRef.current;
-      queuedPromptRef.current = '';
-      setHasQueuedPrompt(false);
-      setQueuedPromptDisplay('');
-      handleSendRef.current?.(queued);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGenerating]);
 
   const handleStop = () => {
     stopRef.current = true;
@@ -362,7 +417,7 @@ export function useChatEngine({
   };
 
   const cancelQueue = () => {
-    queuedPromptRef.current = '';
+    queuedPromptsRef.current = [];
     setHasQueuedPrompt(false);
     setQueuedPromptDisplay('');
   };
