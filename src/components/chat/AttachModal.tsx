@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Paperclip, X as LucideX } from 'lucide-react';
 import styles from './AttachModal.module.css';
 
@@ -49,7 +50,7 @@ export default function AttachModal({ onAttach, onClose }: AttachModalProps) {
     onClose();
   };
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={onClose}>
       <div
         className={styles.modal}
@@ -126,6 +127,7 @@ export default function AttachModal({ onAttach, onClose }: AttachModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

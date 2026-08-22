@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Download, Upload, Monitor, Volume2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Download, Upload, Monitor, Volume2, RefreshCw } from 'lucide-react';
 import { db } from '../lib/db';
 import { DEFAULT_OPENAI_BASE_URL } from '../lib/constants';
 import CustomSelect from './CustomSelect';
@@ -53,6 +54,7 @@ export default function SettingsModal({
   const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || 'sk-local');
   const [openaiModel, setOpenaiModel] = useState(settings.openaiModel || '');
   const [availableModels, setAvailableModels] = useState<Array<{ id: string }>>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [temperature, setTemperature] = useState(settings.temperature ?? 0.7);
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 4096);
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice || '');
@@ -84,24 +86,32 @@ export default function SettingsModal({
     window.speechSynthesis.speak(u);
   };
 
+  const handleFetchModels = async () => {
+    if (!openaiBaseUrl) return;
+    setIsFetchingModels(true);
+    try {
+      const res = await fetch(`${openaiBaseUrl}/models`, {
+        headers: { Authorization: `Bearer ${openaiApiKey}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const models = data.data || [];
+        setAvailableModels(models);
+        if (models.length > 0 && !openaiModel) {
+          setOpenaiModel(models[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch models', e);
+    } finally {
+      setIsFetchingModels(false);
+    }
+  };
+
   useEffect(() => {
     if (provider !== 'openai') return;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`${openaiBaseUrl}/models`, {
-          headers: { Authorization: `Bearer ${openaiApiKey}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const models = data.data || [];
-          setAvailableModels(models);
-          if (models.length > 0 && !openaiModel) {
-            setOpenaiModel(models[0].id);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch models', e);
-      }
+    const timer = setTimeout(() => {
+      handleFetchModels();
     }, 600);
     return () => clearTimeout(timer);
   }, [provider, openaiBaseUrl, openaiApiKey]);
@@ -145,15 +155,24 @@ export default function SettingsModal({
         if (reloadChats) reloadChats();
         onClose();
       } catch (err) {
-        onImportResult?.(false, 'Import failed: ' + (err instanceof Error ? err.message : String(err)));
+        onImportResult?.(
+          false,
+          'Import failed: ' + (err instanceof Error ? err.message : String(err))
+        );
       }
     };
     reader.readAsText(file);
   };
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="System Configuration" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="System Configuration"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className={styles.header}>
           <div className={styles.headerContent}>
             <Monitor size={20} color="var(--accent-color)" />
@@ -207,14 +226,34 @@ export default function SettingsModal({
                 </div>
               </div>
               <div className={styles.apiField}>
-                <label className={styles.apiLabel}>Model</label>
-                <CustomSelect
-                  value={openaiModel}
-                  placeholder={availableModels.length === 0 ? 'No models found or server unreachable' : 'Select model...'}
-                  options={availableModels.map((m) => ({ value: m.id, label: m.id }))}
-                  onChange={(val) => setOpenaiModel(val)}
-                  disabled={availableModels.length === 0}
-                />
+                <div className={styles.apiFieldHeader}>
+                  <label className={styles.apiLabel}>Model</label>
+                  <button
+                    type="button"
+                    onClick={handleFetchModels}
+                    disabled={isFetchingModels}
+                    className={styles.refreshModelsBtn}
+                  >
+                    <RefreshCw size={12} className={isFetchingModels ? styles.spinning : ''} />
+                    {isFetchingModels ? 'Fetching...' : 'Refresh Models'}
+                  </button>
+                </div>
+                {availableModels.length > 0 ? (
+                  <CustomSelect
+                    value={openaiModel}
+                    placeholder="Select model..."
+                    options={availableModels.map((m) => ({ value: m.id, label: m.id }))}
+                    onChange={(val) => setOpenaiModel(val)}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={openaiModel}
+                    onChange={(e) => setOpenaiModel(e.target.value)}
+                    placeholder="e.g. gpt-4o, llama3, mistral"
+                    className={styles.apiInput}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -225,6 +264,7 @@ export default function SettingsModal({
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="e.g. You are an expert coding assistant..."
+              rows={3}
               className={styles.textarea}
             />
           </div>
@@ -322,6 +362,7 @@ export default function SettingsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

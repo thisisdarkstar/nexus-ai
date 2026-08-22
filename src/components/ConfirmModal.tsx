@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, AlertCircle } from 'lucide-react';
 import styles from './ConfirmModal.module.css';
 
@@ -50,7 +51,7 @@ export default function ConfirmModal({
       ? '#f59e0b'
       : '#10b981';
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={onCancel}>
       <div
         className={styles.modal}
@@ -87,6 +88,7 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Upload,
@@ -46,7 +47,7 @@ export default function ImportJsonModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.importModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
@@ -175,6 +176,7 @@ export default function ImportJsonModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
