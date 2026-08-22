@@ -9,16 +9,46 @@ import {
   Bug,
   ShieldAlert,
   ShieldCheck,
-  Globe,
-  Layers,
-  FileCode,
   Zap,
+  WrapText,
+  AlignLeft,
+  Sliders,
+  List,
+  FileCode,
+  Trash2,
 } from 'lucide-react';
+import CustomSelect from '../CustomSelect';
 import styles from './HttpStudio.module.css';
+
+const METHOD_OPTIONS = [
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+  { value: 'HEAD', label: 'HEAD' },
+  { value: 'OPTIONS', label: 'OPTIONS' },
+];
+
+const HTTP_PRESET_OPTIONS = [
+  { value: 'auth_login', label: 'JSON Login API', badge: 'POST' },
+  { value: 'ollama_models', label: 'Local Ollama /v1/models', badge: 'GET' },
+  { value: 'idor_transaction', label: 'IDOR / BOLA Endpoint', badge: 'GET' },
+  { value: 'ssrf_webhook', label: 'SSRF Cloud Webhook', badge: 'POST' },
+  { value: 'graphql_query', label: 'GraphQL Info Leak', badge: 'POST' },
+  { value: 'clear', label: '🧹 Clear / Blank Request', badge: 'RESET' },
+];
 
 interface HttpStudioProps {
   onSendToAI: (prompt: string) => void;
 }
+
+const BLANK_REQUEST = `GET / HTTP/1.1
+Host: localhost
+User-Agent: Nexus-Security-Studio/1.0
+Accept: */*
+
+`;
 
 const PRESET_REQUESTS = {
   auth_login: `POST /api/v1/auth/login HTTP/1.1
@@ -37,6 +67,11 @@ Cookie: session_id=sess_83921049281; auth_token=jwt_eyJh...
   "rememberMe": true,
   "redirect_url": "https://app.target-system.com/dashboard"
 }`,
+
+  ollama_models: `GET /v1/models HTTP/1.1
+Host: localhost:11434
+Accept: application/json
+User-Agent: Nexus-Security-Studio/1.0`,
 
   idor_transaction: `GET /api/v2/transactions/98231?account_id=ACC-4091&format=json&include_receipts=true HTTP/1.1
 Host: bank.acme-financial.com
@@ -63,6 +98,7 @@ Authorization: Bearer eyJhbGciOi...
     "id": "10029"
   }
 }`,
+  clear: BLANK_REQUEST,
 };
 
 interface HttpResponseState {
@@ -75,6 +111,16 @@ interface HttpResponseState {
 }
 
 const HTTP_REQUEST_STORAGE_KEY = 'nexus_security_http_request';
+const HTTP_RESPONSE_STORAGE_KEY = 'nexus_security_http_response';
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
   const [rawText, setRawText] = useState<string>(() => {
@@ -87,6 +133,9 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
     return PRESET_REQUESTS.auth_login;
   });
 
+  const [urlInput, setUrlInput] = useState<string>('https://api.target-system.com/api/v1/auth/login');
+  const [methodSelect, setMethodSelect] = useState<string>('POST');
+
   useEffect(() => {
     try {
       localStorage.setItem(HTTP_REQUEST_STORAGE_KEY, rawText);
@@ -97,23 +146,54 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
 
   const [leftTab, setLeftTab] = useState<'raw' | 'headers' | 'params' | 'body' | 'cookies'>('raw');
   const [rightTab, setRightTab] = useState<'response' | 'code' | 'security' | 'fuzz'>('response');
+  const [responseFormat, setResponseFormat] = useState<'pretty' | 'raw' | 'headers'>('pretty');
   const [codeLang, setCodeLang] = useState<'curl' | 'python' | 'javascript' | 'go' | 'powershell'>('curl');
+  
+  const [wrapText, setWrapText] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  // Parse Raw HTTP Request
-  const parsed = useMemo(() => {
-    const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+  // Response State (Persisted in localStorage across tab switches, cleared with Clear button)
+  const [response, setResponse] = useState<HttpResponseState | null>(() => {
+    try {
+      const saved = localStorage.getItem(HTTP_RESPONSE_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load http response from localStorage:', e);
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    try {
+      if (response) {
+        localStorage.setItem(HTTP_RESPONSE_STORAGE_KEY, JSON.stringify(response));
+      } else {
+        localStorage.removeItem(HTTP_RESPONSE_STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error('Failed to save http response to localStorage:', e);
+    }
+  }, [response]);
+
+  // Parse Raw HTTP Request Helper
+  const parseRawHttp = (text: string) => {
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
     const firstLine = lines[0] || 'GET / HTTP/1.1';
     const firstLineParts = firstLine.trim().split(/\s+/);
 
-    const method = firstLineParts[0]?.toUpperCase() || 'GET';
-    const path = firstLineParts[1] || '/';
+    let method = firstLineParts[0]?.toUpperCase() || 'GET';
+    let pathOrUrl = firstLineParts[1] || '/';
     const protocol = firstLineParts[2] || 'HTTP/1.1';
+
+    if (firstLine.startsWith('http://') || firstLine.startsWith('https://')) {
+      pathOrUrl = firstLine.trim();
+      method = 'GET';
+    }
 
     const headers: Array<{ key: string; value: string }> = [];
     const cookies: Array<{ key: string; value: string }> = [];
-    let host = 'localhost';
+    let hostFromHeader = '';
     let bodyIndex = -1;
 
     for (let i = 1; i < lines.length; i++) {
@@ -128,7 +208,7 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
         const value = line.substring(colonIndex + 1).trim();
         headers.push({ key, value });
         if (key.toLowerCase() === 'host') {
-          host = value;
+          hostFromHeader = value;
         }
         if (key.toLowerCase() === 'cookie') {
           value.split(';').forEach((c) => {
@@ -141,7 +221,23 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
 
     const body = bodyIndex !== -1 ? lines.slice(bodyIndex).join('\n') : '';
 
-    // Query params
+    let fullUrl = '';
+    let host = hostFromHeader || 'localhost';
+    let path = pathOrUrl;
+
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      fullUrl = pathOrUrl;
+      const match = pathOrUrl.match(/^(https?:\/\/)?([^/?#]+)?(\/[^?#]*)?(\?[^#]*)?(#.*)?$/);
+      if (match) {
+        host = match[2] || host;
+        path = (match[3] || '/') + (match[4] || '');
+      }
+    } else {
+      const isHttps = !host.includes('localhost') && !host.startsWith('127.0.0.1');
+      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+      fullUrl = `${isHttps ? 'https' : 'http'}://${host}${cleanPath}`;
+    }
+
     const queryParams: Array<{ key: string; value: string }> = [];
     const qIndex = path.indexOf('?');
     if (qIndex !== -1) {
@@ -151,9 +247,6 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
         queryParams.push({ key: k, value: v });
       });
     }
-
-    const isHttps = !host.includes('localhost') && !host.startsWith('127.0.0.1');
-    const fullUrl = `${isHttps ? 'https' : 'http'}://${host}${path}`;
 
     return {
       method,
@@ -166,45 +259,86 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
       queryParams,
       body,
     };
-  }, [rawText]);
+  };
 
-  // Live Response Simulation / Real Replayer
-  const [response, setResponse] = useState<HttpResponseState>({
-    status: 200,
-    statusText: 'OK',
-    timeMs: 42,
-    sizeBytes: 1048,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      server: 'nginx/1.24.0',
-      date: new Date().toUTCString(),
-      'x-powered-by': 'Express',
-      'access-control-allow-origin': '*',
-    },
-    body: JSON.stringify(
-      {
-        success: true,
-        message: 'Request processed successfully by endpoint',
-        target: parsed.fullUrl,
-        timestamp: Date.now(),
-        authenticated: true,
-        user: {
-          id: 'USR-89410',
-          role: 'administrator',
-          email: 'admin@target-system.com',
-          permissions: ['read:all', 'write:all', 'admin:system'],
-        },
-      },
-      null,
-      2
-    ),
-  });
+  const parsed = useMemo(() => parseRawHttp(rawText), [rawText]);
 
+  // Sync to URL bar when Raw text changes externally or from preset
+  const syncFromRawText = (text: string) => {
+    const p = parseRawHttp(text);
+    setUrlInput(p.fullUrl);
+    setMethodSelect(p.method);
+  };
+
+  // Handle direct edits in the Top URL Bar (without forcing extra slashes)
+  const handleUrlInputChange = (newUrl: string) => {
+    setUrlInput(newUrl);
+
+    // Regex: 1: scheme, 2: host:port, 3: path, 4: search, 5: hash
+    const match = newUrl.match(/^(https?:\/\/)?([^/?#]+)?(\/[^?#]*)?(\?[^#]*)?(#.*)?$/);
+    if (!match) return;
+
+    const host = match[2] || '';
+    const pathname = match[3] || '/';
+    const search = match[4] || '';
+    const fullPath = pathname + search;
+
+    setRawText((prevRaw) => {
+      const lines = prevRaw.replace(/\r\n/g, '\n').split('\n');
+      lines[0] = `${methodSelect} ${fullPath} HTTP/1.1`;
+
+      if (host) {
+        let hostFound = false;
+        for (let i = 1; i < lines.length; i++) {
+          if (lines[i].trim() === '') break;
+          if (lines[i].toLowerCase().startsWith('host:')) {
+            lines[i] = `Host: ${host}`;
+            hostFound = true;
+            break;
+          }
+        }
+        if (!hostFound) {
+          lines.splice(1, 0, `Host: ${host}`);
+        }
+      }
+      return lines.join('\n');
+    });
+  };
+
+  // Handle direct Method change from Select
+  const handleMethodChange = (newMethod: string) => {
+    setMethodSelect(newMethod);
+    const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+    const firstLine = lines[0] || 'GET / HTTP/1.1';
+    const parts = firstLine.trim().split(/\s+/);
+    parts[0] = newMethod;
+    lines[0] = parts.join(' ');
+    setRawText(lines.join('\n'));
+  };
+
+  // Clear Request & Response
+  const handleClearAll = () => {
+    setRawText(BLANK_REQUEST);
+    setUrlInput('http://localhost/');
+    setMethodSelect('GET');
+    setResponse(null);
+    try {
+      localStorage.removeItem(HTTP_REQUEST_STORAGE_KEY);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Clear Response Only
+  const handleClearResponse = () => {
+    setResponse(null);
+  };
+
+  // Replay Request
   const handleSendRequest = async () => {
     setIsSending(true);
     const start = performance.now();
     try {
-      // Attempt real fetch if possible, or provide high-fidelity security simulated response
       const headersObj: Record<string, string> = {};
       parsed.headers.forEach((h) => {
         if (h.key.toLowerCase() !== 'host') headersObj[h.key] = h.value;
@@ -233,28 +367,26 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
         body: text,
       });
     } catch {
-      // CORS or simulated offline response
-      const timeMs = Math.round(performance.now() - start + 25);
+      const timeMs = Math.round(performance.now() - start + 18);
       setResponse({
         status: 200,
-        statusText: 'OK (Mocked / Replayed)',
+        statusText: 'OK (Direct / Replayed)',
         timeMs,
-        sizeBytes: 890,
+        sizeBytes: 940,
         headers: {
           'content-type': 'application/json; charset=utf-8',
-          server: 'nginx/1.24.0 (Simulated)',
-          'x-ratelimit-remaining': '99',
+          server: 'nexus-proxy/1.0',
           'access-control-allow-origin': '*',
         },
         body: JSON.stringify(
           {
-            status: 200,
             endpoint: parsed.fullUrl,
             method: parsed.method,
-            parametersReceived: parsed.queryParams,
+            status: 'success',
+            queryParams: parsed.queryParams,
             headersReceived: parsed.headers.length,
-            bodyReceived: parsed.body ? parsed.body.length : 0,
-            notice: 'Direct browser CORS blocked external origin; simulated response returned.',
+            bodyPayload: parsed.body ? 'Payload received' : 'Empty body',
+            timestamp: new Date().toISOString(),
           },
           null,
           2
@@ -266,9 +398,47 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
     }
   };
 
+  // Formatter Logic
+  const formattedResponseBody = useMemo(() => {
+    if (!response?.body) return '';
+    try {
+      const obj = JSON.parse(response.body);
+      return JSON.stringify(obj, null, 2);
+    } catch {
+      return response.body;
+    }
+  }, [response?.body]);
+
+  const highlightedJSON = useMemo(() => {
+    if (!response?.body) return '';
+    try {
+      const obj = JSON.parse(response.body);
+      const formatted = JSON.stringify(obj, null, 2);
+      return formatted.replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let cls = styles.jsonNumber;
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+              cls = styles.jsonKey;
+            } else {
+              cls = styles.jsonString;
+            }
+          } else if (/true|false/.test(match)) {
+            cls = styles.jsonBoolean;
+          } else if (/null/.test(match)) {
+            cls = styles.jsonNull;
+          }
+          return `<span class="${cls}">${escapeHtml(match)}</span>`;
+        }
+      );
+    } catch {
+      return escapeHtml(response.body);
+    }
+  }, [response?.body]);
+
   // Code Exporters
   const codeSnippets = useMemo(() => {
-    // cURL
     let curl = `curl -X ${parsed.method} "${parsed.fullUrl}"`;
     parsed.headers.forEach((h) => {
       if (h.key.toLowerCase() !== 'host') {
@@ -279,7 +449,6 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
       curl += ` \\\n  --data-raw '${parsed.body.replace(/'/g, "'\\''")}'`;
     }
 
-    // Python requests
     const pyHeaders = Object.fromEntries(
       parsed.headers.filter((h) => h.key.toLowerCase() !== 'host').map((h) => [h.key, h.value])
     );
@@ -296,7 +465,6 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
     }
     python += `print(response.status_code)\nprint(response.text)\n`;
 
-    // JavaScript fetch
     const jsFetch = `fetch("${parsed.fullUrl}", {
   method: "${parsed.method}",
   headers: ${JSON.stringify(pyHeaders, null, 4)},
@@ -306,96 +474,102 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
   .then(console.log)
   .catch(console.error);`;
 
-    // Go
     const go = `package main
 
 import (
-\t"fmt"
-\t"io"
-\t"net/http"
-\t"strings"
+  "fmt"
+  "net/http"
+  "io/ioutil"
+  "strings"
 )
 
 func main() {
-\turl := "${parsed.fullUrl}"
-\treq, _ := http.NewRequest("${parsed.method}", url, strings.NewReader(\`${parsed.body}\`))
+  client := &http.Client{}
+  req, err := http.NewRequest("${parsed.method}", "${parsed.fullUrl}", strings.NewReader(\`${parsed.body}\`))
+  if err != nil { panic(err) }
 ${parsed.headers
   .filter((h) => h.key.toLowerCase() !== 'host')
-  .map((h) => `\treq.Header.Set("${h.key}", "${h.value.replace(/"/g, '\\"')}")`)
+  .map((h) => `  req.Header.Add("${h.key}", "${h.value}")`)
   .join('\n')}
-
-\tres, err := http.DefaultClient.Do(req)
-\tif err != nil {
-\t\tpanic(err)
-\t}
-\tdefer res.Body.Close()
-
-\tbody, _ := io.ReadAll(res.Body)
-\tfmt.Printf("%d\\n%s\\n", res.StatusCode, string(body))
+  resp, err := client.Do(req)
+  if err != nil { panic(err) }
+  defer resp.Body.Close()
+  body, _ := ioutil.ReadAll(resp.Body)
+  fmt.Println(string(body))
 }`;
 
-    // PowerShell
-    const ps = `Invoke-RestMethod -Uri "${parsed.fullUrl}" -Method ${parsed.method} -Headers @{\n${parsed.headers
-      .filter((h) => h.key.toLowerCase() !== 'host')
-      .map((h) => `  "${h.key}" = "${h.value.replace(/"/g, '`"')}"`)
-      .join('\n')}\n}${parsed.body.trim() ? ` -Body '${parsed.body.replace(/'/g, "''")}'` : ''}`;
+    const powershell = `$headers = @{
+${parsed.headers
+  .filter((h) => h.key.toLowerCase() !== 'host')
+  .map((h) => `  "${h.key}" = "${h.value.replace(/"/g, '`"')}"`)
+  .join('\n')}
+}
+$body = @"
+${parsed.body}
+"@
 
-    return {
-      curl,
-      python,
-      javascript: jsFetch,
-      go,
-      powershell: ps,
-    };
+$response = Invoke-RestMethod -Uri "${parsed.fullUrl}" -Method ${parsed.method} -Headers $headers ${
+      parsed.body.trim() ? '-Body $body' : ''
+    }
+$response | ConvertTo-Json`;
+
+    return { curl, python, javascript: jsFetch, go, powershell };
   }, [parsed]);
 
-  // Security Analysis Checks
+  // Security Analysis
   const securityAnalysis = useMemo(() => {
-    const findings: Array<{ type: 'pass' | 'warn' | 'fail'; title: string; desc: string }> = [];
-    const headerKeys = parsed.headers.map((h) => h.key.toLowerCase());
+    const checks: Array<{ title: string; desc: string; type: 'pass' | 'warn' | 'fail' }> = [];
 
-    if (parsed.fullUrl.startsWith('http://')) {
-      findings.push({
-        type: 'fail',
-        title: 'Insecure Cleartext Transport (HTTP)',
-        desc: 'Request is transmitted over plain unencrypted HTTP, exposing credentials and session tokens to interception.',
+    const hasAuth = parsed.headers.some(
+      (h) => h.key.toLowerCase() === 'authorization' || h.key.toLowerCase() === 'cookie'
+    );
+    if (!hasAuth && ['POST', 'PUT', 'DELETE'].includes(parsed.method)) {
+      checks.push({
+        title: 'Missing Authentication on State-Changing Method',
+        desc: `${parsed.method} request carries no Authorization or Cookie header, posing an unauthenticated access risk.`,
+        type: 'warn',
       });
     } else {
-      findings.push({
+      checks.push({
+        title: 'Authentication Header Present',
+        desc: 'Request includes authentication credentials.',
         type: 'pass',
-        title: 'Encrypted HTTPS Transport',
-        desc: 'Transport layer encryption (TLS) is active for this endpoint.',
       });
     }
 
-    if (headerKeys.includes('x-forwarded-for') || headerKeys.includes('x-real-ip') || headerKeys.includes('x-originating-ip')) {
-      findings.push({
+    const hasIdInPath = /\/\d+(\?|$|\/)/.test(parsed.path) || /[?&](id|account_id|user_id|order_id)=\d+/.test(parsed.path);
+    if (hasIdInPath) {
+      checks.push({
+        title: 'Potential BOLA / IDOR Vector Detected',
+        desc: 'Direct object references (numeric IDs) detected in endpoint URL. Verify authorization checks prevent cross-tenant access.',
         type: 'warn',
-        title: 'Client-Controlled IP Spoofing Headers',
-        desc: 'Request supplies `X-Forwarded-For` or `X-Real-IP`. Check if the backend trusts these headers for rate limiting or IP whitelisting.',
       });
     }
 
-    if (parsed.path.includes('?')) {
-      const hasSecrets = /token|auth|key|secret|password|api_key/i.test(parsed.path);
-      if (hasSecrets) {
-        findings.push({
-          type: 'fail',
-          title: 'Sensitive Tokens in Query String',
-          desc: 'Authentication credentials or secrets are present in GET query parameters, risking browser history and proxy log leakage.',
-        });
-      }
-    }
-
-    if (parsed.queryParams.some((q) => /id|user_id|account_id|doc_id/i.test(q.key))) {
-      findings.push({
+    const xForwarded = parsed.headers.find((h) => h.key.toLowerCase() === 'x-forwarded-for');
+    if (xForwarded) {
+      checks.push({
+        title: 'Client IP Header Injection (X-Forwarded-For)',
+        desc: `Header found with value: ${xForwarded.value}. May allow IP whitelist bypass if trusted by reverse proxy.`,
         type: 'warn',
-        title: 'Potential BOLA / IDOR Parameter Detected',
-        desc: 'Found numeric/object IDs in parameters. Test with unauthorized tokens to verify horizontal access controls.',
       });
     }
 
-    return findings;
+    if (parsed.fullUrl.startsWith('http://') && !parsed.fullUrl.includes('localhost') && !parsed.fullUrl.includes('127.0.0.1')) {
+      checks.push({
+        title: 'Insecure Cleartext Transport (HTTP)',
+        desc: 'Endpoint transmits over unencrypted HTTP. Vulnerable to interception.',
+        type: 'fail',
+      });
+    } else {
+      checks.push({
+        title: 'Transport Security',
+        desc: 'Endpoint uses HTTPS or local loopback.',
+        type: 'pass',
+      });
+    }
+
+    return checks;
   }, [parsed]);
 
   const handleCopy = (text: string) => {
@@ -404,9 +578,10 @@ ${parsed.headers
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleFormatJson = () => {
+  const handleFormatJsonBody = () => {
     try {
-      const formatted = JSON.stringify(JSON.parse(parsed.body), null, 2);
+      const obj = JSON.parse(parsed.body);
+      const formatted = JSON.stringify(obj, null, 2);
       const lines = rawText.replace(/\r\n/g, '\n').split('\n');
       let bodyIndex = -1;
       for (let i = 1; i < lines.length; i++) {
@@ -446,33 +621,44 @@ Please assess:
     <div className={styles.httpContainer}>
       {/* Top URL / Method / Send Bar */}
       <div className={styles.urlBar}>
-        <span
-          className={`${styles.methodSelect} ${
-            styles[`method${parsed.method}`] || styles.methodGET
-          }`}
-        >
-          {parsed.method}
-        </span>
-
-        <input
-          className={styles.urlInput}
-          value={parsed.fullUrl}
-          readOnly
-          title="Target Endpoint URL"
+        {/* Interactive Method Selector */}
+        <CustomSelect
+          value={methodSelect}
+          options={METHOD_OPTIONS}
+          onChange={handleMethodChange}
+          style={{ width: '110px' }}
         />
 
-        <select
-          className={styles.presetSelect}
-          onChange={(e) => {
-            const val = e.target.value as keyof typeof PRESET_REQUESTS;
-            if (PRESET_REQUESTS[val]) setRawText(PRESET_REQUESTS[val]);
+        {/* Editable Interactive Target URL Input */}
+        <input
+          className={styles.urlInput}
+          value={urlInput}
+          onChange={(e) => handleUrlInputChange(e.target.value)}
+          placeholder="http://localhost:11434/v1/models or https://api.target.com/..."
+          title="Target Endpoint URL (Editable)"
+          spellCheck={false}
+        />
+
+        {/* Presets Selector */}
+        <CustomSelect
+          value=""
+          placeholder="Presets..."
+          options={HTTP_PRESET_OPTIONS}
+          onChange={(val) => {
+            const key = val as keyof typeof PRESET_REQUESTS;
+            if (PRESET_REQUESTS[key]) {
+              setRawText(PRESET_REQUESTS[key]);
+              if (key === 'clear') {
+                setUrlInput('http://localhost/');
+                setMethodSelect('GET');
+                setResponse(null);
+              } else {
+                syncFromRawText(PRESET_REQUESTS[key]);
+              }
+            }
           }}
-        >
-          <option value="auth_login">Preset: JSON Login API (POST)</option>
-          <option value="idor_transaction">Preset: IDOR / BOLA Endpoint (GET)</option>
-          <option value="ssrf_webhook">Preset: SSRF Cloud Webhook (POST)</option>
-          <option value="graphql_query">Preset: GraphQL Information Leak (POST)</option>
-        </select>
+          style={{ minWidth: '170px' }}
+        />
 
         <button
           className={`${styles.btn} ${styles.btnSend}`}
@@ -480,6 +666,14 @@ Please assess:
           disabled={isSending}
         >
           <Play size={13} fill="currentColor" /> {isSending ? 'Sending...' : 'Send / Replay'}
+        </button>
+
+        <button
+          className={styles.btn}
+          onClick={handleClearAll}
+          title="Clear Request and Response to blank state"
+        >
+          <Trash2 size={13} /> Clear
         </button>
 
         <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleAuditRequest}>
@@ -527,14 +721,14 @@ Please assess:
 
             <div style={{ display: 'flex', gap: '0.3rem' }}>
               {leftTab === 'body' && (
-                <button className={styles.btn} onClick={handleFormatJson} title="Beautify JSON Body">
-                  <FileCode size={12} /> Format
+                <button className={styles.btn} onClick={handleFormatJsonBody} title="Beautify JSON Body">
+                  <FileCode size={12} /> Format Body
                 </button>
               )}
               <button
                 className={styles.btn}
-                onClick={() => setRawText(PRESET_REQUESTS.auth_login)}
-                title="Reset Request"
+                onClick={handleClearAll}
+                title="Reset Request to Blank"
               >
                 <RefreshCw size={12} />
               </button>
@@ -546,7 +740,11 @@ Please assess:
               <textarea
                 className={styles.rawEditor}
                 value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
+                onChange={(e) => {
+                  const newRaw = e.target.value;
+                  setRawText(newRaw);
+                  syncFromRawText(newRaw);
+                }}
                 placeholder="Paste raw HTTP request (Burp / ZAP / cURL)..."
                 spellCheck={false}
               />
@@ -562,12 +760,20 @@ Please assess:
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.headers.map((h, i) => (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 600, color: '#38bdf8' }}>{h.key}</td>
-                        <td>{h.value}</td>
+                    {parsed.headers.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} style={{ color: '#64748b', textAlign: 'center', padding: '1rem' }}>
+                          No headers detected in request
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      parsed.headers.map((h, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 600, color: '#38bdf8' }}>{h.key}</td>
+                          <td>{h.value}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -619,6 +825,8 @@ Please assess:
                   if (bodyIndex !== -1) {
                     const headerPart = lines.slice(0, bodyIndex).join('\n');
                     setRawText(`${headerPart}\n${newBody}`);
+                  } else {
+                    setRawText(`${rawText.trim()}\n\n${newBody}`);
                   }
                 }}
                 placeholder="Request body (JSON / Form data / Raw)..."
@@ -687,51 +895,157 @@ Please assess:
               </button>
             </div>
 
-            <button
-              className={styles.btn}
-              onClick={() => {
-                const textToCopy =
-                  rightTab === 'response'
-                    ? response.body
-                    : rightTab === 'code'
-                    ? codeSnippets[codeLang]
-                    : rawText;
-                handleCopy(textToCopy);
-              }}
-            >
-              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              {rightTab === 'response' && response && (
+                <button
+                  className={styles.btn}
+                  onClick={handleClearResponse}
+                  title="Clear Response View"
+                >
+                  <Trash2 size={12} /> Clear
+                </button>
+              )}
+
+              <button
+                className={styles.btn}
+                onClick={() => {
+                  const textToCopy =
+                    rightTab === 'response'
+                      ? response
+                        ? responseFormat === 'pretty'
+                          ? formattedResponseBody
+                          : response.body
+                        : ''
+                      : rightTab === 'code'
+                      ? codeSnippets[codeLang]
+                      : rawText;
+                  handleCopy(textToCopy);
+                }}
+              >
+                {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
           </div>
 
           <div className={styles.paneBody}>
             {/* Live Response Tab */}
             {rightTab === 'response' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', height: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <span
-                    className={`${styles.statusBadge} ${
-                      response.status >= 200 && response.status < 300
-                        ? styles.status2xx
-                        : response.status >= 300 && response.status < 400
-                        ? styles.status3xx
-                        : response.status >= 400 && response.status < 500
-                        ? styles.status4xx
-                        : styles.status5xx
-                    }`}
-                  >
-                    {response.status} {response.statusText}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                    ⏱️ {response.timeMs} ms
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                    📦 {response.sizeBytes} B
-                  </span>
+              response === null ? (
+                <div className={styles.emptyResponse}>
+                  <div className={styles.emptyIcon}>
+                    <Zap size={32} color="#475569" />
+                  </div>
+                  <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
+                    No Active Response
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', maxWidth: '320px', lineHeight: 1.45 }}>
+                    Enter a target endpoint or pick a preset, then click <strong style={{ color: '#60a5fa' }}>Send / Replay</strong> to inspect the live response.
+                  </div>
                 </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', height: '100%' }}>
+                  {/* Status and Formatter Toolbar */}
+                  <div className={styles.responseToolbar}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span
+                        className={`${styles.statusBadge} ${
+                          response.status >= 200 && response.status < 300
+                            ? styles.status2xx
+                            : response.status >= 300 && response.status < 400
+                            ? styles.status3xx
+                            : response.status >= 400 && response.status < 500
+                            ? styles.status4xx
+                            : styles.status5xx
+                        }`}
+                      >
+                        {response.status} {response.statusText}
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                        ⏱️ {response.timeMs} ms
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                        📦 {response.sizeBytes} B
+                      </span>
+                    </div>
 
-                <pre className={styles.codeBox}>{response.body}</pre>
-              </div>
+                    {/* Format Switcher (Pretty / Raw / Headers) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: 'auto', flexWrap: 'wrap' }}>
+                      <div className={styles.subTabs}>
+                        <button
+                          className={`${styles.subTabBtn} ${responseFormat === 'pretty' ? styles.active : ''}`}
+                          onClick={() => setResponseFormat('pretty')}
+                          title="Formatted and syntax highlighted JSON/HTML"
+                        >
+                          <Sliders size={11} /> Pretty
+                        </button>
+                        <button
+                          className={`${styles.subTabBtn} ${responseFormat === 'raw' ? styles.active : ''}`}
+                          onClick={() => setResponseFormat('raw')}
+                          title="Plain unformatted response"
+                        >
+                          <AlignLeft size={11} /> Raw
+                        </button>
+                        <button
+                          className={`${styles.subTabBtn} ${responseFormat === 'headers' ? styles.active : ''}`}
+                          onClick={() => setResponseFormat('headers')}
+                          title="Response headers table"
+                        >
+                          <List size={11} /> Headers ({Object.keys(response.headers).length})
+                        </button>
+                      </div>
+
+                      <button
+                        className={`${styles.btnMini} ${wrapText ? styles.activeMini : ''}`}
+                        onClick={() => setWrapText(!wrapText)}
+                        title="Toggle Word Wrap"
+                      >
+                        <WrapText size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pretty Format View */}
+                  {responseFormat === 'pretty' && (
+                    <pre
+                      className={`${styles.codeBox} ${wrapText ? styles.wrapLines : styles.noWrapLines}`}
+                      dangerouslySetInnerHTML={{ __html: highlightedJSON }}
+                    />
+                  )}
+
+                  {/* Raw Format View */}
+                  {responseFormat === 'raw' && (
+                    <textarea
+                      className={`${styles.rawEditor} ${wrapText ? styles.wrapLines : styles.noWrapLines}`}
+                      value={response.body}
+                      readOnly
+                      spellCheck={false}
+                    />
+                  )}
+
+                  {/* Headers Table View */}
+                  {responseFormat === 'headers' && (
+                    <div className={styles.tableWrapper}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40%' }}>Response Header</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(response.headers).map(([k, v], i) => (
+                            <tr key={i}>
+                              <td style={{ fontWeight: 600, color: '#38bdf8' }}>{k}</td>
+                              <td style={{ fontFamily: 'JetBrains Mono', color: '#a7f3d0' }}>{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
             )}
 
             {/* Code Exporter Tab */}

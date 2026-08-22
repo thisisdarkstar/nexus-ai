@@ -1,0 +1,198 @@
+.selectWrapper {
+  position: relative;
+  display: inline-block;
+  min-width: 120px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #020617;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 0.38rem 0.65rem;
+  color: var(--text-primary, #f8fafc);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  user-select: none;
+  box-sizing: border-box;
+  line-height: 1.2;
+}
+
+.trigger:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.triggerOpen {
+  border-color: #10b981;
+  background: #0f172a;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+}
+
+.triggerContent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.triggerIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary, #94a3b8);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+  color: #10b981;
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  min-width: 180px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: rgba(8, 12, 24, 0.98);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8), 0 0 1px rgba(255, 255, 255, 0.2);
+  padding: 4px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: dropdownPop 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+  scrollbar-width: thin;
+}
+
+@keyframes dropdownPop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.optionItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.optionItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f8fafc;
+}
+
+.optionItemActive {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  font-weight: 600;
+}
+
+.optionLeft {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.optionIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.optionText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionBadge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.optionCheck {
+  flex-shrink: 0;
+  color: #10b981;
+}
+
+/* Specific Sizes */
+.sizeSm .trigger {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.74rem;
+  border-radius: 5px;
+}
+
+.sizeLg .trigger {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.84rem;
+  border-radius: 8px;
+}
+
+/* Method Variant */
+.method_GET { color: #60a5fa !important; border-color: rgba(59, 130, 246, 0.35) !important; font-weight: 700 !important; }
+.method_POST { color: #34d399 !important; border-color: rgba(16, 185, 129, 0.35) !important; font-weight: 700 !important; }
+.method_PUT { color: #fbbf24 !important; border-color: rgba(245, 158, 11, 0.35) !important; font-weight: 700 !important; }
+.method_DELETE { color: #f87171 !important; border-color: rgba(239, 68, 68, 0.35) !important; font-weight: 700 !important; }
+.method_PATCH { color: #c084fc !important; border-color: rgba(168, 85, 247, 0.35) !important; font-weight: 700 !important; }

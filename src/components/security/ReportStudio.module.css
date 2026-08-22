@@ -318,12 +318,27 @@
   width: 100%;
 }
 
+.htmlToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--card-glass, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .reportIframe {
   width: 100%;
   flex: 1;
   min-height: 0;
   height: 100%;
-  background: #ffffff;
+  background: #020617;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
 }

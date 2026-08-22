@@ -89,14 +89,119 @@ export function decodeHTML(input: string): string {
 }
 
 /**
- * Rot13 / Caesar Cipher
+ * Binary (8-bit) Encoding & Decoding
  */
-export function rot13(input: string): string {
+export function encodeBinary(input: string): string {
+  try {
+    return Array.from(input)
+      .map((char) => char.charCodeAt(0).toString(2).padStart(8, '0'))
+      .join(' ');
+  } catch (err) {
+    return `[Encoding Error: ${(err as Error).message}]`;
+  }
+}
+
+export function decodeBinary(input: string): string {
+  try {
+    const cleaned = input.trim().replace(/[^01]/g, ' ');
+    const bytes = cleaned.split(/\s+/).filter(Boolean);
+    return bytes.map((b) => String.fromCharCode(parseInt(b, 2))).join('');
+  } catch (err) {
+    return `[Decoding Error: ${(err as Error).message}]`;
+  }
+}
+
+/**
+ * Unicode Escape (\uXXXX) Encoding & Decoding
+ */
+export function encodeUnicode(input: string): string {
+  try {
+    return Array.from(input)
+      .map((c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+      .join('');
+  } catch (err) {
+    return `[Encoding Error: ${(err as Error).message}]`;
+  }
+}
+
+export function decodeUnicode(input: string): string {
+  try {
+    return input.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  } catch (err) {
+    return `[Decoding Error: ${(err as Error).message}]`;
+  }
+}
+
+/**
+ * Base64URL Encoding & Decoding (JWT safe format)
+ */
+export function encodeBase64URL(input: string): string {
+  try {
+    const b64 = encodeBase64(input);
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch (err) {
+    return `[Encoding Error: ${(err as Error).message}]`;
+  }
+}
+
+export function decodeBase64URL(input: string): string {
+  try {
+    let base64 = input.trim().replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    return decodeBase64(base64);
+  } catch (err) {
+    return `[Decoding Error: ${(err as Error).message}]`;
+  }
+}
+
+/**
+ * Decimal / ASCII Codes (e.g. 65, 66, 67)
+ */
+export function encodeDecimalASCII(input: string): string {
+  try {
+    return Array.from(input)
+      .map((c) => c.charCodeAt(0))
+      .join(', ');
+  } catch (err) {
+    return `[Encoding Error: ${(err as Error).message}]`;
+  }
+}
+
+export function decodeDecimalASCII(input: string): string {
+  try {
+    const numbers = input.split(/[,;\s]+/).map((n) => parseInt(n.trim(), 10)).filter((n) => !isNaN(n));
+    return numbers.map((n) => String.fromCharCode(n)).join('');
+  } catch (err) {
+    return `[Decoding Error: ${(err as Error).message}]`;
+  }
+}
+
+/**
+ * Custom Caesar Shift (+N / -N)
+ */
+export function caesarShift(input: string, shift: number): string {
+  const normShift = ((shift % 26) + 26) % 26;
   return input.replace(/[a-zA-Z]/g, (c) => {
     const code = c.charCodeAt(0);
     const base = code >= 97 ? 97 : 65;
-    return String.fromCharCode(((code - base + 13) % 26) + base);
+    return String.fromCharCode(((code - base + normShift) % 26) + base);
   });
+}
+
+/**
+ * String Reversal
+ */
+export function reverseString(input: string): string {
+  return Array.from(input).reverse().join('');
+}
+
+/**
+ * Rot13 / Caesar Cipher
+ */
+export function rot13(input: string): string {
+  return caesarShift(input, 13);
 }
 
 /**
@@ -247,4 +352,227 @@ export function refang(input: string): string {
     .replace(/\[:\/\/\]/g, '://')
     .replace(/\[\.\]/g, '.')
     .replace(/\(\.\)/g, '.');
+}
+
+/**
+ * Hash Identification & Analyzer
+ * Automatically inspects mystery/unknown hashes and predicts algorithm, Hashcat modes, and John formats.
+ */
+export interface IdentifiedHash {
+  name: string;
+  hashcatMode: string;
+  johnFormat: string;
+  bitLength: number;
+  description: string;
+  category: 'Modern' | 'Legacy/Weak' | 'Password KDF' | 'Unix Crypt' | 'Windows/NTLM';
+}
+
+export function identifyHashTypes(hashInput: string): IdentifiedHash[] {
+  const trimmed = hashInput.trim();
+  if (!trimmed) return [];
+
+  const results: IdentifiedHash[] = [];
+  const isHex = /^[0-9a-fA-F]+$/.test(trimmed);
+  const len = trimmed.length;
+
+  // Prefix checks
+  if (trimmed.startsWith('$2a$') || trimmed.startsWith('$2b$') || trimmed.startsWith('$2y$')) {
+    results.push({
+      name: 'Bcrypt (Blowfish)',
+      hashcatMode: '-m 3200',
+      johnFormat: 'bcrypt',
+      bitLength: 192,
+      description: 'Standard modern password hashing algorithm with configurable cost factor.',
+      category: 'Password KDF',
+    });
+  }
+
+  if (trimmed.startsWith('$6$')) {
+    results.push({
+      name: 'SHA-512 Unix Crypt',
+      hashcatMode: '-m 1800',
+      johnFormat: 'sha512crypt',
+      bitLength: 512,
+      description: 'Standard Linux /etc/shadow password hash format using SHA-512 rounds.',
+      category: 'Unix Crypt',
+    });
+  }
+
+  if (trimmed.startsWith('$5$')) {
+    results.push({
+      name: 'SHA-256 Unix Crypt',
+      hashcatMode: '-m 7400',
+      johnFormat: 'sha256crypt',
+      bitLength: 256,
+      description: 'Linux /etc/shadow password hash format using SHA-256 rounds.',
+      category: 'Unix Crypt',
+    });
+  }
+
+  if (trimmed.startsWith('$1$')) {
+    results.push({
+      name: 'MD5 Unix Crypt',
+      hashcatMode: '-m 500',
+      johnFormat: 'md5crypt',
+      bitLength: 128,
+      description: 'Legacy Apache htpasswd and old Linux shadow password hash.',
+      category: 'Unix Crypt',
+    });
+  }
+
+  if (trimmed.startsWith('$argon2id$') || trimmed.startsWith('$argon2i$')) {
+    results.push({
+      name: 'Argon2 (PHC Winner)',
+      hashcatMode: '-m 13400',
+      johnFormat: 'argon2',
+      bitLength: 256,
+      description: 'Memory-hard, state-of-the-art password hashing function.',
+      category: 'Password KDF',
+    });
+  }
+
+  if (trimmed.startsWith('$pbkdf2-sha256$') || trimmed.startsWith('$pbkdf2$')) {
+    results.push({
+      name: 'PBKDF2-HMAC-SHA256',
+      hashcatMode: '-m 10900',
+      johnFormat: 'pbkdf2-hmac-sha256',
+      bitLength: 256,
+      description: 'NIST standard key derivation function with SHA-256 iterations.',
+      category: 'Password KDF',
+    });
+  }
+
+  // Hex Length checks
+  if (isHex) {
+    if (len === 32) {
+      results.push(
+        {
+          name: 'MD5',
+          hashcatMode: '-m 0',
+          johnFormat: 'raw-md5',
+          bitLength: 128,
+          description: '128-bit hash. Extremely fast, collision-vulnerable, standard web hash.',
+          category: 'Legacy/Weak',
+        },
+        {
+          name: 'NTLM (Windows)',
+          hashcatMode: '-m 1000',
+          johnFormat: 'nt',
+          bitLength: 128,
+          description: 'Windows Active Directory and SAM database password hash (MD4(UTF-16LE)).',
+          category: 'Windows/NTLM',
+        },
+        {
+          name: 'MD4',
+          hashcatMode: '-m 900',
+          johnFormat: 'raw-md4',
+          bitLength: 128,
+          description: '128-bit predecessor to MD5. Cryptographically broken.',
+          category: 'Legacy/Weak',
+        }
+      );
+    } else if (len === 40) {
+      results.push(
+        {
+          name: 'SHA-1',
+          hashcatMode: '-m 100',
+          johnFormat: 'raw-sha1',
+          bitLength: 160,
+          description: '160-bit hash. Deprecated for digital signatures due to SHAttered collisions.',
+          category: 'Legacy/Weak',
+        },
+        {
+          name: 'MySQL 4.1+ (double SHA-1)',
+          hashcatMode: '-m 300',
+          johnFormat: 'mysql-sha1',
+          bitLength: 160,
+          description: 'MySQL password hash format (*HASH).',
+          category: 'Legacy/Weak',
+        }
+      );
+    } else if (len === 56) {
+      results.push({
+        name: 'SHA-224',
+        hashcatMode: '-m 1300',
+        johnFormat: 'raw-sha224',
+        bitLength: 224,
+        description: '224-bit truncated version of SHA-256.',
+        category: 'Modern',
+      });
+    } else if (len === 64) {
+      results.push(
+        {
+          name: 'SHA-256',
+          hashcatMode: '-m 1400',
+          johnFormat: 'raw-sha256',
+          bitLength: 256,
+          description: 'Standard 256-bit cryptographic digest from the SHA-2 family.',
+          category: 'Modern',
+        },
+        {
+          name: 'Keccak-256 (Ethereum)',
+          hashcatMode: '-m 17800',
+          johnFormat: 'keccak-256',
+          bitLength: 256,
+          description: 'Ethereum blockchain and smart contract hash function.',
+          category: 'Modern',
+        },
+        {
+          name: 'BLAKE2s-256',
+          hashcatMode: '-m 17700',
+          johnFormat: 'blake2s-256',
+          bitLength: 256,
+          description: 'High-speed cryptographic hash optimized for 32-bit platforms.',
+          category: 'Modern',
+        }
+      );
+    } else if (len === 96) {
+      results.push({
+        name: 'SHA-384',
+        hashcatMode: '-m 10800',
+        johnFormat: 'raw-sha384',
+        bitLength: 384,
+        description: '384-bit cryptographic digest from the SHA-2 family.',
+        category: 'Modern',
+      });
+    } else if (len === 128) {
+      results.push(
+        {
+          name: 'SHA-512',
+          hashcatMode: '-m 1700',
+          johnFormat: 'raw-sha512',
+          bitLength: 512,
+          description: '512-bit high-security digest from the SHA-2 family.',
+          category: 'Modern',
+        },
+        {
+          name: 'Whirlpool',
+          hashcatMode: '-m 6100',
+          johnFormat: 'whirlpool',
+          bitLength: 512,
+          description: '512-bit hash function recommended by NESSIE.',
+          category: 'Modern',
+        },
+        {
+          name: 'BLAKE2b-512',
+          hashcatMode: '-m 600',
+          johnFormat: 'blake2b-512',
+          bitLength: 512,
+          description: 'Fast 512-bit cryptographic hash optimized for 64-bit platforms.',
+          category: 'Modern',
+        }
+      );
+    } else if (len === 16) {
+      results.push({
+        name: 'MySQL 3.23 / Old Password',
+        hashcatMode: '-m 200',
+        johnFormat: 'mysql',
+        bitLength: 64,
+        description: 'Very weak legacy 16-character MySQL password hash.',
+        category: 'Legacy/Weak',
+      });
+    }
+  }
+
+  return results;
 }

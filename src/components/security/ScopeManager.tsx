@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../CustomSelect';
 import type { ScopeItem } from '../../types';
 import styles from './ScopeManager.module.css';
+
+const TARGET_TYPE_OPTIONS = [
+  { value: 'domain', label: 'Domain / Subdomain' },
+  { value: 'ip', label: 'IP / CIDR Range' },
+  { value: 'api', label: 'API Endpoint' },
+  { value: 'mobile', label: 'Mobile App / Binary' },
+];
 
 const DEFAULT_SCOPE_ITEMS: ScopeItem[] = [
   {
@@ -159,16 +167,12 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
           onChange={(e) => setNewTarget(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
         />
-        <select
-          className={styles.select}
+        <CustomSelect
           value={newType}
-          onChange={(e) => setNewType(e.target.value as ScopeItem['type'])}
-        >
-          <option value="domain">Domain / Subdomain</option>
-          <option value="ip">IP / CIDR Range</option>
-          <option value="api">API Endpoint</option>
-          <option value="mobile">Mobile App / Binary</option>
-        </select>
+          options={TARGET_TYPE_OPTIONS}
+          onChange={(val) => setNewType(val as ScopeItem['type'])}
+          style={{ minWidth: '170px' }}
+        />
         <button
           className={styles.btn}
           onClick={() => setIsInScope(!isInScope)}

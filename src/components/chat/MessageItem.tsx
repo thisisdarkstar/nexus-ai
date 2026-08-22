@@ -14,6 +14,7 @@ import {
   Sparkles,
   AlertTriangle,
   GitBranch,
+  ShieldAlert,
 } from 'lucide-react';
 import { renderMarkdown } from '../../lib/markdown';
 import { escapeHtml } from '../../lib/sanitize';
@@ -47,6 +48,12 @@ function injectActionButtons(el: HTMLElement) {
     bar.className = 'code-action-bar';
 
     const getCode = () => pre.querySelector('code')?.innerText || '';
+    const getLang = () => {
+      const codeEl = pre.querySelector('code');
+      if (!codeEl) return '';
+      const match = codeEl.className.match(/language-([a-zA-Z0-9_-]+)/);
+      return match ? match[1].toLowerCase() : '';
+    };
 
     // Sandbox button
     const sandBtn = document.createElement('button');
@@ -60,6 +67,11 @@ function injectActionButtons(el: HTMLElement) {
           detail: { tab: 'sandbox', code: getCode() },
         })
       );
+      const prevText = sandBtn.innerHTML;
+      sandBtn.innerHTML = '🐍 Opened';
+      setTimeout(() => {
+        sandBtn.innerHTML = prevText;
+      }, 1500);
     };
     bar.appendChild(sandBtn);
 
@@ -72,9 +84,14 @@ function injectActionButtons(el: HTMLElement) {
       e.stopPropagation();
       window.dispatchEvent(
         new CustomEvent('nexus:open-security', {
-          detail: { tab: 'auditor', code: getCode() },
+          detail: { tab: 'auditor', code: getCode(), language: getLang() },
         })
       );
+      const prevText = auditBtn.innerHTML;
+      auditBtn.innerHTML = '🛡️ Opened';
+      setTimeout(() => {
+        auditBtn.innerHTML = prevText;
+      }, 1500);
     };
     bar.appendChild(auditBtn);
 
@@ -87,9 +104,14 @@ function injectActionButtons(el: HTMLElement) {
       e.stopPropagation();
       window.dispatchEvent(
         new CustomEvent('nexus:open-security', {
-          detail: { tab: 'decoders', code: getCode() },
+          detail: { tab: 'decoders', input: getCode() },
         })
       );
+      const prevText = decBtn.innerHTML;
+      decBtn.innerHTML = '🔄 Opened';
+      setTimeout(() => {
+        decBtn.innerHTML = prevText;
+      }, 1500);
     };
     bar.appendChild(decBtn);
 
@@ -105,6 +127,11 @@ function injectActionButtons(el: HTMLElement) {
           detail: { tab: 'reports', code: getCode() },
         })
       );
+      const prevText = repBtn.innerHTML;
+      repBtn.innerHTML = '📑 Opened';
+      setTimeout(() => {
+        repBtn.innerHTML = prevText;
+      }, 1500);
     };
     bar.appendChild(repBtn);
 
@@ -164,6 +191,8 @@ export default memo(function MessageItem({
     return () => observer.disconnect();
   }, [showRaw]);
 
+  const [importedSast, setImportedSast] = useState(false);
+
   const plainText = msg.content
     ? msg.content
         .replace(/[#*_`[\]()]/g, '')
@@ -171,6 +200,30 @@ export default memo(function MessageItem({
         .trim()
     : '';
   const isUser = msg.role === 'user';
+
+  const isSastReport =
+    !isUser &&
+    Boolean(
+      msg.content &&
+        (msg.content.includes('Static Application Security Testing') ||
+          (msg.content.includes('Vulnerability Title') && msg.content.includes('CWE-')) ||
+          msg.content.includes('Recommended Secure Remediation'))
+    );
+
+  const handleImportSast = () => {
+    window.dispatchEvent(
+      new CustomEvent('nexus:import-sast-finding', {
+        detail: { content: msg.content },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('nexus:open-security', {
+        detail: { tab: 'auditor' },
+      })
+    );
+    setImportedSast(true);
+    setTimeout(() => setImportedSast(false), 2500);
+  };
 
   const retryOptions = [
     { label: 'Same model', provider: null, modelId: null },
@@ -315,6 +368,30 @@ export default memo(function MessageItem({
             >
               {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
               {isSpeaking ? 'Stop' : 'Speak'}
+            </button>
+          )}
+
+          {isSastReport && (
+            <button
+              onClick={handleImportSast}
+              className={styles.actionBtn}
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#fca5a5',
+                borderColor: 'rgba(239, 68, 68, 0.4)',
+                fontWeight: 600,
+              }}
+              title="One-click import finding & remediation diff to SAST Auditor"
+            >
+              {importedSast ? (
+                <>
+                  <Check size={14} color="#10b981" /> Imported to Auditor!
+                </>
+              ) : (
+                <>
+                  <ShieldAlert size={14} color="#ef4444" /> 1-Click Import to Auditor
+                </>
+              )}
             </button>
           )}
 

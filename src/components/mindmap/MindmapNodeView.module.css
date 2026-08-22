@@ -1,0 +1,503 @@
+.nodeWrapper {
+  position: absolute;
+  user-select: none;
+  cursor: default;
+  transition: box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.nodeSelected {
+  z-index: 50 !important;
+}
+
+.nodeContainer {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.nodeSelected .nodeContainer {
+  border-color: #10b981;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+/* Color Themes */
+.color_emerald {
+  border-top: 3px solid #10b981;
+}
+.color_blue {
+  border-top: 3px solid #3b82f6;
+}
+.color_purple {
+  border-top: 3px solid #a855f7;
+}
+.color_amber {
+  border-top: 3px solid #f59e0b;
+}
+.color_rose {
+  border-top: 3px solid #f43f5e;
+}
+.color_slate {
+  border-top: 3px solid #64748b;
+}
+
+/* Frame Node Specific */
+.frameContainer {
+  background: rgba(15, 23, 42, 0.4) !important;
+  border: 2px dashed rgba(255, 255, 255, 0.2) !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
+}
+.nodeSelected .frameContainer {
+  border-color: #10b981 !important;
+  border-style: solid !important;
+}
+
+/* Node Header & Drag Handle */
+.nodeHeader {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+  gap: 8px;
+}
+.nodeHeader:active {
+  cursor: grabbing;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.nodeIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.titleInput {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+.titleInput:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.actionBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+.actionBtnDanger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+/* Node Body Content */
+.nodeBody {
+  padding: 10px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.contentTextarea {
+  width: 100%;
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  resize: none;
+  box-sizing: border-box;
+}
+.contentTextarea:focus {
+  color: var(--text-primary);
+}
+
+/* Tags in Card */
+.tagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.tagBadge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tagRemoveBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.tagRemoveBtn:hover {
+  color: #ef4444;
+}
+
+.addTagInput {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  outline: none;
+  width: 60px;
+}
+.addTagInput:focus {
+  border-color: #10b981;
+  width: 80px;
+}
+
+/* Checklist in Card */
+.checklistSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 6px;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.checkbox {
+  cursor: pointer;
+  accent-color: #10b981;
+  width: 14px;
+  height: 14px;
+}
+
+.checkItemText {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  outline: none;
+}
+.checkItemTextDone {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.addCheckItemBtn {
+  background: transparent;
+  border: none;
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+.addCheckItemBtn:hover {
+  text-decoration: underline;
+}
+
+/* Image Node */
+.imageWrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.imageContent {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0 0 12px 12px;
+}
+
+.imagePlaceholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 16px;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  margin: 6px;
+  cursor: pointer;
+}
+.imagePlaceholder:hover {
+  border-color: #10b981;
+  color: var(--text-primary);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.imageUrlInputRow {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.imageUrlInput {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  color: var(--text-primary);
+  outline: none;
+}
+.imageUrlInput:focus {
+  border-color: #10b981;
+}
+
+.imageApplyBtn {
+  background: #10b981;
+  border: none;
+  color: #020617;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+/* Connector Ports (Top, Right, Bottom, Left) */
+.port {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #020617;
+  border: 2px solid #10b981;
+  z-index: 60;
+  cursor: crosshair;
+  opacity: 0.7;
+  transition: opacity 0.15s, transform 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+/* Generous 28x28 invisible hit area for easy snapping and grabbing */
+.port::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+}
+
+.nodeWrapper:hover .port,
+.nodeSelected .port {
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.port:hover {
+  transform: scale(1.35);
+  background: #10b981;
+  box-shadow: 0 0 14px #10b981;
+  border-color: #ffffff;
+  opacity: 1;
+}
+
+.portTop {
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.portTop:hover {
+  transform: translateX(-50%) scale(1.35);
+}
+
+.portRight {
+  top: 50%;
+  right: -7px;
+  transform: translateY(-50%);
+}
+.portRight:hover {
+  transform: translateY(-50%) scale(1.35);
+}
+
+.portBottom {
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.portBottom:hover {
+  transform: translateX(-50%) scale(1.35);
+}
+
+.portLeft {
+  top: 50%;
+  left: -7px;
+  transform: translateY(-50%);
+}
+.portLeft:hover {
+  transform: translateY(-50%) scale(1.35);
+}
+
+/* Resize Handles (8 Points) */
+.resizeHandle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border: 1px solid #020617;
+  border-radius: 2px;
+  z-index: 55;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.nodeSelected .resizeHandle {
+  opacity: 1;
+}
+
+.resizeNW {
+  top: -4px;
+  left: -4px;
+  cursor: nw-resize;
+}
+.resizeNE {
+  top: -4px;
+  right: -4px;
+  cursor: ne-resize;
+}
+.resizeSW {
+  bottom: -4px;
+  left: -4px;
+  cursor: sw-resize;
+}
+.resizeSE {
+  bottom: -4px;
+  right: -4px;
+  cursor: se-resize;
+}
+.resizeN {
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+.resizeS {
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+.resizeE {
+  top: 50%;
+  right: -4px;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+.resizeW {
+  top: 50%;
+  left: -4px;
+  transform: translateY(-50%);
+  cursor: w-resize;
+}
+
+/* Color Picker Popover */
+.colorPickerPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  gap: 6px;
+  z-index: 70;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.colorSwatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.colorSwatch:hover {
+  transform: scale(1.2);
+}
+.colorSwatchActive {
+  border-color: #fff;
+}

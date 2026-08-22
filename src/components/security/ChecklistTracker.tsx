@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   CheckSquare,
   Filter,
@@ -10,10 +10,48 @@ import {
   Plus,
   Trash2,
   ListPlus,
+  Upload,
+  Download,
+  FileJson,
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+  Copy,
 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../CustomSelect';
 import type { SecurityChecklistItem } from '../../types';
 import styles from './ChecklistTracker.module.css';
+
+const SAMPLE_JSON_CHECKLIST = `[
+  {
+    "code": "AUTH-01",
+    "title": "Broken Object-Level Authorization (BOLA/IDOR)",
+    "category": "OWASP API Security",
+    "description": "Verify that user A cannot access or mutate resources belonging to user B by altering IDs in URLs/payloads.",
+    "status": "untested"
+  },
+  {
+    "code": "INJ-02",
+    "title": "SQL & NoSQL Injection in Search Parameters",
+    "category": "Input Validation",
+    "description": "Evaluate input parameters and headers for blind, error-based, and stacked SQLi vectors.",
+    "status": "untested"
+  },
+  {
+    "code": "SSRF-03",
+    "title": "Server-Side Request Forgery on Webhook Endpoints",
+    "category": "Server-Side Flaws",
+    "description": "Test webhook and file fetch endpoints against cloud metadata (169.254.169.254) and localhost.",
+    "status": "untested"
+  }
+]`;
+
+const SUITE_OPTIONS = [
+  { value: 'core4', label: '🎯 Core 4 Essentials', badge: 'Core' },
+  { value: 'wstg_full', label: '🛡️ OWASP WSTG v4.2 (8 Tests)', badge: 'Web' },
+  { value: 'api_top10', label: '⚡ OWASP API Top 10 (7 Tests)', badge: 'API' },
+];
 
 export const CHECKLIST_SUITES: Record<string, { label: string; items: SecurityChecklistItem[] }> = {
   core4: {
@@ -187,6 +225,7 @@ export const CHECKLIST_SUITES: Record<string, { label: string; items: SecurityCh
 
 const DEFAULT_CHECKLIST = CHECKLIST_SUITES.core4.items;
 const CHECKLIST_STORAGE_KEY = 'nexus_security_checklists';
+const CUSTOM_SUITES_STORAGE_KEY = 'nexus_custom_checklist_suites';
 
 interface ChecklistTrackerProps {
   onSendToAI?: (prompt: string) => void;
@@ -208,10 +247,37 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
     return DEFAULT_CHECKLIST;
   });
 
+  // User-created Custom Checklist Suites
+  const [customSuites, setCustomSuites] = useState<Record<string, { label: string; items: SecurityChecklistItem[] }>>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_SUITES_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load custom suites from localStorage:', e);
+    }
+    return {};
+  });
+
   const [filter, setFilter] = useState<'all' | 'untested' | 'pass' | 'fail'>('all');
   const [newTitle, setNewTitle] = useState('');
   const [newCode, setNewCode] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // JSON Import / Export Modal State
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [jsonInput, setJsonInput] = useState('');
+  const [importMode, setImportMode] = useState<'replace' | 'append' | 'new_suite'>('replace');
+  const [newSuiteName, setNewSuiteName] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [parsedCount, setParsedCount] = useState<number | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
@@ -235,12 +301,21 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
     }
   }, [items]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_SUITES_STORAGE_KEY, JSON.stringify(customSuites));
+    } catch (e) {
+      console.error('Failed to save custom suites to localStorage:', e);
+    }
+  }, [customSuites]);
+
   const handleStatusChange = (id: string, newStatus: SecurityChecklistItem['status']) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: newStatus } : it)));
   };
 
   const handleLoadSuite = (suiteKey: string) => {
-    const suite = CHECKLIST_SUITES[suiteKey];
+    const allSuites = { ...CHECKLIST_SUITES, ...customSuites };
+    const suite = allSuites[suiteKey];
     if (!suite) return;
     setModalConfig({
       isOpen: true,
@@ -300,6 +375,163 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
     });
   };
 
+  // Safe JSON Checklist Parser & Validator
+  const parseChecklistJson = (raw: string): { valid: boolean; items: SecurityChecklistItem[]; error?: string } => {
+    if (!raw.trim()) {
+      return { valid: false, items: [], error: 'Please paste or upload JSON checklist data.' };
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const rawArray = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as Record<string, unknown>).items)
+        ? ((parsed as Record<string, unknown>).items as unknown[])
+        : Array.isArray((parsed as Record<string, unknown>).checklist)
+        ? ((parsed as Record<string, unknown>).checklist as unknown[])
+        : null;
+
+      if (!rawArray) {
+        return {
+          valid: false,
+          items: [],
+          error: 'JSON must be an array of checklist objects, e.g. [ { "code": "...", "title": "..." } ]',
+        };
+      }
+
+      if (rawArray.length === 0) {
+        return { valid: false, items: [], error: 'Checklist array is empty.' };
+      }
+
+      const sanitizedItems: SecurityChecklistItem[] = rawArray.map((rawItem: unknown, idx: number) => {
+        if (typeof rawItem !== 'object' || rawItem === null) {
+          throw new Error(`Item #${idx + 1} is not a valid JSON object.`);
+        }
+        const it = rawItem as Record<string, unknown>;
+        const title = String(it.title || it.name || '').trim();
+        if (!title) {
+          throw new Error(`Item #${idx + 1} is missing a required "title" property.`);
+        }
+        const code = String(it.code || it.id || `TEST-${idx + 1}`).trim();
+        const category = String(it.category || it.group || 'Custom Verification').trim();
+        const description = String(it.description || it.desc || 'Custom checklist security test.').trim();
+        const statusRaw = String(it.status || 'untested').toLowerCase();
+        const status: SecurityChecklistItem['status'] =
+          statusRaw === 'pass' || statusRaw === 'passed'
+            ? 'pass'
+            : statusRaw === 'fail' || statusRaw === 'failed'
+            ? 'fail'
+            : 'untested';
+
+        return {
+          id: typeof it.id === 'string' && it.id.length > 3 ? it.id : `chk-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+          category,
+          code,
+          title,
+          description,
+          status,
+        };
+      });
+
+      return { valid: true, items: sanitizedItems };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid JSON syntax.';
+      return { valid: false, items: [], error: msg };
+    }
+  };
+
+  const handleJsonInputChange = (val: string) => {
+    setJsonInput(val);
+    if (!val.trim()) {
+      setImportError(null);
+      setParsedCount(null);
+      return;
+    }
+    const res = parseChecklistJson(val);
+    if (res.valid) {
+      setImportError(null);
+      setParsedCount(res.items.length);
+    } else {
+      setImportError(res.error || 'Invalid JSON format');
+      setParsedCount(null);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setJsonInput(content);
+        const res = parseChecklistJson(content);
+        if (res.valid) {
+          setImportError(null);
+          setParsedCount(res.items.length);
+        } else {
+          setImportError(res.error || 'Failed to parse uploaded JSON file.');
+          setParsedCount(null);
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleInsertSampleTemplate = () => {
+    setJsonInput(SAMPLE_JSON_CHECKLIST);
+    const res = parseChecklistJson(SAMPLE_JSON_CHECKLIST);
+    if (res.valid) {
+      setImportError(null);
+      setParsedCount(res.items.length);
+    }
+    setUploadedFileName(null);
+  };
+
+  const handleExecuteImport = () => {
+    const res = parseChecklistJson(jsonInput);
+    if (!res.valid) {
+      setImportError(res.error || 'Cannot import invalid JSON checklist.');
+      return;
+    }
+    if (importMode === 'replace') {
+      setItems(res.items);
+    } else if (importMode === 'append') {
+      setItems((prev) => [...prev, ...res.items]);
+    } else if (importMode === 'new_suite') {
+      const suiteTitle =
+        newSuiteName.trim() ||
+        (uploadedFileName ? uploadedFileName.replace(/\.json$/i, '') : `Custom Suite ${Object.keys(customSuites).length + 1}`);
+      const suiteId = `custom_suite_${Date.now()}`;
+      setCustomSuites((prev) => ({
+        ...prev,
+        [suiteId]: {
+          label: suiteTitle,
+          items: res.items,
+        },
+      }));
+      setItems(res.items);
+    }
+    setIsImportOpen(false);
+    setJsonInput('');
+    setNewSuiteName('');
+    setImportError(null);
+    setParsedCount(null);
+    setUploadedFileName(null);
+  };
+
+  const handleExportJson = () => {
+    const dataStr = JSON.stringify(items, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_checklist_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const total = items.length;
   const testedCount = items.filter((i) => i.status !== 'untested').length;
   const failCount = items.filter((i) => i.status === 'fail').length;
@@ -309,6 +541,15 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
     if (filter === 'all') return true;
     return i.status === filter;
   });
+
+  const dynamicSuiteOptions = [
+    ...SUITE_OPTIONS,
+    ...Object.entries(customSuites).map(([key, s]) => ({
+      value: key,
+      label: `📋 ${s.label} (${s.items.length} Tests)`,
+      badge: 'Custom',
+    })),
+  ];
 
   return (
     <div className={styles.checklistContainer}>
@@ -331,68 +572,46 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           {/* Suite Loader Selector */}
-          <select
-            style={{
-              background: '#020617',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#10b981',
-              padding: '0.35rem 0.5rem',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-            onChange={(e) => {
-              if (e.target.value) {
-                handleLoadSuite(e.target.value);
-                e.target.value = '';
-              }
-            }}
-            defaultValue=""
-          >
-            <option value="" disabled>
-              📂 Load Standard Suite...
-            </option>
-            <option value="core4">🎯 Core 4 Essentials</option>
-            <option value="wstg_full">🛡️ OWASP WSTG v4.2 (8 Tests)</option>
-            <option value="api_top10">⚡ OWASP API Top 10 (7 Tests)</option>
-          </select>
+          <CustomSelect
+            value=""
+            placeholder="📂 Load Standard Suite..."
+            options={dynamicSuiteOptions}
+            onChange={(val) => handleLoadSuite(val)}
+            style={{ minWidth: '190px' }}
+          />
 
           <button
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.35rem 0.65rem',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-            }}
+            className={styles.btn}
             onClick={() => setShowAddForm(!showAddForm)}
-            title="Add Custom Checklist Test"
+            title="Add Single Custom Item"
           >
             <Plus size={12} /> Add Item
           </button>
 
           <button
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.35rem 0.65rem',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
+            className={styles.btn}
+            onClick={() => {
+              setJsonInput('');
+              setImportError(null);
+              setParsedCount(null);
+              setUploadedFileName(null);
+              setIsImportOpen(true);
             }}
+            title="Upload or paste custom JSON checklist"
+          >
+            <Upload size={12} /> Import JSON
+          </button>
+
+          <button
+            className={styles.btn}
+            onClick={handleExportJson}
+            title="Export active checklist to JSON file"
+          >
+            <Download size={12} /> Export JSON
+          </button>
+
+          <button
+            className={styles.btn}
             onClick={handleResetChecklist}
             title="Reset all test statuses to Untested (0%)"
           >
@@ -624,6 +843,221 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
           onConfirm={modalConfig.onConfirm}
           onCancel={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
         />
+      )}
+
+      {/* JSON Import & Upload Modal */}
+      {isImportOpen && (
+        <div className={styles.modalOverlay} onClick={() => setIsImportOpen(false)}>
+          <div
+            className={styles.modalContainer}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Modal Header */}
+            <div className={styles.modalHeader}>
+              <div className={styles.modalTitleGroup}>
+                <div className={styles.modalIconCircle}>
+                  <FileJson size={18} />
+                </div>
+                <div>
+                  <div className={styles.modalTitle}>Import Custom Checklist (JSON)</div>
+                  <div className={styles.modalSubtitle}>
+                    Upload a .json checklist file or paste your custom JSON payload.
+                  </div>
+                </div>
+              </div>
+              <button
+                className={styles.modalCloseBtn}
+                onClick={() => setIsImportOpen(false)}
+                title="Close dialog"
+              >
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className={styles.modalBody}>
+              {/* Toolbar Actions */}
+              <div className={styles.modalToolbar}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".json,application/json"
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    className={styles.btn}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Choose a JSON file from disk"
+                  >
+                    <Upload size={12} /> {uploadedFileName ? `📁 ${uploadedFileName}` : 'Choose File...'}
+                  </button>
+
+                  <button
+                    className={styles.btn}
+                    onClick={handleInsertSampleTemplate}
+                    title="Insert valid sample checklist JSON into editor"
+                  >
+                    <FileText size={12} /> Insert Sample Template
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {jsonInput && (
+                    <button
+                      className={styles.btn}
+                      onClick={() => {
+                        navigator.clipboard.writeText(jsonInput);
+                        setCopyFeedback(true);
+                        setTimeout(() => setCopyFeedback(false), 2000);
+                      }}
+                      title="Copy JSON contents"
+                    >
+                      <Copy size={12} /> {copyFeedback ? 'Copied!' : 'Copy'}
+                    </button>
+                  )}
+                  {jsonInput && (
+                    <button
+                      className={styles.btn}
+                      onClick={() => {
+                        setJsonInput('');
+                        setImportError(null);
+                        setParsedCount(null);
+                        setUploadedFileName(null);
+                      }}
+                      title="Clear textarea"
+                    >
+                      <Trash2 size={12} /> Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* JSON Textarea with Valid Placeholder */}
+              <div className={styles.jsonEditorWrapper}>
+                <textarea
+                  className={styles.jsonTextarea}
+                  placeholder={`// Paste your JSON checklist array here. Example format:\n${SAMPLE_JSON_CHECKLIST}`}
+                  value={jsonInput}
+                  onChange={(e) => handleJsonInputChange(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+
+              {/* Import Mode Options */}
+              <div className={styles.modeOptionRow} style={{ flexWrap: 'wrap', gap: '0.85rem' }}>
+                <span style={{ fontWeight: 600, color: '#94a3b8' }}>Import Mode:</span>
+                <label className={styles.radioLabel}>
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="replace"
+                    checked={importMode === 'replace'}
+                    onChange={() => setImportMode('replace')}
+                  />
+                  Replace Current Checklist ({items.length} items)
+                </label>
+                <label className={styles.radioLabel}>
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="append"
+                    checked={importMode === 'append'}
+                    onChange={() => setImportMode('append')}
+                  />
+                  Append to Current
+                </label>
+                <label className={styles.radioLabel}>
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="new_suite"
+                    checked={importMode === 'new_suite'}
+                    onChange={() => setImportMode('new_suite')}
+                  />
+                  ✨ Save as New Suite / Checklist
+                </label>
+              </div>
+
+              {/* Suite Name Input when in new_suite mode */}
+              {importMode === 'new_suite' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <label style={{ fontSize: '0.76rem', fontWeight: 600, color: '#34d399' }}>
+                    Custom Suite / Checklist Name:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cloud Pentest Suite, PCI-DSS Assessment, Custom API Checks..."
+                    value={newSuiteName}
+                    onChange={(e) => setNewSuiteName(e.target.value)}
+                    style={{
+                      background: '#020617',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '6px',
+                      color: '#f8fafc',
+                      padding: '0.45rem 0.65rem',
+                      fontSize: '0.8rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                    💡 This checklist will be saved permanently and appear in your <strong>"📂 Load Standard Suite..."</strong> dropdown alongside the predefined ones.
+                  </span>
+                </div>
+              )}
+
+              {/* Status / Error feedback */}
+              {importError && (
+                <div className={styles.errorBanner}>
+                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Validation Error:</strong> {importError}
+                  </div>
+                </div>
+              )}
+
+              {!importError && parsedCount !== null && parsedCount > 0 && (
+                <div className={styles.successBanner}>
+                  <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                  <span>
+                    Valid checklist schema: ready to import <strong>{parsedCount} test items</strong>.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className={styles.modalFooter}>
+              <button className={styles.btn} onClick={() => setIsImportOpen(false)}>
+                Cancel
+              </button>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={!parsedCount || parsedCount === 0 || !!importError}
+                onClick={handleExecuteImport}
+                style={{
+                  opacity: !parsedCount || parsedCount === 0 || !!importError ? 0.5 : 1,
+                  cursor: !parsedCount || parsedCount === 0 || !!importError ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Upload size={13} /> {parsedCount ? `Import ${parsedCount} Items` : 'Import Checklist'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

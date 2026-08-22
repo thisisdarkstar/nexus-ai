@@ -101,9 +101,12 @@ const STRIDE_CATEGORIES = [
 
 const YARA_STORAGE_KEY = 'nexus_security_yara';
 const SIGMA_STORAGE_KEY = 'nexus_security_sigma';
+const DETECTION_TAB_STORAGE_KEY = 'nexus_security_detection_tab';
 
 export default function DetectionStudio({ onSendToAI }: DetectionStudioProps) {
-  const [activeTab, setActiveTab] = useState<'yara' | 'sigma' | 'stride'>('yara');
+  const [activeTab, setActiveTab] = useState<'yara' | 'sigma' | 'stride'>(() => {
+    return (localStorage.getItem(DETECTION_TAB_STORAGE_KEY) as 'yara' | 'sigma' | 'stride') || 'yara';
+  });
   const [yaraCode, setYaraCode] = useState(() => {
     return localStorage.getItem(YARA_STORAGE_KEY) || SAMPLE_YARA;
   });
@@ -127,6 +130,14 @@ export default function DetectionStudio({ onSendToAI }: DetectionStudioProps) {
       console.error(e);
     }
   }, [sigmaCode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DETECTION_TAB_STORAGE_KEY, activeTab);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [activeTab]);
 
   const ruleCode = activeTab === 'yara' ? yaraCode : sigmaCode;
   const setRuleCode = (val: string) => {

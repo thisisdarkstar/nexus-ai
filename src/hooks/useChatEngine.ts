@@ -369,6 +369,12 @@ export function useChatEngine({
       setMessages(finalMessages);
       setIsGenerating(false);
 
+      window.dispatchEvent(
+        new CustomEvent('nexus:ai-response-complete', {
+          detail: { content: accumulated, prompt: text },
+        })
+      );
+
       if (isNewChat) {
         skipNextLoadRef.current = true;
         setCurrentChatId(sessionChatId);

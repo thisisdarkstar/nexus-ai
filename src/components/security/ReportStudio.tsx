@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Plus,
@@ -20,8 +20,26 @@ import {
   SAMPLE_VAPT_REPORT,
 } from '../../lib/security/reportGenerator';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../CustomSelect';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
 import styles from './ReportStudio.module.css';
+
+const ASSESSMENT_TYPE_OPTIONS = [
+  { value: 'web', label: 'Web Application Pentest', badge: 'Web' },
+  { value: 'api', label: 'API Security Assessment', badge: 'API' },
+  { value: 'mobile', label: 'Mobile Application Security', badge: 'Mobile' },
+  { value: 'network', label: 'Network Infrastructure Pentest', badge: 'Net' },
+  { value: 'cloud', label: 'Cloud Architecture Review', badge: 'Cloud' },
+  { value: 'bug_bounty', label: 'Bug Bounty Engagement', badge: 'Bounty' },
+];
+
+const SEVERITY_OPTIONS = [
+  { value: 'critical', label: 'Critical', badge: 'Critical', badgeColor: '#ef4444' },
+  { value: 'high', label: 'High', badge: 'High', badgeColor: '#f97316' },
+  { value: 'medium', label: 'Medium', badge: 'Medium', badgeColor: '#fbbf24' },
+  { value: 'low', label: 'Low', badge: 'Low', badgeColor: '#60a5fa' },
+  { value: 'info', label: 'Informational', badge: 'Info', badgeColor: '#94a3b8' },
+];
 
 const REPORT_STORAGE_KEY = 'nexus_security_report';
 
@@ -48,7 +66,20 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     }
   }, [report]);
 
-  const [subTab, setSubTab] = useState<'editor' | 'markdown' | 'bug_bounty' | 'html'>('editor');
+  const [subTab, setSubTab] = useState<'editor' | 'markdown' | 'bug_bounty' | 'html'>(() => {
+    return (
+      (localStorage.getItem('nexus_security_report_subtab') as 'editor' | 'markdown' | 'bug_bounty' | 'html') ||
+      'editor'
+    );
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_security_report_subtab', subTab);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [subTab]);
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(
     report.findings[0]?.id || null
   );
@@ -171,11 +202,13 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     URL.revokeObjectURL(url);
   };
 
+  const [htmlTheme, setHtmlTheme] = useState<'dark' | 'light'>('dark');
+
   const markdownContent = generateMarkdownReport(report);
   const bugBountyContent = selectedFinding
     ? generateBugBountyMarkdown(selectedFinding, report.targetScope)
     : 'No finding selected';
-  const htmlContent = generateHTMLReport(report);
+  const htmlContent = useMemo(() => generateHTMLReport(report, htmlTheme), [report, htmlTheme]);
 
   return (
     <div className={styles.reportContainer}>
@@ -280,23 +313,16 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Assessment Type</label>
-              <select
-                className={styles.select}
+              <CustomSelect
                 value={report.assessmentType}
-                onChange={(e) =>
+                options={ASSESSMENT_TYPE_OPTIONS}
+                onChange={(val) =>
                   setReport({
                     ...report,
-                    assessmentType: e.target.value as VAPTReport['assessmentType'],
+                    assessmentType: val as VAPTReport['assessmentType'],
                   })
                 }
-              >
-                <option value="web">Web Application Pentest</option>
-                <option value="api">API Security Assessment</option>
-                <option value="mobile">Mobile Application Security</option>
-                <option value="network">Network Infrastructure Pentest</option>
-                <option value="cloud">Cloud Architecture Review</option>
-                <option value="bug_bounty">Bug Bounty Engagement</option>
-              </select>
+              />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Target Scope</label>
@@ -549,21 +575,15 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>Severity Level</label>
-                    <select
-                      className={styles.select}
+                    <CustomSelect
                       value={selectedFinding.severity}
-                      onChange={(e) =>
+                      options={SEVERITY_OPTIONS}
+                      onChange={(val) =>
                         handleUpdateFinding(selectedFinding.id, {
-                          severity: e.target.value as VulnerabilitySeverity,
+                          severity: val as VulnerabilitySeverity,
                         })
                       }
-                    >
-                      <option value="critical">Critical</option>
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                      <option value="info">Informational</option>
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -652,17 +672,17 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
           <div className={styles.findingSelectorRow}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Active Finding:</span>
-              <select
-                className={styles.select}
+              <CustomSelect
                 value={selectedFindingId || ''}
-                onChange={(e) => setSelectedFindingId(e.target.value)}
-              >
-                {report.findings.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    [{f.id}] {f.title} ({f.severity.toUpperCase()})
-                  </option>
-                ))}
-              </select>
+                options={report.findings.map((f) => ({
+                  value: f.id,
+                  label: `[${f.id}] ${f.title}`,
+                  badge: f.severity.toUpperCase(),
+                  badgeColor: f.severity === 'critical' ? '#ef4444' : f.severity === 'high' ? '#f97316' : f.severity === 'medium' ? '#fbbf24' : '#10b981',
+                }))}
+                onChange={(val) => setSelectedFindingId(val)}
+                style={{ minWidth: '220px' }}
+              />
             </div>
             {selectedFinding?.cvss && (
               <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 500 }}>
@@ -681,19 +701,39 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
 
       {subTab === 'html' && (
         <div className={styles.iframeContainer}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-            <button
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => {
-                const win = window.open('', '_blank');
-                if (win) {
-                  win.document.write(htmlContent);
-                  win.document.close();
-                }
-              }}
-            >
-              <Printer size={13} /> Open in Print View (PDF)
-            </button>
+          <div className={styles.htmlToolbar}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.76rem', color: '#94a3b8', fontWeight: 600 }}>Theme Mode:</span>
+              <div className={styles.tabGroup}>
+                <button
+                  className={`${styles.subTab} ${htmlTheme === 'dark' ? styles.active : ''}`}
+                  onClick={() => setHtmlTheme('dark')}
+                >
+                  🌙 Dark (Nexus)
+                </button>
+                <button
+                  className={`${styles.subTab} ${htmlTheme === 'light' ? styles.active : ''}`}
+                  onClick={() => setHtmlTheme('light')}
+                >
+                  📄 Light (Print)
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => {
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(htmlContent);
+                    win.document.close();
+                  }
+                }}
+              >
+                <Printer size={13} /> Print / Save as PDF
+              </button>
+            </div>
           </div>
           <iframe
             srcDoc={htmlContent}

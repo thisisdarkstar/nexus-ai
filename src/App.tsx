@@ -5,6 +5,8 @@ import ChatArea from './components/ChatArea';
 import SecurityCanvas from './components/security/SecurityCanvas';
 import VoiceOverlay from './components/VoiceOverlay';
 import ConfirmModal from './components/ConfirmModal';
+import MindmapFloatingButton from './components/mindmap/MindmapFloatingButton';
+import MindmapStudio from './components/mindmap/MindmapStudio';
 import { ToastProvider, useToast } from './lib/toast';
 import { useVoice } from './hooks/useVoice';
 import { db } from './lib/db';
@@ -103,6 +105,18 @@ function AppContent() {
 
   const [securityInitialCode, setSecurityInitialCode] = useState<string | undefined>(undefined);
   const [securityInitialDecoderInput, setSecurityInitialDecoderInput] = useState<string | undefined>(undefined);
+  const [mindmapOpen, setMindmapOpen] = useState(false);
+
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        setMindmapOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, []);
 
   const voice = useVoice();
 
@@ -462,6 +476,16 @@ function AppContent() {
           onCancel={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
         />
       )}
+
+      {/* Floating Mindmap Trigger & Studio Canvas */}
+      <MindmapFloatingButton
+        onClick={() => setMindmapOpen(true)}
+        isOpen={mindmapOpen}
+      />
+      <MindmapStudio
+        isOpen={mindmapOpen}
+        onClose={() => setMindmapOpen(false)}
+      />
     </>
   );
 }

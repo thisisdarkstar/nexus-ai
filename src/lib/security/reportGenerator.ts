@@ -122,7 +122,7 @@ ${finding.remediation}
 `;
 }
 
-export function generateHTMLReport(report: VAPTReport): string {
+export function generateHTMLReport(report: VAPTReport, theme: 'dark' | 'light' = 'dark'): string {
   const criticalCount = report.findings.filter((f) => f.severity === 'critical').length;
   const highCount = report.findings.filter((f) => f.severity === 'high').length;
   const mediumCount = report.findings.filter((f) => f.severity === 'medium').length;
@@ -178,7 +178,7 @@ export function generateHTMLReport(report: VAPTReport): string {
       }
 
       <div class="finding-section">
-        <h4 class="section-subtitle">1. Vulnerability Description & Technical Exposure</h4>
+        <div class="section-subtitle">Vulnerability Overview & Technical Details</div>
         <p class="section-text">${escapeHtml(f.description)}</p>
       </div>
 
@@ -186,7 +186,7 @@ export function generateHTMLReport(report: VAPTReport): string {
         f.pocSteps && f.pocSteps.length > 0
           ? `
       <div class="finding-section">
-        <h4 class="section-subtitle">2. Steps to Reproduce (Proof of Concept)</h4>
+        <div class="section-subtitle">Proof of Concept (PoC) & Steps to Reproduce</div>
         <ol class="poc-list">
           ${f.pocSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}
         </ol>
@@ -196,7 +196,7 @@ export function generateHTMLReport(report: VAPTReport): string {
       }
 
       <div class="finding-section">
-        <h4 class="section-subtitle">3. Remediation & Defensive Hardening Guidance</h4>
+        <div class="section-subtitle">Actionable Remediation Guidance</div>
         <p class="section-text">${escapeHtml(f.remediation)}</p>
       </div>
 
@@ -204,8 +204,8 @@ export function generateHTMLReport(report: VAPTReport): string {
         f.patchDiff
           ? `
       <div class="finding-section">
-        <h4 class="section-subtitle">4. Remediation Patch (Diff)</h4>
-        <pre class="diff-block"><code class="diff-code">${escapeHtml(
+        <div class="section-subtitle">Suggested Code Patch (Diff)</div>
+        <pre class="diff-block"><code>${escapeHtml(
           f.patchDiff.original
             .split('\n')
             .map((l) => `- ${l}`)
@@ -225,7 +225,7 @@ export function generateHTMLReport(report: VAPTReport): string {
         f.references && f.references.length > 0
           ? `
       <div class="finding-section">
-        <h4 class="section-subtitle">5. References & Documentation</h4>
+        <div class="section-subtitle">References & Advisories</div>
         <ul class="ref-list">
           ${f.references.map((r) => `<li><a href="${escapeHtml(r)}" target="_blank">${escapeHtml(r)}</a></li>`).join('')}
         </ul>
@@ -236,7 +236,9 @@ export function generateHTMLReport(report: VAPTReport): string {
     </div>
   `
     )
-    .join('\n');
+    .join('');
+
+  const isDark = theme === 'dark';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -246,19 +248,21 @@ export function generateHTMLReport(report: VAPTReport): string {
   <title>${escapeHtml(report.title)} - Security Assessment Report</title>
   <style>
     :root {
-      --primary: #0f172a;
-      --accent: #059669;
-      --accent-light: #10b981;
-      --critical: #dc2626;
-      --high: #ea580c;
-      --medium: #d97706;
-      --low: #2563eb;
-      --info: #475569;
-      --bg-page: #f8fafc;
-      --bg-card: #ffffff;
-      --border: #e2e8f0;
-      --text: #1e293b;
-      --text-muted: #64748b;
+      --primary: ${isDark ? '#f8fafc' : '#0f172a'};
+      --accent: ${isDark ? '#10b981' : '#059669'};
+      --accent-light: ${isDark ? '#34d399' : '#10b981'};
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #fbbf24;
+      --low: #38bdf8;
+      --info: #94a3b8;
+      --bg-page: ${isDark ? '#020617' : '#f8fafc'};
+      --bg-card: ${isDark ? '#0f172a' : '#ffffff'};
+      --bg-surface: ${isDark ? '#1e293b' : '#f1f5f9'};
+      --border: ${isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0'};
+      --text: ${isDark ? '#f8fafc' : '#1e293b'};
+      --text-muted: ${isDark ? '#94a3b8' : '#64748b'};
+      --code-bg: ${isDark ? '#020617' : '#f1f5f9'};
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -267,7 +271,7 @@ export function generateHTMLReport(report: VAPTReport): string {
       line-height: 1.6;
       color: var(--text);
       background: var(--bg-page);
-      padding: 40px 20px;
+      padding: 30px 20px;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -276,7 +280,7 @@ export function generateHTMLReport(report: VAPTReport): string {
       margin: 0 auto;
       background: var(--bg-card);
       border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+      box-shadow: ${isDark ? '0 10px 30px rgba(0,0,0,0.5)' : '0 10px 30px rgba(0,0,0,0.06)'};
       border: 1px solid var(--border);
       overflow: hidden;
     }
@@ -293,23 +297,24 @@ export function generateHTMLReport(report: VAPTReport): string {
       background: linear-gradient(135deg, #059669, #10b981);
       color: #fff;
       border: none;
-      padding: 10px 20px;
+      padding: 8px 18px;
       border-radius: 8px;
       cursor: pointer;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+      transition: all 0.2s;
     }
-    .print-btn:hover { background: #047857; }
+    .print-btn:hover { background: #047857; transform: translateY(-1px); }
 
     /* Cover / Header Banner */
     .report-header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
       color: #ffffff;
-      padding: 48px;
+      padding: 40px 48px;
       border-bottom: 4px solid var(--accent);
     }
     .report-brand {
@@ -322,11 +327,11 @@ export function generateHTMLReport(report: VAPTReport): string {
       margin-bottom: 8px;
     }
     .report-main-title {
-      font-size: 2rem;
+      font-size: 1.85rem;
       font-weight: 800;
       color: #f8fafc;
       line-height: 1.25;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     .report-confidential-pill {
       display: inline-block;
@@ -344,24 +349,24 @@ export function generateHTMLReport(report: VAPTReport): string {
     /* Metadata Table */
     .metadata-strip {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 16px;
-      padding: 24px 48px;
-      background: #f1f5f9;
+      padding: 20px 48px;
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
     }
-    .meta-box { display: flex; flex-direction: column; gap: 4px; }
-    .meta-box-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
-    .meta-box-val { font-size: 0.95rem; font-weight: 600; color: var(--primary); }
+    .meta-box { display: flex; flex-direction: column; gap: 3px; }
+    .meta-box-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+    .meta-box-val { font-size: 0.92rem; font-weight: 600; color: var(--primary); }
 
-    .report-body { padding: 48px; }
+    .report-body { padding: 40px 48px; }
 
     /* Headings */
     h2.section-header {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: var(--primary);
-      margin: 40px 0 16px 0;
+      margin: 36px 0 16px 0;
       padding-bottom: 8px;
       border-bottom: 2px solid var(--border);
       display: flex;
@@ -371,8 +376,8 @@ export function generateHTMLReport(report: VAPTReport): string {
     h2.section-header:first-of-type { margin-top: 0; }
 
     .lead-paragraph {
-      font-size: 1rem;
-      color: #334155;
+      font-size: 0.95rem;
+      color: var(--text-muted);
       line-height: 1.7;
       margin-bottom: 24px;
     }
@@ -382,15 +387,15 @@ export function generateHTMLReport(report: VAPTReport): string {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 12px;
-      margin: 24px 0 32px 0;
+      margin: 20px 0 32px 0;
     }
     .risk-card {
-      background: #ffffff;
+      background: var(--bg-surface);
       border-radius: 8px;
       padding: 16px;
       text-align: center;
       border: 1px solid var(--border);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
     .risk-card-num { font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 6px; }
     .risk-card-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -416,19 +421,19 @@ export function generateHTMLReport(report: VAPTReport): string {
     .risk-info .risk-card-label { color: var(--info); }
 
     /* Summary Table */
-    .table-responsive { width: 100%; overflow-x: auto; margin-bottom: 32px; }
+    .table-responsive { width: 100%; overflow-x: auto; margin-bottom: 32px; border: 1px solid var(--border); border-radius: 8px; }
     .summary-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .summary-table th { background: #f8fafc; color: var(--primary); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; padding: 12px 16px; border-bottom: 2px solid var(--border); }
-    .summary-table td { padding: 12px 16px; font-size: 0.88rem; border-bottom: 1px solid var(--border); color: #334155; }
-    .summary-table tr:hover { background: #f8fafc; }
+    .summary-table th { background: var(--bg-surface); color: var(--primary); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; padding: 12px 16px; border-bottom: 2px solid var(--border); }
+    .summary-table td { padding: 12px 16px; font-size: 0.85rem; border-bottom: 1px solid var(--border); color: var(--text); }
+    .summary-table tr:hover { background: rgba(255,255,255,0.02); }
 
     /* Finding Cards */
     .finding-card {
-      background: #ffffff;
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
-      margin-bottom: 32px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      margin-bottom: 28px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow: hidden;
       page-break-inside: avoid;
     }
@@ -439,8 +444,8 @@ export function generateHTMLReport(report: VAPTReport): string {
     .finding-info { border-left: 6px solid var(--info); }
 
     .finding-card-header {
-      padding: 20px 24px;
-      background: #f8fafc;
+      padding: 18px 24px;
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -450,36 +455,36 @@ export function generateHTMLReport(report: VAPTReport): string {
     }
     .finding-title-group { display: flex; align-items: center; gap: 10px; }
     .finding-number { font-size: 0.9rem; font-weight: 800; color: var(--text-muted); }
-    .finding-title { font-size: 1.15rem; font-weight: 700; color: var(--primary); }
+    .finding-title { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
 
     .severity-pill {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 800;
-      padding: 4px 12px;
+      padding: 3px 10px;
       border-radius: 9999px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
     }
-    .pill-critical { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-    .pill-high { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
-    .pill-medium { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-    .pill-low { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
-    .pill-info { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .pill-critical { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4); }
+    .pill-high { background: rgba(249,115,22,0.2); color: #fb923c; border: 1px solid rgba(249,115,22,0.4); }
+    .pill-medium { background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4); }
+    .pill-low { background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); }
+    .pill-info { background: rgba(148,163,184,0.2); color: #94a3b8; border: 1px solid rgba(148,163,184,0.4); }
 
     .finding-meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 12px;
       padding: 16px 24px;
-      background: #ffffff;
+      background: var(--bg-card);
       border-bottom: 1px solid var(--border);
     }
     .meta-item { display: flex; flex-direction: column; gap: 2px; }
-    .meta-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); }
-    .meta-value { font-size: 0.85rem; color: var(--primary); }
-    .status-badge { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content; }
-    .status-open { background: #fee2e2; color: #b91c1c; }
-    .status-fixed { background: #d1fae5; color: #065f46; }
+    .meta-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); }
+    .meta-value { font-size: 0.85rem; color: var(--text); }
+    .status-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content; }
+    .status-open { background: rgba(239,68,68,0.2); color: #f87171; }
+    .status-fixed { background: rgba(16,185,129,0.2); color: #34d399; }
 
     /* CVSS Banner */
     .cvss-banner {
@@ -489,7 +494,7 @@ export function generateHTMLReport(report: VAPTReport): string {
       margin: 16px 24px;
       padding: 12px 16px;
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--bg-surface);
       border: 1px solid var(--border);
     }
     .cvss-score-circle {
@@ -497,49 +502,51 @@ export function generateHTMLReport(report: VAPTReport): string {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-width: 60px;
-      height: 60px;
+      min-width: 54px;
+      height: 54px;
       border-radius: 8px;
-      background: var(--primary);
+      background: #020617;
       color: #fff;
     }
     .cvss-critical .cvss-score-circle { background: var(--critical); }
     .cvss-high .cvss-score-circle { background: var(--high); }
-    .cvss-medium .cvss-score-circle { background: var(--medium); }
+    .cvss-medium .cvss-score-circle { background: var(--medium); color: #020617; }
     .cvss-low .cvss-score-circle { background: var(--low); }
 
-    .cvss-score-num { font-size: 1.4rem; font-weight: 800; line-height: 1; }
-    .cvss-score-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+    .cvss-score-num { font-size: 1.3rem; font-weight: 800; line-height: 1; }
+    .cvss-score-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
     .cvss-vector-info { display: flex; flex-direction: column; gap: 4px; }
-    .cvss-vtitle { font-size: 0.78rem; font-weight: 700; color: var(--primary); }
-    .cvss-vector-str { font-family: monospace; font-size: 0.78rem; color: var(--text-muted); word-break: break-all; }
+    .cvss-vtitle { font-size: 0.75rem; font-weight: 700; color: var(--primary); }
+    .cvss-vector-str { font-family: monospace; font-size: 0.75rem; color: var(--text-muted); word-break: break-all; }
 
     .finding-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
     .finding-section:last-of-type { border-bottom: none; }
-    .section-subtitle { font-size: 0.9rem; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
-    .section-text { font-size: 0.9rem; color: #334155; line-height: 1.6; }
-    .poc-list { margin-left: 20px; font-size: 0.88rem; color: #334155; display: flex; flex-direction: column; gap: 6px; }
-    .ref-list { margin-left: 20px; font-size: 0.85rem; color: var(--accent); }
-    .ref-list a { color: var(--accent); text-decoration: none; word-break: break-all; }
+    .section-subtitle { font-size: 0.86rem; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+    .section-text { font-size: 0.88rem; color: var(--text); line-height: 1.6; }
+    .poc-list { margin-left: 20px; font-size: 0.85rem; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
+    .ref-list { margin-left: 20px; font-size: 0.82rem; color: var(--accent); }
+    .ref-list a { color: var(--accent-light); text-decoration: none; word-break: break-all; }
 
     .diff-block {
-      background: #0f172a;
-      color: #f8fafc;
+      background: #020617;
+      color: #34d399;
       padding: 12px 16px;
       border-radius: 6px;
       overflow-x: auto;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       line-height: 1.5;
+      border: 1px solid var(--border);
     }
 
     code {
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      background: #f1f5f9;
-      color: #0f172a;
+      background: var(--code-bg);
+      color: #38bdf8;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.85em;
+      border: 1px solid var(--border);
     }
 
     /* Roadmap Timeline */
@@ -550,37 +557,67 @@ export function generateHTMLReport(report: VAPTReport): string {
       margin: 20px 0;
     }
     .roadmap-card {
-      background: #f8fafc;
+      background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 16px;
     }
-    .roadmap-time { font-size: 0.8rem; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
-    .roadmap-target { font-size: 0.95rem; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
-    .roadmap-desc { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+    .roadmap-time { font-size: 0.78rem; font-weight: 800; color: var(--accent-light); text-transform: uppercase; margin-bottom: 4px; }
+    .roadmap-target { font-size: 0.92rem; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+    .roadmap-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; }
 
     /* Footer */
     .report-footer {
-      padding: 32px 48px;
-      background: #f8fafc;
+      padding: 28px 48px;
+      background: var(--bg-surface);
       border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--text-muted);
       flex-wrap: wrap;
       gap: 12px;
     }
 
+    /* Print Overrides: High-contrast ink-saving white background for PDF & Paper */
     @media print {
-      body { background: #ffffff; padding: 0; }
+      :root {
+        --primary: #0f172a !important;
+        --bg-page: #ffffff !important;
+        --bg-card: #ffffff !important;
+        --bg-surface: #f8fafc !important;
+        --border: #cbd5e1 !important;
+        --text: #0f172a !important;
+        --text-muted: #475569 !important;
+        --code-bg: #f1f5f9 !important;
+      }
+      body { background: #ffffff !important; color: #000000 !important; padding: 0 !important; }
       .top-action-bar { display: none !important; }
-      .report-wrapper { box-shadow: none; border: none; max-width: 100%; border-radius: 0; }
-      .report-header { background: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .finding-card { page-break-inside: avoid; border: 1px solid #cbd5e1; }
-      .cvss-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .report-wrapper { box-shadow: none !important; border: none !important; max-width: 100% !important; border-radius: 0 !important; background: #ffffff !important; }
+      .report-header { background: #0f172a !important; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .metadata-strip { background: #f8fafc !important; border-bottom: 1px solid #cbd5e1 !important; }
+      .meta-box-val { color: #0f172a !important; }
+      .lead-paragraph { color: #334155 !important; }
+      .risk-card { background: #ffffff !important; border: 1px solid #cbd5e1 !important; }
+      .finding-card { page-break-inside: avoid; border: 1px solid #cbd5e1 !important; background: #ffffff !important; }
+      .finding-card-header { background: #f8fafc !important; border-bottom: 1px solid #cbd5e1 !important; }
+      .finding-title { color: #0f172a !important; }
+      .finding-meta-grid { background: #ffffff !important; }
+      .meta-value { color: #0f172a !important; }
+      .cvss-banner { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .cvss-vtitle { color: #0f172a !important; }
+      .section-subtitle { color: #0f172a !important; }
+      .section-text { color: #334155 !important; }
+      .poc-list { color: #334155 !important; }
+      .summary-table th { background: #f8fafc !important; color: #0f172a !important; }
+      .summary-table td { color: #334155 !important; }
+      .summary-table tr:hover { background: transparent !important; }
+      .roadmap-card { background: #f8fafc !important; border: 1px solid #cbd5e1 !important; }
+      .roadmap-target { color: #0f172a !important; }
+      .report-footer { background: #f8fafc !important; border-top: 1px solid #cbd5e1 !important; color: #64748b !important; }
       .severity-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      code { background: #f1f5f9 !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; }
       @page { margin: 1.2cm; size: A4; }
     }
   </style>
@@ -588,7 +625,7 @@ export function generateHTMLReport(report: VAPTReport): string {
 <body>
   <div class="top-action-bar">
     <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">
-      🔒 Executive VAPT Security Report
+      🔒 Executive VAPT Security Assessment Report
     </div>
     <button class="print-btn" onclick="window.print()">
       🖨️ Print / Save as PDF
@@ -666,11 +703,11 @@ export function generateHTMLReport(report: VAPTReport): string {
         <table class="summary-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Vulnerability Title</th>
-              <th>Severity</th>
-              <th>CVSS</th>
-              <th>Status</th>
+              <th style="width: 15%;">ID</th>
+              <th style="width: 45%;">Vulnerability Title</th>
+              <th style="width: 15%;">Severity</th>
+              <th style="width: 10%;">CVSS</th>
+              <th style="width: 15%;">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -699,9 +736,9 @@ export function generateHTMLReport(report: VAPTReport): string {
             'Testing adhered to the OWASP Web Security Testing Guide (WSTG v4.2) and NIST SP 800-115 technical assessment guidelines.'
         )}
       </p>
-      <div style="background: #f8fafc; padding: 14px 18px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 24px;">
+      <div style="background: var(--bg-surface); padding: 14px 18px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 24px;">
         <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">In-Scope Target Assets:</span><br/>
-        <code style="font-size: 0.9rem; color: var(--primary);">${escapeHtml(report.targetScope || 'All Designated Assessment Assets')}</code>
+        <code style="font-size: 0.88rem; color: var(--accent-light);">${escapeHtml(report.targetScope || 'All Designated Assessment Assets')}</code>
       </div>
 
       <!-- 3. Detailed Technical Findings -->
@@ -714,17 +751,17 @@ export function generateHTMLReport(report: VAPTReport): string {
         To systematically minimize operational risk, defensive engineering teams should address identified vulnerabilities according to the following priority timeline:
       </p>
       <div class="roadmap-grid">
-        <div class="roadmap-card">
+        <div class="roadmap-card" style="border-top: 3px solid var(--critical);">
           <div class="roadmap-time" style="color: var(--critical);">Phase 1 (Immediate: 24-48 Hours)</div>
           <div class="roadmap-target">Critical Severity Vulnerabilities</div>
           <div class="roadmap-desc">Remediate all remote exploitation, injection vectors, and broken access controls immediately.</div>
         </div>
-        <div class="roadmap-card">
+        <div class="roadmap-card" style="border-top: 3px solid var(--high);">
           <div class="roadmap-time" style="color: var(--high);">Phase 2 (1 - 2 Weeks)</div>
           <div class="roadmap-target">High Severity Vulnerabilities</div>
           <div class="roadmap-desc">Implement strict authentication checks, input sanitization, and access matrices.</div>
         </div>
-        <div class="roadmap-card">
+        <div class="roadmap-card" style="border-top: 3px solid var(--medium);">
           <div class="roadmap-time" style="color: var(--medium);">Phase 3 (30 Days)</div>
           <div class="roadmap-target">Medium & Low Severity</div>
           <div class="roadmap-desc">Address security misconfigurations, header hardening, and cookie attributes.</div>

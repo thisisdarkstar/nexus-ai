@@ -10,12 +10,15 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { usePyodide, SECURITY_SCRIPT_PRESETS } from '../../lib/sandbox/usePyodide';
+import CustomSelect from '../CustomSelect';
 import styles from './SandboxTerminal.module.css';
 
 interface SandboxTerminalProps {
   initialCode?: string;
   onSendToAI?: (prompt: string) => void;
 }
+
+const SANDBOX_CODE_STORAGE_KEY = 'nexus_security_sandbox_code';
 
 export default function SandboxTerminal({
   initialCode,
@@ -31,14 +34,42 @@ export default function SandboxTerminal({
     presets,
   } = usePyodide();
 
-  const [code, setCode] = useState(initialCode || SECURITY_SCRIPT_PRESETS[0].code);
+  const [code, setCode] = useState<string>(() => {
+    if (initialCode) return initialCode;
+    try {
+      const saved = localStorage.getItem(SANDBOX_CODE_STORAGE_KEY);
+      if (saved !== null) return saved;
+    } catch {
+      // fallback
+    }
+    return SECURITY_SCRIPT_PRESETS[0].code;
+  });
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SANDBOX_CODE_STORAGE_KEY, code);
+    } catch (e) {
+      console.error('Failed to save sandbox code to localStorage:', e);
+    }
+  }, [code]);
 
   useEffect(() => {
     if (initialCode) {
       setCode(initialCode);
     }
   }, [initialCode]);
+
+  useEffect(() => {
+    const handleSecurityEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ tab?: string; code?: string }>;
+      if (custom.detail?.tab === 'sandbox' && custom.detail?.code) {
+        setCode(custom.detail.code);
+      }
+    };
+    window.addEventListener('nexus:open-security', handleSecurityEvent);
+    return () => window.removeEventListener('nexus:open-security', handleSecurityEvent);
+  }, []);
 
   const handleSelectPreset = (presetId: string) => {
     const selected = presets.find((p) => p.id === presetId);
@@ -64,18 +95,17 @@ export default function SandboxTerminal({
       {/* Top Controls Bar */}
       <div className={styles.topBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <select
-            className={styles.presetSelect}
-            onChange={(e) => handleSelectPreset(e.target.value)}
-            defaultValue={SECURITY_SCRIPT_PRESETS[0].id}
-          >
-            <option disabled>-- Security Script Presets --</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.category})
-              </option>
-            ))}
-          </select>
+          <CustomSelect
+            value=""
+            placeholder="Security Script Presets..."
+            options={presets.map((p) => ({
+              value: p.id,
+              label: p.name,
+              badge: p.category,
+            }))}
+            onChange={(val) => handleSelectPreset(val)}
+            style={{ minWidth: '240px' }}
+          />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

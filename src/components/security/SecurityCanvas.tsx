@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Check,
 } from 'lucide-react';
+import CustomSelect, { type SelectOption } from '../CustomSelect';
 import CodeAuditor from './CodeAuditor';
 import SandboxTerminal from './SandboxTerminal';
 import DecoderHub from './DecoderHub';
@@ -58,6 +59,14 @@ const CATEGORIES: Array<{ id: TabCategory; label: string }> = [
   { id: 'defense', label: 'Code & Defense' },
 ];
 
+const CATEGORY_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All Modules', icon: Layers, badge: '11' },
+  { value: 'assess', label: 'Assess & Scope', icon: Target, badge: '3' },
+  { value: 'web', label: 'Web & Exploits', icon: Globe, badge: '3' },
+  { value: 'recon', label: 'Recon & Auto', icon: Search, badge: '3' },
+  { value: 'defense', label: 'Code & Defense', icon: ShieldAlert, badge: '2' },
+];
+
 const SECURITY_TABS: TabItem[] = [
   // Assess
   { id: 'reports', name: 'Reports', category: 'assess', icon: FileText, tooltip: 'VAPT & Bug Bounty Report Studio (CVSS Calculator)' },
@@ -88,10 +97,20 @@ export default function SecurityCanvas({
   initialDecoderInput,
 }: SecurityCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [category, setCategory] = useState<TabCategory>('all');
+  const [category, setCategory] = useState<TabCategory>(() => {
+    return (localStorage.getItem('nexus_security_category') as TabCategory) || 'all';
+  });
   const [sandboxCode, setSandboxCode] = useState<string | undefined>(undefined);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_security_category', category);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [category]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -169,17 +188,15 @@ export default function SecurityCanvas({
     >
       {/* Canvas Header & Tabs */}
       <div className={styles.canvasHeader}>
-        {/* Category Pills */}
-        <div className={styles.categoryGroup}>
-          {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => (
-            <button
-              key={cat}
-              className={`${styles.catBtn} ${category === cat ? styles.active : ''}`}
-              onClick={() => setCategory(cat)}
-            >
-              {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
-            </button>
-          ))}
+        {/* Category Dropdown Selector */}
+        <div className={styles.categoryDropdownWrapper}>
+          <CustomSelect
+            value={category}
+            options={CATEGORY_OPTIONS}
+            onChange={(val) => setCategory(val as TabCategory)}
+            size="sm"
+            style={{ width: '150px', minWidth: '135px' }}
+          />
         </div>
 
         {/* Custom Rich Dropdown Selector for Narrow Views */}
@@ -295,14 +312,14 @@ export default function SecurityCanvas({
 
         {activeTab === 'sandbox' && (
           <SandboxTerminal
-            initialCode={sandboxCode}
+            initialCode={sandboxCode || initialCode}
             onSendToAI={onSendToAI}
           />
         )}
 
         {activeTab === 'decoders' && (
           <DecoderHub
-            initialInput={initialDecoderInput}
+            initialInput={initialDecoderInput || initialCode}
             onSendToSandbox={handleSendToSandbox}
             onSendToAI={onSendToAI}
           />
@@ -341,6 +358,7 @@ export default function SecurityCanvas({
         {activeTab === 'payloads' && (
           <PayloadCrafter
             onSendToAI={onSendToAI}
+            onSendToSandbox={handleSendToSandbox}
           />
         )}
 

@@ -27,10 +27,11 @@ export default function ModelMenu({
         onClick={() => setIsOpen((o) => !o)}
         disabled={isGenerating}
         className={`${styles.trigger} ${isGenerating ? styles.triggerDisabled : ''}`}
+        title={`Selected Model: ${currentLabel}`}
       >
-        <Sparkles size={16} />
-        <span>{currentLabel}</span>
-        <ChevronUp size={16} className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} />
+        <Sparkles size={14} style={{ flexShrink: 0 }} />
+        <span className={styles.triggerLabel}>{currentLabel}</span>
+        <ChevronUp size={14} className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} style={{ flexShrink: 0 }} />
       </button>
 
       {isOpen && (

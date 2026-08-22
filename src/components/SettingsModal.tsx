@@ -2,8 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Download, Upload, Monitor, Volume2 } from 'lucide-react';
 import { db } from '../lib/db';
 import { DEFAULT_OPENAI_BASE_URL } from '../lib/constants';
+import CustomSelect from './CustomSelect';
 import type { Settings } from '../types';
 import styles from './SettingsModal.module.css';
+
+const PROVIDER_OPTIONS = [
+  { value: 'chrome', label: 'Chrome Gemini Nano (On-Device)', badge: 'Local' },
+  { value: 'openai', label: 'OpenAI Compatible API (Ollama / LM Studio)', badge: 'Custom' },
+];
+
+const THEME_OPTIONS = [
+  { value: 'dark', label: 'Deep Nebula (Dark Theme)' },
+  { value: 'light', label: 'Clear Sky (Light Theme)' },
+];
+
+const MAX_TOKENS_OPTIONS = [
+  { value: '1024', label: '1,024 - Short responses' },
+  { value: '2048', label: '2,048 - Standard' },
+  { value: '4096', label: '4,096 - Detailed (default)' },
+  { value: '8192', label: '8,192 - Long code / analysis' },
+  { value: '16384', label: '16,384 - Very long outputs' },
+  { value: '32768', label: '32,768 - Maximum' },
+];
 
 interface SettingsModalProps {
   settings: Settings;
@@ -146,25 +166,19 @@ export default function SettingsModal({
           <div className={styles.row}>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Provider</label>
-              <select
+              <CustomSelect
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as Settings['provider'])}
-                className={styles.select}
-              >
-                <option value="chrome">Chrome Gemini Nano</option>
-                <option value="openai">OpenAI Compatible API</option>
-              </select>
+                options={PROVIDER_OPTIONS}
+                onChange={(val) => setProvider(val as Settings['provider'])}
+              />
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Theme</label>
-              <select
+              <CustomSelect
                 value={theme}
-                onChange={(e) => setTheme(e.target.value as Settings['theme'])}
-                className={styles.select}
-              >
-                <option value="dark">Deep Nebula (Dark)</option>
-                <option value="light">Clear Sky (Light)</option>
-              </select>
+                options={THEME_OPTIONS}
+                onChange={(val) => setTheme(val as Settings['theme'])}
+              />
             </div>
           </div>
 
@@ -192,21 +206,13 @@ export default function SettingsModal({
               </div>
               <div className={styles.apiField}>
                 <label className={styles.apiLabel}>Model</label>
-                <select
+                <CustomSelect
                   value={openaiModel}
-                  onChange={(e) => setOpenaiModel(e.target.value)}
-                  className={styles.apiInput}
-                >
-                  {availableModels.length === 0 ? (
-                    <option value="">No models found or server unreachable</option>
-                  ) : (
-                    availableModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.id}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  placeholder={availableModels.length === 0 ? 'No models found or server unreachable' : 'Select model...'}
+                  options={availableModels.map((m) => ({ value: m.id, label: m.id }))}
+                  onChange={(val) => setOpenaiModel(val)}
+                  disabled={availableModels.length === 0}
+                />
               </div>
             </div>
           )}
@@ -246,18 +252,11 @@ export default function SettingsModal({
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Max Tokens</label>
-              <select
-                value={maxTokens}
-                onChange={(e) => setMaxTokens(parseInt(e.target.value, 10))}
-                className={styles.select}
-              >
-                <option value={1024}>1,024 - Short responses</option>
-                <option value={2048}>2,048 - Standard</option>
-                <option value={4096}>4,096 - Detailed (default)</option>
-                <option value={8192}>8,192 - Long code / analysis</option>
-                <option value={16384}>16,384 - Very long outputs</option>
-                <option value={32768}>32,768 - Maximum</option>
-              </select>
+              <CustomSelect
+                value={String(maxTokens)}
+                options={MAX_TOKENS_OPTIONS}
+                onChange={(val) => setMaxTokens(parseInt(val, 10))}
+              />
             </div>
           </div>
 
@@ -271,21 +270,20 @@ export default function SettingsModal({
               </span>
             </div>
             <div className={styles.voiceRow}>
-              <div className={styles.fieldGroup}>
+              <div className={styles.fieldGroup} style={{ flex: 1 }}>
                 <label className={styles.apiLabel}>TTS Voice</label>
-                <select
+                <CustomSelect
                   value={ttsVoice}
-                  onChange={(e) => setTtsVoice(e.target.value)}
-                  className={styles.voiceSelect}
-                >
-                  <option value="">Best available (auto)</option>
-                  {enVoices.map((v) => (
-                    <option key={v.name} value={v.name}>
-                      {v.name}
-                      {v.lang !== 'en-US' ? ` [${v.lang}]` : ''}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Best available (auto)"
+                  options={[
+                    { value: '', label: 'Best available (auto)' },
+                    ...enVoices.map((v) => ({
+                      value: v.name,
+                      label: `${v.name}${v.lang !== 'en-US' ? ` [${v.lang}]` : ''}`,
+                    })),
+                  ]}
+                  onChange={(val) => setTtsVoice(val)}
+                />
               </div>
               <button onClick={testVoice} className={styles.testBtn}>
                 <Volume2 size={14} /> Test
