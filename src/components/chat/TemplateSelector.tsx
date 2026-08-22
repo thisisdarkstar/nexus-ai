@@ -86,7 +86,12 @@ export default function TemplateSelector({
       close();
     } else if (wrapperRef.current) {
       const rect = wrapperRef.current.getBoundingClientRect();
-      setPopoverPos({ top: rect.bottom + 8, left: rect.left });
+      const POPOVER_WIDTH = 360;
+      const MARGIN = 8;
+      // Align popover's right edge to the button's right edge, then clamp so it never exits the viewport
+      const rightAligned = rect.right - POPOVER_WIDTH;
+      const clampedLeft = Math.max(MARGIN, Math.min(rightAligned, window.innerWidth - POPOVER_WIDTH - MARGIN));
+      setPopoverPos({ top: rect.bottom + 8, left: clampedLeft });
       setOpen(true);
     }
   };

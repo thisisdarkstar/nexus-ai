@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw } from 'lucide-react';
+import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import CustomSelect from '../CustomSelect';
 import type { ScopeItem } from '../../types';
@@ -7,9 +7,10 @@ import styles from './ScopeManager.module.css';
 
 const TARGET_TYPE_OPTIONS = [
   { value: 'domain', label: 'Domain / Subdomain' },
-  { value: 'ip', label: 'IP / CIDR Range' },
+  { value: 'ip_range', label: 'IP / CIDR Range' },
   { value: 'api', label: 'API Endpoint' },
-  { value: 'mobile', label: 'Mobile App / Binary' },
+  { value: 'mobile_app', label: 'Mobile App / Binary' },
+  { value: 'cloud_resource', label: 'Cloud Resource' },
 ];
 
 const DEFAULT_SCOPE_ITEMS: ScopeItem[] = [
@@ -25,6 +26,126 @@ const DEFAULT_SCOPE_ITEMS: ScopeItem[] = [
 ];
 
 const SCOPE_STORAGE_KEY = 'nexus_security_scope';
+
+/** Click-to-edit notes field: Enter or blur commits, Escape cancels. */
+function EditableNotes({
+  value,
+  onSave,
+}: {
+  value?: string;
+  onSave: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+
+  const commit = () => {
+    setEditing(false);
+    if (draft.trim() !== (value || '')) onSave(draft.trim());
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className={styles.notesInput}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setDraft(value || '');
+            setEditing(false);
+          }
+        }}
+        placeholder="Engagement notes..."
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`${styles.notesEditable} ${!value ? styles.notesPlaceholder : ''}`}
+      onClick={() => {
+        setDraft(value || '');
+        setEditing(true);
+      }}
+      title="Click to edit notes"
+    >
+      {value || '+ Add notes'}
+    </span>
+  );
+}
+
+/** Click-to-edit tech stack tags: add via Enter, remove via chip ×, blur commits. */
+function EditableTechStack({
+  value,
+  onSave,
+}: {
+  value?: string[];
+  onSave: (next: string[]) => void;
+}) {
+  const tags = value || [];
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState('');
+
+  const commit = () => {
+    const pending = inputVal.trim();
+    const next = pending ? [...tags, pending] : tags;
+    setEditing(false);
+    setInputVal('');
+    if (pending) onSave(next);
+  };
+
+  const removeTag = (idx: number) => {
+    onSave(tags.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className={styles.tagList}>
+      {tags.map((tech, i) => (
+        <span key={i} className={styles.tag}>
+          {tech}
+          <button
+            className={styles.tagRemoveBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTag(i);
+            }}
+            title={`Remove ${tech}`}
+          >
+            <X size={9} />
+          </button>
+        </span>
+      ))}
+      {editing ? (
+        <input
+          autoFocus
+          className={styles.tagAddInput}
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') {
+              setInputVal('');
+              setEditing(false);
+            }
+          }}
+          placeholder="Tech name..."
+        />
+      ) : (
+        <button
+          className={styles.tagAddBtn}
+          onClick={() => setEditing(true)}
+          title="Add technology"
+        >
+          + Tech
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface ScopeManagerProps {
   onSendToAI?: (prompt: string) => void;
@@ -100,6 +221,10 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
     setScopeItems((prev) =>
       prev.map((s) => (s.id === id ? { ...s, inScope: !s.inScope } : s))
     );
+  };
+
+  const handleUpdateItem = (id: string, updates: Partial<ScopeItem>) => {
+    setScopeItems((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   };
 
   const handleResetDefaults = () => {
@@ -212,21 +337,15 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
                 </button>
               </div>
 
-              {item.notes && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  {item.notes}
-                </span>
-              )}
+              <EditableNotes
+                value={item.notes}
+                onSave={(next) => handleUpdateItem(item.id, { notes: next })}
+              />
 
-              {item.techStack && item.techStack.length > 0 && (
-                <div className={styles.tagList}>
-                  {item.techStack.map((tech, i) => (
-                    <span key={i} className={styles.tag}>
-                      {tech}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <EditableTechStack
+                value={item.techStack}
+                onSave={(next) => handleUpdateItem(item.id, { techStack: next })}
+              />
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>

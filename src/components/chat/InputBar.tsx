@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Send, Square, Paperclip, Mic, MicOff, X as LucideX } from 'lucide-react';
+import { Send, Square, Paperclip, Mic, MicOff, X as LucideX, ListPlus } from 'lucide-react';
 import ModelMenu from './ModelMenu';
 import type { Settings, AvailableModel, ProviderStatus, VoiceHook } from '../../types';
 import styles from './InputBar.module.css';
@@ -52,10 +52,8 @@ export default function InputBar({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter') return;
-    if (!e.ctrlKey && !e.shiftKey) {
-      e.preventDefault();
-      if (providerStatus.state === 'ready' && input.trim()) onSend();
-    } else {
+    // Shift+Enter → insert newline
+    if (e.shiftKey) {
       e.preventDefault();
       const target = e.target as HTMLTextAreaElement;
       const start = target.selectionStart;
@@ -65,7 +63,11 @@ export default function InputBar({
       setTimeout(() => {
         target.selectionStart = target.selectionEnd = start + 1;
       }, 0);
+      return;
     }
+    // Enter or Ctrl+Enter → send
+    e.preventDefault();
+    if (providerStatus.state === 'ready' && input.trim()) onSend();
   };
 
   const canSend = input.trim() && providerStatus.state === 'ready';
@@ -100,7 +102,7 @@ export default function InputBar({
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message Nexus..."
+          placeholder="Message Nexus… (Enter to send, Shift+Enter for new line)"
           rows={1}
           className={styles.textarea}
         />
@@ -137,10 +139,10 @@ export default function InputBar({
               onClick={onSend}
               disabled={!canSend}
               className={`${styles.sendBtn} ${!canSend ? styles.sendBtnDisabled : ''}`}
-              title={isGenerating && input.trim() ? 'Queue message' : 'Send message'}
+              title={isGenerating && input.trim() ? 'Add to queue' : 'Send message (Enter)'}
             >
-              {isGenerating ? (
-                <Square size={16} fill="currentColor" />
+              {isGenerating && input.trim() ? (
+                <ListPlus size={16} />
               ) : (
                 <Send size={16} />
               )}

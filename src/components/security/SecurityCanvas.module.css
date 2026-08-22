@@ -44,6 +44,9 @@
   flex: 1;
   min-width: 0;
   max-width: 100%;
+  /* Fade-out mask on right edge to hint that more tabs exist */
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 32px), transparent 100%);
 }
 
 .tabList::-webkit-scrollbar {
@@ -326,13 +329,48 @@
   flex: 1;
   min-height: 0;
   height: calc(100% - 48px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  overflow: hidden;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* Layered tool panes: every visited tool stays mounted for state persistence;
+   inactive ones fade out, active one slides/fades in on switch. */
+.toolPane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition:
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 0.22s;
+  will-change: opacity, transform;
+}
+
+.toolPaneActive {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1) 0.04s,
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) 0.04s,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolPane,
+  .toolPaneActive {
+    transition: none;
+    transform: none;
+  }
 }
 
 @container workbench (max-width: 680px) {
@@ -341,7 +379,7 @@
   }
 }
 
-@container workbench (max-width: 540px) {
+@container workbench (max-width: 640px) {
   .tabList {
     display: none;
   }
@@ -356,7 +394,7 @@
   }
 }
 
-@media (max-width: 540px) {
+@media (max-width: 640px) {
   .tabList {
     display: none;
   }

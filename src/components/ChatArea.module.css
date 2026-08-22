@@ -45,7 +45,6 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   min-height: 52px;
-  max-height: 52px;
   gap: 6px;
   overflow: hidden;
   flex-wrap: nowrap;
@@ -58,6 +57,7 @@
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  max-width: 50%;
 }
 
 .regenerateTitleBtn {
@@ -95,14 +95,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  min-width: 0;
+  flex: 1 1 0;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -111,6 +112,19 @@
 
 .headerActions::-webkit-scrollbar {
   display: none;
+}
+
+/* Hide model badge name and status text on narrow viewports */
+@container (max-width: 520px) {
+  .modelBadge {
+    display: none;
+  }
+  .statusText {
+    display: none;
+  }
+  .btnLabel {
+    display: none;
+  }
 }
 
 .promptBtn {
@@ -227,6 +241,9 @@
   .modelBadgeName {
     display: none;
   }
+  .title {
+    max-width: 160px;
+  }
 }
 
 .promptPanel {
@@ -331,6 +348,45 @@
 .emptySubtitle {
   font-size: 1.1rem;
   opacity: 0.8;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+  max-width: 640px;
+  padding: 0 16px;
+}
+
+.suggestionChip {
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.suggestionChip:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--accent-color, #10b981);
+  background: rgba(16, 185, 129, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.suggestionChip:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.suggestionChip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .headerSpacer {

@@ -11,6 +11,7 @@
   box-sizing: border-box;
 }
 
+.topBar,
 .navRow {
   display: flex;
   align-items: center;
@@ -32,6 +33,7 @@
   max-width: 100%;
 }
 
+.tabBtn,
 .subTab {
   display: inline-flex;
   align-items: center;
@@ -50,16 +52,25 @@
   white-space: nowrap;
 }
 
+.tabBtn svg,
 .subTab svg {
   flex-shrink: 0;
   display: inline-block;
   vertical-align: middle;
 }
 
-.subTab.active {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  font-weight: 600;
+.tabBtn:hover,
+.subTab:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tabBtn.active,
+.subTab.active,
+.active {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  font-weight: 600 !important;
 }
 
 .editorCard {
@@ -73,6 +84,7 @@
   min-height: 380px;
   height: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .cardHeader {
@@ -115,6 +127,7 @@
   color: #a7f3d0;
   resize: none;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .btn {
@@ -160,25 +173,27 @@
 
 .strideGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 0.75rem;
   width: 100%;
   flex: 1;
+  box-sizing: border-box;
 }
 
 .strideCard {
   background: var(--card-glass, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.45rem;
+  box-sizing: border-box;
 }
 
 .strideTitle {
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.84rem;
+  font-weight: 700;
   color: #38bdf8;
   display: inline-flex;
   align-items: center;
@@ -192,8 +207,21 @@
   vertical-align: middle;
 }
 
+.strideDesc,
 .strideText {
   font-size: 0.76rem;
   color: var(--text-secondary, #94a3b8);
   line-height: 1.45;
+  margin: 0;
+}
+
+.strideMitigation {
+  font-size: 0.74rem;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  line-height: 1.4;
+  margin-top: auto;
 }

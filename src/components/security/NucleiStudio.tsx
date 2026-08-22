@@ -27,6 +27,12 @@ const METHOD_OPTIONS = [
   { value: 'PATCH', label: 'PATCH' },
 ];
 
+const EXTRACTOR_TYPE_OPTIONS = [
+  { value: 'regex', label: 'regex — Regex on response body', badge: 'Regex' },
+  { value: 'kval', label: 'kval — Key:Value from headers/cookies', badge: 'KV' },
+  { value: 'json', label: 'json — JQ-style JSON expression', badge: 'JSON' },
+];
+
 const NUCLEI_PRESETS = [
   {
     id: 'exposed-git',
@@ -95,6 +101,9 @@ interface NucleiSavedState {
   matcherStatus: string;
   matcherWords: string;
   matcherCondition: 'and' | 'or';
+  extractorType: '' | 'regex' | 'kval' | 'json';
+  extractorName: string;
+  extractorPattern: string;
 }
 
 const DEFAULT_NUCLEI_STATE: NucleiSavedState = {
@@ -111,6 +120,9 @@ const DEFAULT_NUCLEI_STATE: NucleiSavedState = {
   matcherStatus: '200',
   matcherWords: '[core], repositoryformatversion',
   matcherCondition: 'and',
+  extractorType: '',
+  extractorName: '',
+  extractorPattern: '',
 };
 
 export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
@@ -142,6 +154,10 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
   const [matcherWords, setMatcherWords] = useState(initialSaved.matcherWords);
   const [matcherCondition, setMatcherCondition] = useState<'and' | 'or'>(initialSaved.matcherCondition);
 
+  const [extractorType, setExtractorType] = useState<'' | 'regex' | 'kval' | 'json'>(initialSaved.extractorType);
+  const [extractorName, setExtractorName] = useState(initialSaved.extractorName);
+  const [extractorPattern, setExtractorPattern] = useState(initialSaved.extractorPattern);
+
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -160,6 +176,9 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
         matcherStatus,
         matcherWords,
         matcherCondition,
+        extractorType,
+        extractorName,
+        extractorPattern,
       };
       localStorage.setItem(NUCLEI_STORAGE_KEY, JSON.stringify(stateToSave));
     } catch (e) {
@@ -179,6 +198,9 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
     matcherStatus,
     matcherWords,
     matcherCondition,
+    extractorType,
+    extractorName,
+    extractorPattern,
   ]);
 
   const handleSelectPreset = (presetId: string) => {
@@ -195,6 +217,9 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
     setMatcherStatus(p.matcherStatus);
     setMatcherWords(p.matcherWords);
     setMatcherCondition(p.matcherCondition);
+    setExtractorType('');
+    setExtractorName('');
+    setExtractorPattern('');
   };
 
   const handleClear = () => {
@@ -211,6 +236,9 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
     setMatcherStatus('200');
     setMatcherWords('');
     setMatcherCondition('or');
+    setExtractorType('');
+    setExtractorName('');
+    setExtractorPattern('');
   };
 
   const yamlContent = useMemo(() => {
@@ -278,6 +306,31 @@ http:
       y += `        part: body\n`;
     }
 
+    // Optional Extractors (regex / kval / json) for dynamic value extraction
+    const hasExtractor = Boolean(
+      extractorType && extractorPattern.trim()
+    );
+    if (hasExtractor) {
+      const extKey = extractorType === 'regex' ? 'regex' : extractorType === 'kval' ? 'kval' : 'json';
+      const patternLines = extractorPattern
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      y += `
+    extractors:
+      - type: ${extractorType}
+`;
+      if (extractorName.trim()) {
+        y += `        name: ${extractorName.trim()}\n`;
+      }
+      y += `        ${extKey}:\n`;
+      patternLines.forEach((p) => {
+        y += `          - "${p}"\n`;
+      });
+      y += `        internal: true\n`;
+    }
+
     return y;
   }, [
     templateId,
@@ -293,6 +346,9 @@ http:
     matcherStatus,
     matcherWords,
     matcherCondition,
+    extractorType,
+    extractorName,
+    extractorPattern,
   ]);
 
   const handleCopy = () => {
@@ -461,6 +517,79 @@ Please review and enhance this template:
               placeholder='e.g. "admin_dashboard", "database_host", "private_key"'
               onChange={(e) => setMatcherWords(e.target.value)}
             />
+          </div>
+
+          {/* Optional Extractors Section */}
+          <div className={styles.extractorSection}>
+            <div className={styles.extractorHeader}>
+              <label className={styles.label}>Extractors (optional)</label>
+              {extractorType && (
+                <button
+                  className={styles.btn}
+                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.7rem' }}
+                  onClick={() => {
+                    setExtractorType('');
+                    setExtractorName('');
+                    setExtractorPattern('');
+                  }}
+                  title="Remove extractor"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className={styles.twoCol}>
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Type</label>
+                <CustomSelect
+                  value={extractorType}
+                  placeholder="No extractor"
+                  options={EXTRACTOR_TYPE_OPTIONS}
+                  onChange={(val) => {
+                    if (!val) {
+                      setExtractorType('');
+                      setExtractorName('');
+                      setExtractorPattern('');
+                    } else {
+                      setExtractorType(val as 'regex' | 'kval' | 'json');
+                    }
+                  }}
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Internal Name</label>
+                <input
+                  className={styles.input}
+                  value={extractorName}
+                  placeholder="e.g. session_token"
+                  disabled={!extractorType}
+                  onChange={(e) => setExtractorName(e.target.value)}
+                />
+              </div>
+            </div>
+            {extractorType && (
+              <div className={styles.formGroup}>
+                <label className={styles.label}>
+                  {extractorType === 'regex'
+                    ? 'Regex Patterns (comma separated)'
+                    : extractorType === 'kval'
+                    ? 'Key Names (comma separated)'
+                    : 'JQ Expressions (comma separated)'}
+                </label>
+                <input
+                  className={styles.input}
+                  value={extractorPattern}
+                  placeholder={
+                    extractorType === 'regex'
+                      ? 'e.g. "session=[a-z0-9]{32}", "csrf=([a-zA-Z0-9]+)"'
+                      : extractorType === 'kval'
+                      ? 'e.g. session, csrf_token'
+                      : "e.g. .data.token, .user.id"
+                  }
+                  onChange={(e) => setExtractorPattern(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         </div>
 

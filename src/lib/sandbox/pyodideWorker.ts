@@ -55,18 +55,26 @@ self.onmessage = async (e: MessageEvent) => {
 
   if (type === 'RUN') {
     const startTime = performance.now();
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     try {
       const py = await initPyodide();
       stdoutBuffer = [];
       stderrBuffer = [];
 
-      // Execute code with a timeout race
+      // Execute code with a timeout race. Note: a synchronous infinite loop
+      // blocks this worker's event loop, so neither the race nor any timer can
+      // fire — the main thread detects the hang via its own timeout and
+      // terminates + respawns this worker (see usePyodide.ts).
       const execPromise = py.runPythonAsync(code);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)), timeoutMs)
-      );
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error(`Execution timed out after ${timeoutMs / 1000}s`)),
+          timeoutMs
+        );
+      });
 
       const rawResult = await Promise.race([execPromise, timeoutPromise]);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       const executionTimeMs = Math.round(performance.now() - startTime);
 
       let resultStr = '';
@@ -91,6 +99,7 @@ self.onmessage = async (e: MessageEvent) => {
         executionTimeMs,
       });
     } catch (err: any) {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       const executionTimeMs = Math.round(performance.now() - startTime);
       self.postMessage({
         id,

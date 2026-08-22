@@ -2,12 +2,28 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   padding: 0.75rem;
   gap: 0.75rem;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
+}
+
+.editorTabContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0.75rem;
+}
+
+.textareaGrow {
+  flex: 1;
+  min-height: 80px;
+  resize: none;
 }
 
 .topBar {
@@ -43,10 +59,11 @@
   white-space: nowrap;
 }
 
-.subTab.active {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  font-weight: 600;
+.subTab.active,
+.active {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  font-weight: 600 !important;
 }
 
 .metaGrid {
@@ -59,19 +76,21 @@
   padding: 0.6rem;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
   min-width: 0;
 }
 
 .label {
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   color: var(--text-secondary, #94a3b8);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .input,
@@ -80,19 +99,22 @@
   background: var(--input-bg, #0f172a);
   border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
   color: var(--text-primary, #f8fafc);
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.7rem;
   border-radius: 6px;
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   outline: none;
   font-family: inherit;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
 }
 
 .input:focus,
 .select:focus,
 .textarea:focus {
   border-color: var(--accent-color, #10b981);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.08);
 }
 
 .btn {
@@ -120,6 +142,12 @@
   color: white;
   border: none;
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.btnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
 }
 
 .findingsHeader {
@@ -134,33 +162,52 @@
 
 .findingsContainer {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.6rem;
   width: 100%;
   max-width: 100%;
-  align-items: flex-start;
+  align-items: stretch;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .findingsContainer {
+    flex-wrap: wrap;
+  }
 }
 
 .findingSidebar {
-  flex: 1 1 200px;
-  min-width: 0;
-  max-width: 100%;
+  flex: 0 0 200px;
+  min-width: 160px;
+  max-width: 220px;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .findingSidebar {
+    flex: 1 1 100%;
+    max-width: 100%;
+    max-height: 200px;
+  }
 }
 
 .findingDetailForm {
-  flex: 2 1 280px;
+  flex: 1 1 0;
   min-width: 0;
-  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  background: var(--card-glass);
+  background: var(--card-glass, rgba(255, 255, 255, 0.03));
   padding: 0.75rem;
   border-radius: 8px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .twoColGrid {
@@ -174,11 +221,18 @@
   background: var(--card-glass, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
   border-radius: 6px;
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.7rem;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
   min-width: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.findingItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .findingTop {
@@ -189,11 +243,12 @@
 }
 
 .severityBadge {
-  font-size: 0.68rem;
-  padding: 0.12rem 0.45rem;
+  font-size: 0.7rem;
+  padding: 0.14rem 0.5rem;
   border-radius: 9999px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
@@ -230,6 +285,7 @@
   flex-direction: column;
   gap: 0.45rem;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .cvssRow {
@@ -258,11 +314,17 @@
   white-space: nowrap;
 }
 
-.cvssOptionBtn.active {
-  background: #10b981;
-  color: white;
-  border-color: #10b981;
-  font-weight: 600;
+.cvssOptionBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #f8fafc);
+}
+
+.cvssOptionBtn.active,
+.cvssBtnActive {
+  background: #10b981 !important;
+  color: white !important;
+  border-color: #10b981 !important;
+  font-weight: 600 !important;
 }
 
 .previewContainer {
@@ -270,9 +332,17 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
   gap: 0.5rem;
   width: 100%;
+  box-sizing: border-box;
+}
+
+.copyRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .findingSelectorRow {
@@ -286,13 +356,15 @@
   padding: 0.45rem 0.65rem;
   flex-wrap: wrap;
   width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.previewCode {
+.previewCode,
+.previewPre {
   width: 100%;
   flex: 1;
   min-height: 0;
-  height: 100%;
   background: #020617;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -306,16 +378,18 @@
   white-space: pre-wrap;
   overflow-y: auto;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-.iframeContainer {
+.iframeContainer,
+.htmlPreviewContainer {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
   gap: 0.5rem;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .htmlToolbar {
@@ -330,13 +404,30 @@
   flex-wrap: wrap;
   width: 100%;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.reportIframe {
+.themeBtn {
+  padding: 0.25rem 0.55rem;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.themeBtnActive {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.reportIframe,
+.htmlFrame {
   width: 100%;
   flex: 1;
   min-height: 0;
-  height: 100%;
   background: #020617;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);

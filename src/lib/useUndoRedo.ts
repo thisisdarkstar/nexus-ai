@@ -1,20 +1,19 @@
 import { useState, useCallback } from 'react';
-import type { Message } from '../types';
 
-export function useUndoRedo(maxSize = 30) {
-  const [undoStack, setUndoStack] = useState<Message[][]>([]);
-  const [redoStack, setRedoStack] = useState<Message[][]>([]);
+export function useUndoRedo<T>(maxSize = 30) {
+  const [undoStack, setUndoStack] = useState<T[]>([]);
+  const [redoStack, setRedoStack] = useState<T[]>([]);
 
   const pushSnapshot = useCallback(
-    (messages: Message[]) => {
-      setUndoStack((prev) => [...prev.slice(-(maxSize - 1)), messages]);
+    (snapshot: T) => {
+      setUndoStack((prev) => [...prev.slice(-(maxSize - 1)), snapshot]);
       setRedoStack([]);
     },
     [maxSize]
   );
 
   const undo = useCallback(
-    (current: Message[]): Message[] | null => {
+    (current: T): T | null => {
       if (undoStack.length === 0) return null;
       const prev = undoStack[undoStack.length - 1];
       setUndoStack((s) => s.slice(0, -1));
@@ -25,7 +24,7 @@ export function useUndoRedo(maxSize = 30) {
   );
 
   const redo = useCallback(
-    (current: Message[]): Message[] | null => {
+    (current: T): T | null => {
       if (redoStack.length === 0) return null;
       const next = redoStack[redoStack.length - 1];
       setRedoStack((s) => s.slice(0, -1));

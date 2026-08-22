@@ -3,6 +3,7 @@ import { AlertTriangle, Info, AlertCircle } from 'lucide-react';
 import styles from './ConfirmModal.module.css';
 
 export interface ConfirmModalProps {
+  isOpen?: boolean;
   title: string;
   message: string;
   confirmLabel?: string;
@@ -14,6 +15,7 @@ export interface ConfirmModalProps {
 }
 
 export default function ConfirmModal({
+  isOpen = true,
   title,
   message,
   confirmLabel = 'Confirm',
@@ -24,12 +26,15 @@ export default function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   useEffect(() => {
+    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onCancel]);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
 
   const IconComponent =
     variant === 'danger'

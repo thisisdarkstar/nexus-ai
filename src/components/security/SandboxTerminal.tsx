@@ -15,6 +15,11 @@ import styles from './SandboxTerminal.module.css';
 
 interface SandboxTerminalProps {
   initialCode?: string;
+  /**
+   * Changes whenever a new payload is dispatched, so re-opening the identical
+   * snippet still re-applies it (React skips effects when values are equal).
+   */
+  initialCodeNonce?: number;
   onSendToAI?: (prompt: string) => void;
 }
 
@@ -22,6 +27,7 @@ const SANDBOX_CODE_STORAGE_KEY = 'nexus_security_sandbox_code';
 
 export default function SandboxTerminal({
   initialCode,
+  initialCodeNonce,
   onSendToAI,
 }: SandboxTerminalProps) {
   const {
@@ -58,7 +64,8 @@ export default function SandboxTerminal({
     if (initialCode) {
       setCode(initialCode);
     }
-  }, [initialCode]);
+    // initialCodeNonce forces re-apply even when initialCode is unchanged
+  }, [initialCode, initialCodeNonce]);
 
   useEffect(() => {
     const handleSecurityEvent = (e: Event) => {

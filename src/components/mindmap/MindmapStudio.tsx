@@ -1,25 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Network,
-  X,
-  Plus,
-  StickyNote,
-  CreditCard,
-  Image as ImageIcon,
-  Square,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  Sparkles,
-  Download,
-  Upload,
-  Trash2,
-  Workflow,
-  Share2,
-  Pencil,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import type {
   MindmapBoard,
   MindmapNode,
@@ -27,8 +7,14 @@ import type {
   MindmapNodeType,
   NodeColor,
 } from '../../types/mindmap';
+import { DEFAULT_MINDMAP_BOARDS } from '../../data/mindmap/defaultTemplates';
+import { useUndoRedo } from '../../lib/useUndoRedo';
+import { useToast } from '../../lib/toast';
+import MindmapTopBar from './MindmapTopBar';
 import MindmapNodeView from './MindmapNodeView';
 import MindmapEdgeCanvas from './MindmapEdgeCanvas';
+import MindmapEdgeToolbar from './MindmapEdgeToolbar';
+import MindmapAiModal from './MindmapAiModal';
 import styles from './MindmapStudio.module.css';
 
 interface MindmapStudioProps {
@@ -37,102 +23,12 @@ interface MindmapStudioProps {
   onSendToAI?: (prompt: string) => void;
 }
 
+type BoardSnapshot = { nodes: MindmapNode[]; edges: MindmapEdge[] };
+
 const STORAGE_KEY = 'nexus_mindmap_boards_data';
 
-const DEFAULT_BOARDS: MindmapBoard[] = [
-  {
-    id: 'board_main',
-    name: '🧠 Main Mindmap',
-    zoom: 1,
-    pan: { x: 120, y: 80 },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    nodes: [
-      {
-        id: 'node_root',
-        type: 'card',
-        x: 350,
-        y: 200,
-        width: 260,
-        height: 180,
-        color: 'emerald',
-        title: '🎯 Nexus Core Architecture',
-        content: 'Central hub for AI agents, security tooling, and spatial ideation.',
-        tags: ['architecture', 'core'],
-        checklist: [
-          { id: 'c1', text: 'Model orchestration engine', done: true },
-          { id: 'c2', text: 'AppSec & VAPT Studio', done: true },
-          { id: 'c3', text: 'Spatial Mindmap Canvas', done: true },
-        ],
-        zIndex: 10,
-      },
-      {
-        id: 'node_note_1',
-        type: 'note',
-        x: 60,
-        y: 100,
-        width: 200,
-        height: 140,
-        color: 'blue',
-        title: '💡 Quick Ideas',
-        content: 'Connect thoughts with arrows.\nDrag handles to resize.\nDouble-click to edit anywhere!',
-        zIndex: 10,
-      },
-      {
-        id: 'node_note_2',
-        type: 'note',
-        x: 700,
-        y: 120,
-        width: 220,
-        height: 140,
-        color: 'purple',
-        title: '🛡️ Security Modules',
-        content: 'SAST Audit, HTTP Studio, Nuclei Engine, Payload Crafter, and Recon Hub.',
-        zIndex: 10,
-      },
-      {
-        id: 'node_note_3',
-        type: 'note',
-        x: 680,
-        y: 340,
-        width: 220,
-        height: 140,
-        color: 'amber',
-        title: '⚡ Local & Private AI',
-        content: 'Runs with Chrome Gemini Nano and local Ollama GGUF models directly on device.',
-        zIndex: 10,
-      },
-    ],
-    edges: [
-      {
-        id: 'edge_1',
-        fromNodeId: 'node_note_1',
-        fromHandle: 'right',
-        toNodeId: 'node_root',
-        toHandle: 'left',
-        style: 'solid',
-      },
-      {
-        id: 'edge_2',
-        fromNodeId: 'node_root',
-        fromHandle: 'right',
-        toNodeId: 'node_note_2',
-        toHandle: 'left',
-        style: 'solid',
-      },
-      {
-        id: 'edge_3',
-        fromNodeId: 'node_root',
-        fromHandle: 'right',
-        toNodeId: 'node_note_3',
-        toHandle: 'left',
-        style: 'solid',
-      },
-    ],
-  },
-];
-
 export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
+  const { toast } = useToast();
   const [boards, setBoards] = useState<MindmapBoard[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -140,16 +36,12 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
     } catch (e) {
       console.error('Failed to load mindmap boards:', e);
     }
-    return DEFAULT_BOARDS;
+    return DEFAULT_MINDMAP_BOARDS;
   });
 
   const [activeBoardId, setActiveBoardId] = useState<string>(() => {
     return boards[0]?.id || 'board_main';
   });
-
-  // Rename Board State
-  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
-  const [editingBoardName, setEditingBoardName] = useState('');
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -198,140 +90,19 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileImportRef = useRef<HTMLInputElement>(null);
-  const tabsContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (tabsContainerRef.current && e.deltaY !== 0) {
-      tabsContainerRef.current.scrollLeft += e.deltaY;
-    }
-  };
+  // Active Board helper
+  const activeBoard = boards.find((b) => b.id === activeBoardId) || boards[0] || DEFAULT_MINDMAP_BOARDS[0];
 
-  const handleScrollTabsLeft = () => {
-    if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollBy({ left: -140, behavior: 'smooth' });
-    }
-  };
+  // Undo / Redo history for destructive board operations
+  const {
+    pushSnapshot: pushBoardSnapshot,
+    undo: undoBoardSnapshot,
+    redo: redoBoardSnapshot,
+    canUndo,
+    canRedo,
+  } = useUndoRedo<BoardSnapshot>(50);
 
-  const handleScrollTabsRight = () => {
-    if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollBy({ left: 140, behavior: 'smooth' });
-    }
-  };
-
-  // Find Closest Target Node & Handle with Magnetic Snapping
-  const findBestTargetPort = useCallback(
-    (
-      worldX: number,
-      worldY: number,
-      fromNodeId: string,
-      nodes: MindmapNode[]
-    ): {
-      targetNode: MindmapNode;
-      targetHandle: 'top' | 'right' | 'bottom' | 'left';
-      portX: number;
-      portY: number;
-    } | null => {
-      let bestMatch: {
-        targetNode: MindmapNode;
-        targetHandle: 'top' | 'right' | 'bottom' | 'left';
-        portX: number;
-        portY: number;
-        dist: number;
-      } | null = null;
-
-      const SNAP_THRESHOLD = 60; // 60px magnetic snap radius
-
-      for (const node of nodes) {
-        if (node.id === fromNodeId) continue;
-
-        const ports: Array<{ handle: 'top' | 'right' | 'bottom' | 'left'; x: number; y: number }> = [
-          { handle: 'top', x: node.x + node.width / 2, y: node.y },
-          { handle: 'right', x: node.x + node.width, y: node.y + node.height / 2 },
-          { handle: 'bottom', x: node.x + node.width / 2, y: node.y + node.height },
-          { handle: 'left', x: node.x, y: node.y + node.height / 2 },
-        ];
-
-        // 1. Direct proximity to any of the 4 ports
-        for (const p of ports) {
-          const d = Math.hypot(p.x - worldX, p.y - worldY);
-          if (d < SNAP_THRESHOLD) {
-            if (!bestMatch || d < bestMatch.dist) {
-              bestMatch = {
-                targetNode: node,
-                targetHandle: p.handle,
-                portX: p.x,
-                portY: p.y,
-                dist: d,
-              };
-            }
-          }
-        }
-
-        // 2. Proximity to node interior or bounding box edges (+20px margin)
-        const isInside =
-          worldX >= node.x - 20 &&
-          worldX <= node.x + node.width + 20 &&
-          worldY >= node.y - 20 &&
-          worldY <= node.y + node.height + 20;
-
-        if (isInside) {
-          const distTop = Math.abs(worldY - node.y);
-          const distBottom = Math.abs(worldY - (node.y + node.height));
-          const distLeft = Math.abs(worldX - node.x);
-          const distRight = Math.abs(worldX - (node.x + node.width));
-
-          let closestHandle: 'top' | 'right' | 'bottom' | 'left' = 'left';
-          let minEdgeDist = distLeft;
-          let pX = node.x;
-          let pY = node.y + node.height / 2;
-
-          if (distRight < minEdgeDist) {
-            minEdgeDist = distRight;
-            closestHandle = 'right';
-            pX = node.x + node.width;
-            pY = node.y + node.height / 2;
-          }
-          if (distTop < minEdgeDist) {
-            minEdgeDist = distTop;
-            closestHandle = 'top';
-            pX = node.x + node.width / 2;
-            pY = node.y;
-          }
-          if (distBottom < minEdgeDist) {
-            minEdgeDist = distBottom;
-            closestHandle = 'bottom';
-            pX = node.x + node.width / 2;
-            pY = node.y + node.height;
-          }
-
-          if (!bestMatch || minEdgeDist < bestMatch.dist) {
-            bestMatch = {
-              targetNode: node,
-              targetHandle: closestHandle,
-              portX: pX,
-              portY: pY,
-              dist: minEdgeDist,
-            };
-          }
-        }
-      }
-
-      return bestMatch
-        ? {
-            targetNode: bestMatch.targetNode,
-            targetHandle: bestMatch.targetHandle,
-            portX: bestMatch.portX,
-            portY: bestMatch.portY,
-          }
-        : null;
-    },
-    []
-  );
-
-  // Get Active Board
-  const activeBoard = boards.find((b) => b.id === activeBoardId) || boards[0];
-
-  // Save to LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(boards));
@@ -340,300 +111,137 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
     }
   }, [boards]);
 
-  // Synchronize board pan/zoom when switching boards
+  // Sync pan & zoom when board changes
   useEffect(() => {
     if (activeBoard) {
-      setZoom(activeBoard.zoom || 1);
       setPan(activeBoard.pan || { x: 100, y: 60 });
-      setSelectedNodeId(null);
-      setSelectedEdgeId(null);
+      setZoom(activeBoard.zoom || 1);
     }
   }, [activeBoardId]);
 
-  // Update Active Board helper
   const updateActiveBoard = useCallback(
     (updater: (board: MindmapBoard) => MindmapBoard) => {
       setBoards((prev) =>
-        prev.map((b) => (b.id === activeBoard.id ? { ...updater(b), updatedAt: Date.now() } : b))
+        prev.map((b) => (b.id === activeBoardId ? { ...updater(b), updatedAt: Date.now() } : b))
       );
     },
-    [activeBoard.id]
+    [activeBoardId]
   );
 
-  // Convert Screen Mouse Coords to World Canvas Coords
-  const screenToWorld = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!canvasRef.current) return { x: 0, y: 0 };
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (clientX - rect.left - pan.x) / zoom;
-      const y = (clientY - rect.top - pan.y) / zoom;
-      return { x, y };
-    },
-    [pan, zoom]
-  );
+  // Snapshot the active board's nodes + edges before any destructive operation
+  const snapshotBoard = useCallback(() => {
+    pushBoardSnapshot({
+      nodes: activeBoard.nodes.map((n) => ({ ...n })),
+      edges: activeBoard.edges.map((e) => ({ ...e })),
+    });
+  }, [activeBoard, pushBoardSnapshot]);
 
-  // Keyboard Shortcuts: Delete node/edge, Escape close
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-      if (e.key === 'Escape') {
-        onClose();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNodeId) {
-          handleDeleteNode(selectedNodeId);
-        } else if (selectedEdgeId) {
-          handleDeleteEdge(selectedEdgeId);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedNodeId, selectedEdgeId]);
-
-  // Canvas Mouse Down -> Pan or Deselect
-  const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0 || e.button === 1) {
+  const applyBoardSnapshot = useCallback(
+    (snap: BoardSnapshot | null) => {
+      if (!snap) return;
+      updateActiveBoard((b) => ({ ...b, nodes: snap.nodes, edges: snap.edges }));
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
-      setIsPanning(true);
-      panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    },
+    [updateActiveBoard]
+  );
+
+  const handleUndo = useCallback(() => {
+    applyBoardSnapshot(undoBoardSnapshot({ nodes: activeBoard.nodes, edges: activeBoard.edges }));
+  }, [activeBoard, undoBoardSnapshot, applyBoardSnapshot]);
+
+  const handleRedo = useCallback(() => {
+    applyBoardSnapshot(redoBoardSnapshot({ nodes: activeBoard.nodes, edges: activeBoard.edges }));
+  }, [activeBoard, redoBoardSnapshot, applyBoardSnapshot]);
+
+  // Board Management
+  const handleAddBoard = () => {
+    const newBoardId = 'board_' + Date.now();
+    const newBoard: MindmapBoard = {
+      id: newBoardId,
+      name: `🧠 Board ${boards.length + 1}`,
+      zoom: 1,
+      pan: { x: 100, y: 60 },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      nodes: [
+        {
+          id: 'node_init_' + Date.now(),
+          type: 'card',
+          x: 200,
+          y: 150,
+          width: 260,
+          height: 160,
+          color: 'emerald',
+          title: '💡 Central Idea',
+          content: 'Start expanding your thoughts here. Connect arrows to branch out ideas.',
+          zIndex: 10,
+        },
+      ],
+      edges: [],
+    };
+    setBoards((prev) => [...prev, newBoard]);
+    setActiveBoardId(newBoardId);
+  };
+
+  const handleRenameBoard = (boardId: string, newName: string) => {
+    setBoards((prev) =>
+      prev.map((b) => (b.id === boardId ? { ...b, name: newName, updatedAt: Date.now() } : b))
+    );
+  };
+
+  const handleDeleteBoard = (boardId: string) => {
+    if (boards.length <= 1) return;
+    const remaining = boards.filter((b) => b.id !== boardId);
+    setBoards(remaining);
+    if (activeBoardId === boardId) {
+      setActiveBoardId(remaining[0].id);
     }
   };
 
-  // Mouse Move on Window -> Drag, Resize, Pan, or Draw Edge
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isPanning) {
-        const nextPan = { x: e.clientX - panStartRef.current.x, y: e.clientY - panStartRef.current.y };
-        setPan(nextPan);
-        updateActiveBoard((b) => ({ ...b, pan: nextPan }));
-      } else if (draggingNodeId) {
-        const dx = (e.clientX - dragStartPosRef.current.mouseX) / zoom;
-        const dy = (e.clientY - dragStartPosRef.current.mouseY) / zoom;
-        const newX = Math.round(dragStartPosRef.current.nodeX + dx);
-        const newY = Math.round(dragStartPosRef.current.nodeY + dy);
-        updateActiveBoard((b) => ({
-          ...b,
-          nodes: b.nodes.map((n) => (n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n)),
-        }));
-      } else if (resizingNodeId) {
-        const dx = (e.clientX - resizeStartRef.current.mouseX) / zoom;
-        const dy = (e.clientY - resizeStartRef.current.mouseY) / zoom;
-        const dir = resizeDirectionRef.current;
-        const s = resizeStartRef.current;
-
-        let newW = s.w;
-        let newH = s.h;
-        let newX = s.x;
-        let newY = s.y;
-
-        if (dir.includes('e')) newW = Math.max(140, s.w + dx);
-        if (dir.includes('s')) newH = Math.max(80, s.h + dy);
-        if (dir.includes('w')) {
-          const proposedW = s.w - dx;
-          if (proposedW >= 140) {
-            newW = proposedW;
-            newX = s.x + dx;
-          }
-        }
-        if (dir.includes('n')) {
-          const proposedH = s.h - dy;
-          if (proposedH >= 80) {
-            newH = proposedH;
-            newY = s.y + dy;
-          }
-        }
-
-        updateActiveBoard((b) => ({
-          ...b,
-          nodes: b.nodes.map((n) =>
-            n.id === resizingNodeId ? { ...n, width: newW, height: newH, x: newX, y: newY } : n
-          ),
-        }));
-      } else if (draftEdge) {
-        const worldPos = screenToWorld(e.clientX, e.clientY);
-        const snap = findBestTargetPort(worldPos.x, worldPos.y, draftEdge.fromNodeId, activeBoard.nodes);
-        if (snap) {
-          setDraftEdge({
-            fromNodeId: draftEdge.fromNodeId,
-            fromHandle: draftEdge.fromHandle,
-            cursorX: snap.portX,
-            cursorY: snap.portY,
-            targetNodeId: snap.targetNode.id,
-            targetHandle: snap.targetHandle,
-          });
-        } else {
-          setDraftEdge({
-            fromNodeId: draftEdge.fromNodeId,
-            fromHandle: draftEdge.fromHandle,
-            cursorX: worldPos.x,
-            cursorY: worldPos.y,
-            targetNodeId: undefined,
-            targetHandle: undefined,
-          });
-        }
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (isPanning) setIsPanning(false);
-      if (draggingNodeId) setDraggingNodeId(null);
-      if (resizingNodeId) setResizingNodeId(null);
-
-      // Finish edge if dropped on or near target port/node
-      if (draftEdge) {
-        const worldPos = screenToWorld(e.clientX, e.clientY);
-        const snap =
-          (draftEdge.targetNodeId && draftEdge.targetHandle
-            ? {
-                targetNode: activeBoard.nodes.find((n) => n.id === draftEdge.targetNodeId),
-                targetHandle: draftEdge.targetHandle,
-              }
-            : null) ||
-          findBestTargetPort(worldPos.x, worldPos.y, draftEdge.fromNodeId, activeBoard.nodes);
-
-        if (snap && snap.targetNode) {
-          const newEdge: MindmapEdge = {
-            id: 'edge_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-            fromNodeId: draftEdge.fromNodeId,
-            fromHandle: draftEdge.fromHandle,
-            toNodeId: snap.targetNode.id,
-            toHandle: snap.targetHandle,
-            style: 'solid',
-          };
-          updateActiveBoard((b) => ({
-            ...b,
-            edges: [...b.edges, newEdge],
-          }));
-        }
-        setDraftEdge(null);
-      }
-    };
-
-    if (isPanning || draggingNodeId || resizingNodeId || draftEdge) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [
-    isPanning,
-    draggingNodeId,
-    resizingNodeId,
-    draftEdge,
-    zoom,
-    pan,
-    screenToWorld,
-    updateActiveBoard,
-    activeBoard.nodes,
-  ]);
-
-  // Wheel Zoom & Pan
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      // Zoom
-      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-      const nextZoom = Math.min(Math.max(zoom * zoomFactor, 0.25), 2.5);
-      setZoom(nextZoom);
-      updateActiveBoard((b) => ({ ...b, zoom: nextZoom }));
-    } else {
-      // Pan
-      const nextPan = { x: pan.x - e.deltaX, y: pan.y - e.deltaY };
-      setPan(nextPan);
-      updateActiveBoard((b) => ({ ...b, pan: nextPan }));
-    }
+  const handleClearCurrentBoard = () => {
+    snapshotBoard();
+    updateActiveBoard((b) => ({
+      ...b,
+      nodes: [],
+      edges: [],
+    }));
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   };
 
-  // Node Interactions
-  const handleStartDrag = (nodeId: string, e: React.MouseEvent) => {
-    const targetNode = activeBoard.nodes.find((n) => n.id === nodeId);
-    if (!targetNode) return;
-    setDraggingNodeId(nodeId);
-    dragStartPosRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      nodeX: targetNode.x,
-      nodeY: targetNode.y,
+  // Node Operations
+  const handleAddNode = (type: MindmapNodeType, color: NodeColor = 'blue') => {
+    const canvasBounds = canvasRef.current?.getBoundingClientRect();
+    const centerX = canvasBounds ? (canvasBounds.width / 2 - pan.x) / zoom : 300;
+    const centerY = canvasBounds ? (canvasBounds.height / 2 - pan.y) / zoom : 200;
+
+    const titles: Record<MindmapNodeType, string> = {
+      note: 'Sticky Note',
+      card: 'New Feature Card',
+      image: 'Image Node',
+      frame: 'Group Container',
     };
-  };
-
-  const handleStartResize = (nodeId: string, direction: string, e: React.MouseEvent) => {
-    const targetNode = activeBoard.nodes.find((n) => n.id === nodeId);
-    if (!targetNode) return;
-    setResizingNodeId(nodeId);
-    resizeDirectionRef.current = direction;
-    resizeStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      x: targetNode.x,
-      y: targetNode.y,
-      w: targetNode.width,
-      h: targetNode.height,
-    };
-  };
-
-  const handleStartConnect = (
-    nodeId: string,
-    handle: 'top' | 'right' | 'bottom' | 'left',
-    e: React.MouseEvent
-  ) => {
-    const worldPos = screenToWorld(e.clientX, e.clientY);
-    setDraftEdge({
-      fromNodeId: nodeId,
-      fromHandle: handle,
-      cursorX: worldPos.x,
-      cursorY: worldPos.y,
-    });
-  };
-
-  const handleAddNode = (type: MindmapNodeType) => {
-    const centerWorld = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
-    const colors: NodeColor[] = ['emerald', 'blue', 'purple', 'amber', 'rose', 'slate'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-    let width = 220;
-    let height = 140;
-    let title = 'Sticky Note';
-
-    if (type === 'card') {
-      width = 260;
-      height = 180;
-      title = 'Feature Card';
-    } else if (type === 'image') {
-      width = 240;
-      height = 200;
-      title = 'Visual Snapshot';
-    } else if (type === 'frame') {
-      width = 400;
-      height = 300;
-      title = 'Group Section';
-    }
 
     const newNode: MindmapNode = {
       id: 'node_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       type,
-      x: Math.round(centerWorld.x - width / 2),
-      y: Math.round(centerWorld.y - height / 2),
-      width,
-      height,
-      color: randomColor,
-      title,
-      content: '',
-      tags: type === 'card' ? ['todo'] : undefined,
-      checklist: type === 'card' ? [{ id: '1', text: 'Define subtask', done: false }] : undefined,
-      zIndex: type === 'frame' ? 1 : 10,
+      x: Math.round(centerX - 100 + (Math.random() * 40 - 20)),
+      y: Math.round(centerY - 80 + (Math.random() * 40 - 20)),
+      width: type === 'frame' ? 360 : type === 'card' ? 260 : 200,
+      height: type === 'frame' ? 260 : type === 'card' ? 180 : 140,
+      color,
+      title: titles[type],
+      content: type === 'card' ? 'Describe component architecture or features...' : 'Type notes...',
+      tags: type === 'card' ? ['feature'] : undefined,
+      zIndex: 10,
     };
 
-    updateActiveBoard((b) => ({ ...b, nodes: [...b.nodes, newNode] }));
+    snapshotBoard();
+    updateActiveBoard((b) => ({
+      ...b,
+      nodes: [...b.nodes, newNode],
+    }));
     setSelectedNodeId(newNode.id);
   };
 
@@ -645,6 +253,7 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
   };
 
   const handleDeleteNode = (id: string) => {
+    snapshotBoard();
     updateActiveBoard((b) => ({
       ...b,
       nodes: b.nodes.filter((n) => n.id !== id),
@@ -654,134 +263,435 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
   };
 
   const handleDuplicateNode = (id: string) => {
-    const node = activeBoard.nodes.find((n) => n.id === id);
-    if (!node) return;
-    const duplicated: MindmapNode = {
-      ...node,
-      id: 'node_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      x: node.x + 30,
-      y: node.y + 30,
-      title: node.title ? `${node.title} (Copy)` : '',
-    };
-    updateActiveBoard((b) => ({ ...b, nodes: [...b.nodes, duplicated] }));
-    setSelectedNodeId(duplicated.id);
-  };
+    const target = activeBoard.nodes.find((n) => n.id === id);
+    if (!target) return;
 
-  const handleDeleteEdge = (id: string) => {
+    snapshotBoard();
+    const dupNode: MindmapNode = {
+      ...target,
+      id: 'node_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      x: target.x + 40,
+      y: target.y + 40,
+      title: `${target.title} (Copy)`,
+    };
+
     updateActiveBoard((b) => ({
       ...b,
-      edges: b.edges.filter((e) => e.id !== id),
+      nodes: [...b.nodes, dupNode],
     }));
-    if (selectedEdgeId === id) setSelectedEdgeId(null);
+    setSelectedNodeId(dupNode.id);
   };
 
-  // Auto Layout Hierarchy Algorithm (Organic Left-to-Right Mindmap)
+  const handleDeleteEdge = (edgeId: string) => {
+    snapshotBoard();
+    updateActiveBoard((b) => ({
+      ...b,
+      edges: b.edges.filter((e) => e.id !== edgeId),
+    }));
+    if (selectedEdgeId === edgeId) setSelectedEdgeId(null);
+  };
+
+  // Find nearest connection port with a 60px magnetic snap proximity
+  const findBestTargetPort = (
+    cursorWorldX: number,
+    cursorWorldY: number,
+    fromNodeId: string
+  ): { targetNodeId: string; targetHandle: 'top' | 'right' | 'bottom' | 'left' } | null => {
+    let closestDist = 60; // 60px magnetic snap radius
+    let result: { targetNodeId: string; targetHandle: 'top' | 'right' | 'bottom' | 'left' } | null = null;
+
+    for (const node of activeBoard.nodes) {
+      if (node.id === fromNodeId) continue;
+
+      const ports: { handle: 'top' | 'right' | 'bottom' | 'left'; x: number; y: number }[] = [
+        { handle: 'top', x: node.x + node.width / 2, y: node.y },
+        { handle: 'right', x: node.x + node.width, y: node.y + node.height / 2 },
+        { handle: 'bottom', x: node.x + node.width / 2, y: node.y + node.height },
+        { handle: 'left', x: node.x, y: node.y + node.height / 2 },
+      ];
+
+      for (const p of ports) {
+        const dist = Math.hypot(cursorWorldX - p.x, cursorWorldY - p.y);
+        if (dist < closestDist) {
+          closestDist = dist;
+          result = { targetNodeId: node.id, targetHandle: p.handle };
+        }
+      }
+    }
+
+    return result;
+  };
+
+  // Connect Drag Start
+  const handleStartConnect = (
+    nodeId: string,
+    handle: 'top' | 'right' | 'bottom' | 'left',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    const canvasBounds = canvasRef.current?.getBoundingClientRect();
+    if (!canvasBounds) return;
+
+    const worldX = (e.clientX - canvasBounds.left - pan.x) / zoom;
+    const worldY = (e.clientY - canvasBounds.top - pan.y) / zoom;
+
+    setDraftEdge({
+      fromNodeId: nodeId,
+      fromHandle: handle,
+      cursorX: worldX,
+      cursorY: worldY,
+    });
+  };
+
+  // Node Dragging Start
+  const handleStartDrag = (nodeId: string, e: React.MouseEvent) => {
+    const node = activeBoard.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    snapshotBoard();
+    setDraggingNodeId(nodeId);
+    dragStartPosRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      nodeX: node.x,
+      nodeY: node.y,
+    };
+  };
+
+  // Node Resize Start
+  const handleStartResize = (nodeId: string, direction: string, e: React.MouseEvent) => {
+    const node = activeBoard.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    snapshotBoard();
+    setResizingNodeId(nodeId);
+    resizeDirectionRef.current = direction;
+    resizeStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      x: node.x,
+      y: node.y,
+      w: node.width,
+      h: node.height,
+    };
+  };
+
+  // Canvas Mouse Down (Panning)
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains(styles.worldLayer)) {
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+    }
+  };
+
+  // Window Mouse Move & Up for Smooth Dragging, Panning, Resizing, and Edge Drawing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // 1. Panning Canvas
+      if (isPanning) {
+        setPan({
+          x: e.clientX - panStartRef.current.x,
+          y: e.clientY - panStartRef.current.y,
+        });
+        return;
+      }
+
+      // 2. Dragging Node
+      if (draggingNodeId) {
+        const dx = (e.clientX - dragStartPosRef.current.mouseX) / zoom;
+        const dy = (e.clientY - dragStartPosRef.current.mouseY) / zoom;
+
+        updateActiveBoard((b) => ({
+          ...b,
+          nodes: b.nodes.map((n) =>
+            n.id === draggingNodeId
+              ? {
+                  ...n,
+                  x: Math.round(dragStartPosRef.current.nodeX + dx),
+                  y: Math.round(dragStartPosRef.current.nodeY + dy),
+                }
+              : n
+          ),
+        }));
+        return;
+      }
+
+      // 3. Resizing Node
+      if (resizingNodeId) {
+        const dx = (e.clientX - resizeStartRef.current.mouseX) / zoom;
+        const dy = (e.clientY - resizeStartRef.current.mouseY) / zoom;
+        const dir = resizeDirectionRef.current;
+        const start = resizeStartRef.current;
+
+        let newX = start.x;
+        let newY = start.y;
+        let newW = start.w;
+        let newH = start.h;
+
+        if (dir.includes('e')) newW = Math.max(140, start.w + dx);
+        if (dir.includes('s')) newH = Math.max(100, start.h + dy);
+        if (dir.includes('w')) {
+          const potentialW = start.w - dx;
+          if (potentialW >= 140) {
+            newW = potentialW;
+            newX = start.x + dx;
+          }
+        }
+        if (dir.includes('n')) {
+          const potentialH = start.h - dy;
+          if (potentialH >= 100) {
+            newH = potentialH;
+            newY = start.y + dy;
+          }
+        }
+
+        updateActiveBoard((b) => ({
+          ...b,
+          nodes: b.nodes.map((n) =>
+            n.id === resizingNodeId
+              ? {
+                  ...n,
+                  x: Math.round(newX),
+                  y: Math.round(newY),
+                  width: Math.round(newW),
+                  height: Math.round(newH),
+                }
+              : n
+          ),
+        }));
+        return;
+      }
+
+      // 4. Drawing Connection Arrow
+      if (draftEdge) {
+        const canvasBounds = canvasRef.current?.getBoundingClientRect();
+        if (canvasBounds) {
+          const worldX = (e.clientX - canvasBounds.left - pan.x) / zoom;
+          const worldY = (e.clientY - canvasBounds.top - pan.y) / zoom;
+
+          const snap = findBestTargetPort(worldX, worldY, draftEdge.fromNodeId);
+
+          setDraftEdge((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  cursorX: worldX,
+                  cursorY: worldY,
+                  targetNodeId: snap ? snap.targetNodeId : undefined,
+                  targetHandle: snap ? snap.targetHandle : undefined,
+                }
+              : null
+          );
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsPanning(false);
+      setDraggingNodeId(null);
+      setResizingNodeId(null);
+
+      // Finish edge connector creation
+      if (draftEdge) {
+        if (draftEdge.targetNodeId && draftEdge.targetNodeId !== draftEdge.fromNodeId) {
+          const newEdge: MindmapEdge = {
+            id: 'edge_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            fromNodeId: draftEdge.fromNodeId,
+            fromHandle: draftEdge.fromHandle,
+            toNodeId: draftEdge.targetNodeId,
+            toHandle: draftEdge.targetHandle || 'left',
+            style: 'solid',
+          };
+
+          snapshotBoard();
+          updateActiveBoard((b) => ({
+            ...b,
+            edges: [...b.edges, newEdge],
+          }));
+        }
+        setDraftEdge(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPanning, draggingNodeId, resizingNodeId, draftEdge, zoom, pan, activeBoard, updateActiveBoard, snapshotBoard]);
+
+  // Zoom on wheel
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+      const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.25), 2.5);
+      setZoom(newZoom);
+      updateActiveBoard((b) => ({ ...b, zoom: newZoom }));
+    } else {
+      setPan((prev) => ({
+        x: prev.x - e.deltaX * 0.8,
+        y: prev.y - e.deltaY * 0.8,
+      }));
+    }
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 100, y: 60 });
+    updateActiveBoard((b) => ({ ...b, zoom: 1, pan: { x: 100, y: 60 } }));
+  };
+
+  const handleZoomIn = () => {
+    const next = Math.min(zoom + 0.15, 2.5);
+    setZoom(next);
+    updateActiveBoard((b) => ({ ...b, zoom: next }));
+  };
+
+  const handleZoomOut = () => {
+    const next = Math.max(zoom - 0.15, 0.25);
+    setZoom(next);
+    updateActiveBoard((b) => ({ ...b, zoom: next }));
+  };
+
+  // Keyboard Shortcuts (Delete, Esc, Undo/Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      const isEditableTarget = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName);
+
+      if (e.key === 'Escape') {
+        if (selectedEdgeId) {
+          setSelectedEdgeId(null);
+        } else if (selectedNodeId) {
+          setSelectedNodeId(null);
+        } else if (aiModalOpen) {
+          setAiModalOpen(false);
+        } else {
+          onClose();
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isEditableTarget) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !isEditableTarget) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditableTarget) {
+        if (selectedEdgeId) {
+          handleDeleteEdge(selectedEdgeId);
+        } else if (selectedNodeId) {
+          handleDeleteNode(selectedNodeId);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, selectedEdgeId, selectedNodeId, aiModalOpen, onClose, handleUndo, handleRedo]);
+
+  // Tree Auto-Layout
   const handleAutoLayout = () => {
     if (activeBoard.nodes.length === 0) return;
 
-    const nodes = [...activeBoard.nodes];
-    const edges = activeBoard.edges;
-
-    // Find Root Nodes (nodes with no incoming edges)
-    const incomingCount = new Map<string, number>();
-    nodes.forEach((n) => incomingCount.set(n.id, 0));
-    edges.forEach((e) => {
-      incomingCount.set(e.toNodeId, (incomingCount.get(e.toNodeId) || 0) + 1);
-    });
-
-    let rootNodes = nodes.filter((n) => incomingCount.get(n.id) === 0);
-    if (rootNodes.length === 0) rootNodes = [nodes[0]];
-
-    const startX = 100;
-    let currentY = 100;
-    const columnGap = 320;
-    const rowGap = 180;
-
+    snapshotBoard();
+    const startNode = activeBoard.nodes[0];
     const visited = new Set<string>();
-    const nodePositions = new Map<string, { x: number; y: number }>();
+    const levelMap = new Map<string, number>();
 
-    const layoutSubtree = (nodeId: string, col: number, startY: number): number => {
+    const assignLevels = (nodeId: string, level: number) => {
+      if (visited.has(nodeId)) return;
       visited.add(nodeId);
-      const childEdges = edges.filter((e) => e.fromNodeId === nodeId && !visited.has(e.toNodeId));
+      levelMap.set(nodeId, level);
 
-      let totalY = startY;
-      if (childEdges.length === 0) {
-        nodePositions.set(nodeId, { x: startX + col * columnGap, y: startY });
-        return startY + rowGap;
-      }
-
-      let childY = startY;
-      childEdges.forEach((e) => {
-        childY = layoutSubtree(e.toNodeId, col + 1, childY);
-      });
-
-      const firstChildPos = nodePositions.get(childEdges[0].toNodeId)!;
-      const lastChildPos = nodePositions.get(childEdges[childEdges.length - 1].toNodeId)!;
-      const midY = (firstChildPos.y + lastChildPos.y) / 2;
-
-      nodePositions.set(nodeId, { x: startX + col * columnGap, y: midY });
-      return childY;
+      const outgoing = activeBoard.edges.filter((e) => e.fromNodeId === nodeId);
+      outgoing.forEach((edge) => assignLevels(edge.toNodeId, level + 1));
     };
 
-    rootNodes.forEach((root) => {
-      currentY = layoutSubtree(root.id, 0, currentY);
+    assignLevels(startNode.id, 0);
+
+    // Unconnected nodes get placed below
+    activeBoard.nodes.forEach((n) => {
+      if (!levelMap.has(n.id)) levelMap.set(n.id, 0);
     });
 
-    // Unconnected nodes
-    nodes.forEach((n) => {
-      if (!visited.has(n.id)) {
-        nodePositions.set(n.id, { x: startX, y: currentY });
-        currentY += rowGap;
-      }
+    const levelCounts: Record<number, number> = {};
+    const repositioned = activeBoard.nodes.map((node) => {
+      const level = levelMap.get(node.id) || 0;
+      const indexInLevel = levelCounts[level] || 0;
+      levelCounts[level] = indexInLevel + 1;
+
+      return {
+        ...node,
+        x: 100 + level * 340,
+        y: 120 + indexInLevel * 220,
+      };
     });
 
-    updateActiveBoard((b) => ({
-      ...b,
-      nodes: b.nodes.map((n) => {
-        const pos = nodePositions.get(n.id);
-        return pos ? { ...n, x: pos.x, y: pos.y } : n;
-      }),
-    }));
+    updateActiveBoard((b) => ({ ...b, nodes: repositioned }));
   };
 
-  // AI Expand / Brainstorm Node
+  // AI Expand
   const handleAIExpand = (node: MindmapNode) => {
     setTargetAiNode(node);
-    setAiPrompt(`Brainstorm 3 sub-components or ideas for: ${node.title || node.content}`);
+    setAiPrompt(`Generate 3 detailed sub-topics or execution steps for: "${node.title}"`);
     setAiModalOpen(true);
   };
 
   const handleExecuteAIExpand = () => {
     if (!targetAiNode) return;
-    const baseTitle = targetAiNode.title || 'Idea';
+
+    const colors: NodeColor[] = ['blue', 'purple', 'emerald', 'amber', 'rose'];
     const subTopics = [
-      `1. Analysis & Metrics for ${baseTitle}`,
-      `2. Implementation Vectors`,
-      `3. Security & Validation Controls`,
+      { title: `${targetAiNode.title} - Scope & Objectives`, desc: 'Core goals, attack surfaces, and validation rules.' },
+      { title: `${targetAiNode.title} - Methodology`, desc: 'Step-by-step techniques and tool pipelines.' },
+      { title: `${targetAiNode.title} - Risk & Remediation`, desc: 'CVSS calculation, hardening guides, and patches.' },
     ];
 
-    const newNodes: MindmapNode[] = subTopics.map((topic, i) => ({
-      id: 'node_ai_' + Date.now() + '_' + i,
-      type: 'note',
-      x: targetAiNode.x + targetAiNode.width + 120,
-      y: targetAiNode.y + (i - 1) * 160,
-      width: 220,
-      height: 120,
-      color: i === 0 ? 'emerald' : i === 1 ? 'blue' : 'purple',
-      title: topic,
-      content: `AI generated branch for ${baseTitle}.\nReady for further detailing.`,
-      zIndex: 10,
-    }));
+    const newNodes: MindmapNode[] = [];
+    const newEdges: MindmapEdge[] = [];
 
-    const newEdges: MindmapEdge[] = newNodes.map((nn, i) => ({
-      id: 'edge_ai_' + Date.now() + '_' + i,
-      fromNodeId: targetAiNode.id,
-      fromHandle: 'right',
-      toNodeId: nn.id,
-      toHandle: 'left',
-      style: 'solid',
-    }));
+    subTopics.forEach((topic, i) => {
+      const subId = 'node_' + Date.now() + '_' + i;
+      newNodes.push({
+        id: subId,
+        type: 'card',
+        x: targetAiNode.x + targetAiNode.width + 120,
+        y: targetAiNode.y + (i - 1) * 180,
+        width: 240,
+        height: 150,
+        color: colors[i % colors.length],
+        title: topic.title,
+        content: topic.desc,
+        zIndex: 10,
+      });
 
+      newEdges.push({
+        id: 'edge_' + Date.now() + '_' + i,
+        fromNodeId: targetAiNode.id,
+        fromHandle: 'right',
+        toNodeId: subId,
+        toHandle: 'left',
+        style: 'solid',
+      });
+    });
+
+    snapshotBoard();
     updateActiveBoard((b) => ({
       ...b,
       nodes: [...b.nodes, ...newNodes],
@@ -789,72 +699,9 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
     }));
 
     setAiModalOpen(false);
-    setTargetAiNode(null);
   };
 
-  // Boards Management
-  const handleAddBoard = () => {
-    const newBoard: MindmapBoard = {
-      id: 'board_' + Date.now(),
-      name: `Board ${boards.length + 1}`,
-      zoom: 1,
-      pan: { x: 100, y: 60 },
-      nodes: [
-        {
-          id: 'node_init',
-          type: 'card',
-          x: 300,
-          y: 200,
-          width: 240,
-          height: 140,
-          color: 'emerald',
-          title: '✨ New Board',
-          content: 'Add notes, cards, and images from the top toolbar.',
-        },
-      ],
-      edges: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setBoards((prev) => [...prev, newBoard]);
-    setActiveBoardId(newBoard.id);
-  };
-
-  const handleStartRenameBoard = (boardId: string, currentName: string) => {
-    setEditingBoardId(boardId);
-    setEditingBoardName(currentName);
-  };
-
-  const handleSaveRenameBoard = () => {
-    if (editingBoardId && editingBoardName.trim()) {
-      setBoards((prev) =>
-        prev.map((b) => (b.id === editingBoardId ? { ...b, name: editingBoardName.trim() } : b))
-      );
-    }
-    setEditingBoardId(null);
-    setEditingBoardName('');
-  };
-
-  const handleDeleteBoard = (boardId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (boards.length <= 1) return;
-    const remainingBoards = boards.filter((b) => b.id !== boardId);
-    setBoards(remainingBoards);
-    if (activeBoardId === boardId) {
-      setActiveBoardId(remainingBoards[0].id);
-    }
-  };
-
-  const handleClearCurrentBoard = () => {
-    updateActiveBoard((b) => ({
-      ...b,
-      nodes: [],
-      edges: [],
-    }));
-    setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-  };
-
+  // Export / Import JSON
   const handleExportJSON = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(boards, null, 2));
     const a = document.createElement('a');
@@ -869,184 +716,62 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = (loadEvt) => {
         try {
-          const parsed = JSON.parse(evt.target?.result as string);
+          const parsed = JSON.parse(loadEvt.target?.result as string);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setBoards(parsed);
             setActiveBoardId(parsed[0].id);
           }
-        } catch (err) {
-          console.error('Failed to parse JSON file:', err);
+        } catch {
+          toast('error', 'Invalid Mindmap JSON file format');
         }
       };
       reader.readAsText(file);
     }
   };
 
-  const handleResetZoom = () => {
-    setZoom(1);
-    setPan({ x: 100, y: 60 });
-    updateActiveBoard((b) => ({ ...b, zoom: 1, pan: { x: 100, y: 60 } }));
-  };
-
   if (!isOpen) return null;
+
+  const selectedEdge = activeBoard.edges.find((e) => e.id === selectedEdgeId);
 
   return (
     <div className={styles.overlay}>
-      {/* Top Controls Bar */}
-      <div className={styles.topBar}>
-        <div className={styles.topBarLeft}>
-          <div className={styles.brandLogo}>
-            <Network size={20} />
-            <span>Nexus Mindmap</span>
-          </div>
+      <MindmapTopBar
+        boards={boards}
+        activeBoardId={activeBoardId}
+        onSelectBoard={setActiveBoardId}
+        onAddBoard={handleAddBoard}
+        onRenameBoard={handleRenameBoard}
+        onDeleteBoard={handleDeleteBoard}
+        onAddNode={handleAddNode}
+        onAutoLayout={handleAutoLayout}
+        onExportJson={handleExportJSON}
+        onImportJson={() => fileImportRef.current?.click()}
+        onOpenAiModal={() => {
+          setTargetAiNode(activeBoard.nodes[0] || null);
+          setAiPrompt('Generate branching nodes for this mindmap');
+          setAiModalOpen(true);
+        }}
+        onClearCanvas={handleClearCurrentBoard}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
+        onClose={onClose}
+      />
 
-          {/* Board Tabs with Inline Rename & Delete and Horizontal Wheel Scroll */}
-          <div className={styles.boardTabsWrapper}>
-            {boards.length > 2 && (
-              <button
-                className={styles.tabScrollBtn}
-                onClick={handleScrollTabsLeft}
-                title="Scroll boards left"
-              >
-                <ChevronLeft size={13} />
-              </button>
-            )}
-
-            <div
-              ref={tabsContainerRef}
-              className={styles.boardTabsContainer}
-              onWheel={handleTabsWheel}
-            >
-              {boards.map((b) => {
-                const isActive = b.id === activeBoardId;
-                const isEditing = editingBoardId === b.id;
-
-                return (
-                  <div
-                    key={b.id}
-                    className={`${styles.boardTab} ${isActive ? styles.boardTabActive : ''}`}
-                    onClick={() => setActiveBoardId(b.id)}
-                    title="Click to switch, double-click to rename"
-                  >
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editingBoardName}
-                        onChange={(e) => setEditingBoardName(e.target.value)}
-                        onBlur={handleSaveRenameBoard}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveRenameBoard();
-                          if (e.key === 'Escape') setEditingBoardId(null);
-                        }}
-                        autoFocus
-                        className={styles.boardTabInput}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <>
-                        <span
-                          className={styles.boardTabName}
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            handleStartRenameBoard(b.id, b.name);
-                          }}
-                        >
-                          {b.name}
-                        </span>
-                        <button
-                          className={styles.boardTabActionBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartRenameBoard(b.id, b.name);
-                          }}
-                          title="Rename Board"
-                        >
-                          <Pencil size={11} />
-                        </button>
-                        {boards.length > 1 && (
-                          <button
-                            className={`${styles.boardTabActionBtn} ${styles.boardTabDeleteBtn}`}
-                            onClick={(e) => handleDeleteBoard(b.id, e)}
-                            title="Delete Board"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {boards.length > 2 && (
-              <button
-                className={styles.tabScrollBtn}
-                onClick={handleScrollTabsRight}
-                title="Scroll boards right"
-              >
-                <ChevronRight size={13} />
-              </button>
-            )}
-
-            <button className={styles.newBoardBtn} onClick={handleAddBoard} title="New Board">
-              <Plus size={14} />
-            </button>
-          </div>
-        </div>
-
-        {/* Node & Action Palette */}
-        <div className={styles.paletteContainer}>
-          <button className={styles.toolBtn} onClick={() => handleAddNode('note')} title="Add Sticky Note">
-            <StickyNote size={15} color="#3b82f6" /> Note
-          </button>
-          <button className={styles.toolBtn} onClick={() => handleAddNode('card')} title="Add Feature Card">
-            <CreditCard size={15} color="#10b981" /> Card
-          </button>
-          <button className={styles.toolBtn} onClick={() => handleAddNode('image')} title="Add Image Node">
-            <ImageIcon size={15} color="#a855f7" /> Image
-          </button>
-          <button className={styles.toolBtn} onClick={() => handleAddNode('frame')} title="Add Group Section Frame">
-            <Square size={15} color="#f59e0b" /> Frame
-          </button>
-          <button className={styles.toolBtn} onClick={handleAutoLayout} title="Auto-organize Mindmap Hierarchy">
-            <Workflow size={15} color="#34d399" /> Auto Layout
-          </button>
-        </div>
-
-        {/* Right Action Tools */}
-        <div className={styles.topBarRight}>
-          <button className={styles.iconBtn} onClick={handleClearCurrentBoard} title="Clear Current Board Canvas">
-            <Trash2 size={16} />
-          </button>
-          <button className={styles.iconBtn} onClick={handleExportJSON} title="Export Mindmap as JSON">
-            <Download size={16} />
-          </button>
-          <button
-            className={styles.iconBtn}
-            onClick={() => fileImportRef.current?.click()}
-            title="Import Mindmap JSON"
-          >
-            <Upload size={16} />
-          </button>
-          <input
-            ref={fileImportRef}
-            type="file"
-            accept=".json"
-            style={{ display: 'none' }}
-            onChange={handleImportJSON}
-          />
-          <button
-            className={`${styles.iconBtn} ${styles.iconBtnClose}`}
-            onClick={onClose}
-            title="Close Mindmap (Esc)"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
+      <input
+        ref={fileImportRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={handleImportJSON}
+      />
 
       {/* Infinite Canvas */}
       <div
@@ -1055,6 +780,20 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
       >
+        {/* Floating Zoom HUD */}
+        <div className={styles.floatingHud}>
+          <button className={styles.hudBtn} onClick={handleZoomOut} title="Zoom Out (Ctrl+Scroll)">
+            <ZoomOut size={16} />
+          </button>
+          <span className={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
+          <button className={styles.hudBtn} onClick={handleZoomIn} title="Zoom In (Ctrl+Scroll)">
+            <ZoomIn size={16} />
+          </button>
+          <button className={styles.hudBtn} onClick={handleResetZoom} title="Reset Zoom">
+            <Maximize2 size={14} />
+          </button>
+        </div>
+
         <div
           className={styles.worldLayer}
           style={{
@@ -1095,145 +834,32 @@ export default function MindmapStudio({ isOpen, onClose }: MindmapStudioProps) {
           ))}
         </div>
 
-        {/* Floating Zoom & Pan HUD */}
-        <div className={styles.floatingHud}>
-          <button
-            className={styles.hudBtn}
-            onClick={() => {
-              const next = Math.max(zoom - 0.15, 0.25);
-              setZoom(next);
-              updateActiveBoard((b) => ({ ...b, zoom: next }));
-            }}
-            title="Zoom Out"
-          >
-            <ZoomOut size={16} />
-          </button>
-          <span className={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
-          <button
-            className={styles.hudBtn}
-            onClick={() => {
-              const next = Math.min(zoom + 0.15, 2.5);
-              setZoom(next);
-              updateActiveBoard((b) => ({ ...b, zoom: next }));
-            }}
-            title="Zoom In"
-          >
-            <ZoomIn size={16} />
-          </button>
-          <button className={styles.hudBtn} onClick={handleResetZoom} title="Reset View (100%)">
-            <Maximize2 size={16} />
-          </button>
-        </div>
-
         {/* Selected Edge Inspector Toolbar */}
-        {selectedEdgeId && (() => {
-          const selectedEdge = activeBoard.edges.find((e) => e.id === selectedEdgeId);
-          if (!selectedEdge) return null;
-
-          return (
-            <div className={styles.edgeToolbar} onMouseDown={(e) => e.stopPropagation()}>
-              <span className={styles.edgeToolbarLabel}>Connector:</span>
-              <input
-                type="text"
-                value={selectedEdge.label || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateActiveBoard((b) => ({
-                    ...b,
-                    edges: b.edges.map((edge) =>
-                      edge.id === selectedEdge.id ? { ...edge, label: val } : edge
-                    ),
-                  }));
-                }}
-                placeholder="Label..."
-                className={styles.edgeLabelInput}
-              />
-              <button
-                className={`${styles.edgeStyleBtn} ${
-                  !selectedEdge.style || selectedEdge.style === 'solid'
-                    ? styles.edgeStyleBtnActive
-                    : ''
-                }`}
-                onClick={() => {
-                  updateActiveBoard((b) => ({
-                    ...b,
-                    edges: b.edges.map((edge) =>
-                      edge.id === selectedEdge.id ? { ...edge, style: 'solid' } : edge
-                    ),
-                  }));
-                }}
-              >
-                Solid
-              </button>
-              <button
-                className={`${styles.edgeStyleBtn} ${
-                  selectedEdge.style === 'dashed' ? styles.edgeStyleBtnActive : ''
-                }`}
-                onClick={() => {
-                  updateActiveBoard((b) => ({
-                    ...b,
-                    edges: b.edges.map((edge) =>
-                      edge.id === selectedEdge.id ? { ...edge, style: 'dashed' } : edge
-                    ),
-                  }));
-                }}
-              >
-                Dashed
-              </button>
-              <button
-                className={`${styles.edgeStyleBtn} ${
-                  selectedEdge.style === 'dotted' ? styles.edgeStyleBtnActive : ''
-                }`}
-                onClick={() => {
-                  updateActiveBoard((b) => ({
-                    ...b,
-                    edges: b.edges.map((edge) =>
-                      edge.id === selectedEdge.id ? { ...edge, style: 'dotted' } : edge
-                    ),
-                  }));
-                }}
-              >
-                Dotted
-              </button>
-              <button
-                className={styles.edgeDeleteBtn}
-                onClick={() => handleDeleteEdge(selectedEdge.id)}
-                title="Disconnect Arrow"
-              >
-                <Trash2 size={13} /> Disconnect
-              </button>
-            </div>
-          );
-        })()}
+        {selectedEdge && (
+          <MindmapEdgeToolbar
+            selectedEdge={selectedEdge}
+            onUpdateEdge={(edgeId, updates) => {
+              updateActiveBoard((b) => ({
+                ...b,
+                edges: b.edges.map((edge) =>
+                  edge.id === edgeId ? { ...edge, ...updates } : edge
+                ),
+              }));
+            }}
+            onDeleteEdge={handleDeleteEdge}
+            onDeselect={() => setSelectedEdgeId(null)}
+          />
+        )}
       </div>
 
       {/* AI Expansion Modal */}
-      {aiModalOpen && (
-        <div className={styles.aiModal}>
-          <div className={styles.aiModalHeader}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Sparkles size={16} />
-              <span>AI Mindmap Expansion</span>
-            </div>
-            <button
-              style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}
-              onClick={() => setAiModalOpen(false)}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <input
-            type="text"
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            className={styles.aiInput}
-            placeholder="AI prompt for branching ideas..."
-          />
-          <button className={styles.aiSubmitBtn} onClick={handleExecuteAIExpand}>
-            <Sparkles size={14} /> Generate & Connect Sub-Nodes
-          </button>
-        </div>
-      )}
+      <MindmapAiModal
+        isOpen={aiModalOpen}
+        prompt={aiPrompt}
+        onChangePrompt={setAiPrompt}
+        onExecute={handleExecuteAIExpand}
+        onClose={() => setAiModalOpen(false)}
+      />
     </div>
   );
 }

@@ -40,6 +40,8 @@ interface SecurityCanvasProps {
   onSendToAI?: (prompt: string) => void;
   initialCode?: string;
   initialDecoderInput?: string;
+  /** Bumped on every open-security dispatch so repeated identical payloads re-apply */
+  payloadNonce?: number;
 }
 
 type TabCategory = 'all' | 'assess' | 'web' | 'recon' | 'defense';
@@ -95,14 +97,22 @@ export default function SecurityCanvas({
   onSendToAI = () => {},
   initialCode,
   initialDecoderInput,
+  payloadNonce = 0,
 }: SecurityCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [category, setCategory] = useState<TabCategory>(() => {
-    return (localStorage.getItem('nexus_security_category') as TabCategory) || 'all';
+    try { return (localStorage.getItem('nexus_security_category') as TabCategory) || 'all'; } catch { return 'all'; }
   });
-  const [sandboxCode, setSandboxCode] = useState<string | undefined>(undefined);
+  const [sandboxPayload, setSandboxPayload] = useState<{ code: string; nonce: number } | undefined>(undefined);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Tools are mounted lazily on first visit, then kept mounted so their state
+  // survives switching tabs and closing/reopening the workbench.
+  const [mountedTabs, setMountedTabs] = useState<SecurityTab[]>(() => [activeTab]);
+  useEffect(() => {
+    setMountedTabs((prev) => (prev.includes(activeTab) ? prev : [...prev, activeTab]));
+  }, [activeTab]);
 
   useEffect(() => {
     try {
@@ -125,7 +135,7 @@ export default function SecurityCanvas({
   }, [dropdownOpen]);
 
   const handleSendToSandbox = (code: string) => {
-    setSandboxCode(code);
+    setSandboxPayload({ code, nonce: Date.now() });
     onTabChange('sandbox');
   };
 
@@ -301,78 +311,125 @@ export default function SecurityCanvas({
         </div>
       </div>
 
-      {/* Tab Panels */}
+      {/* Tab Panels — inactive tools stay mounted (faded out) to preserve state */}
       <div className={styles.tabContent}>
-        {activeTab === 'auditor' && (
-          <CodeAuditor
-            initialCode={initialCode}
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'auditor' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('auditor') && (
+            <CodeAuditor
+              initialCode={initialCode}
+              initialCodeNonce={payloadNonce}
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'sandbox' && (
-          <SandboxTerminal
-            initialCode={sandboxCode || initialCode}
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'sandbox' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('sandbox') && (
+            <SandboxTerminal
+              initialCode={sandboxPayload?.code || initialCode}
+              initialCodeNonce={sandboxPayload?.nonce ?? payloadNonce}
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'decoders' && (
-          <DecoderHub
-            initialInput={initialDecoderInput || initialCode}
-            onSendToSandbox={handleSendToSandbox}
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'decoders' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('decoders') && (
+            <DecoderHub
+              initialInput={initialDecoderInput || initialCode}
+              initialInputNonce={payloadNonce}
+              onSendToSandbox={handleSendToSandbox}
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'threat_studio' && (
-          <DetectionStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'threat_studio' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('threat_studio') && (
+            <DetectionStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'reports' && (
-          <ReportStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'reports' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('reports') && (
+            <ReportStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'scope' && (
-          <ScopeManager
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'scope' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('scope') && (
+            <ScopeManager
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'checklists' && (
-          <ChecklistTracker
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'checklists' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('checklists') && (
+            <ChecklistTracker
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'http_studio' && (
-          <HttpStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'http_studio' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('http_studio') && (
+            <HttpStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'payloads' && (
-          <PayloadCrafter
-            onSendToAI={onSendToAI}
-            onSendToSandbox={handleSendToSandbox}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'payloads' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('payloads') && (
+            <PayloadCrafter
+              onSendToAI={onSendToAI}
+              onSendToSandbox={handleSendToSandbox}
+            />
+          )}
+        </div>
 
-        {activeTab === 'recon' && (
-          <ReconHub
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'recon' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('recon') && (
+            <ReconHub
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
 
-        {activeTab === 'nuclei' && (
-          <NucleiStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <div
+          className={`${styles.toolPane} ${activeTab === 'nuclei' ? styles.toolPaneActive : ''}`}
+        >
+          {mountedTabs.includes('nuclei') && (
+            <NucleiStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

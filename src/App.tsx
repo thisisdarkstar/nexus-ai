@@ -1,5 +1,10 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import {
+  Group,
+  Panel,
+  Separator,
+  type PanelImperativeHandle,
+} from 'react-resizable-panels';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import SecurityCanvas from './components/security/SecurityCanvas';
@@ -105,7 +110,28 @@ function AppContent() {
 
   const [securityInitialCode, setSecurityInitialCode] = useState<string | undefined>(undefined);
   const [securityInitialDecoderInput, setSecurityInitialDecoderInput] = useState<string | undefined>(undefined);
+  // Increments on every nexus:open-security dispatch so re-opening the identical
+  // code block still propagates (React skips effects when values are equal).
+  const [securityPayloadNonce, setSecurityPayloadNonce] = useState(0);
   const [mindmapOpen, setMindmapOpen] = useState(false);
+
+  // The workbench panel stays mounted at all times; closing it collapses the
+  // panel instead of unmounting SecurityCanvas so tool state is preserved.
+  const chatPanelRef = useRef<PanelImperativeHandle>(null);
+  const workbenchPanelRef = useRef<PanelImperativeHandle>(null);
+
+  useEffect(() => {
+    const chat = chatPanelRef.current;
+    const workbench = workbenchPanelRef.current;
+    if (!chat || !workbench) return;
+    if (securityWorkbenchOpen) {
+      workbench.expand();
+      chat.resize('45%');
+    } else {
+      workbench.collapse();
+      chat.resize('100%');
+    }
+  }, [securityWorkbenchOpen]);
 
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
@@ -132,6 +158,7 @@ function AppContent() {
       if (custom.detail?.input) {
         setSecurityInitialDecoderInput(custom.detail.input);
       }
+      setSecurityPayloadNonce((n) => n + 1);
       setSecurityWorkbenchOpen(true);
     };
     window.addEventListener('nexus:open-security', handleOpenSecurity);
@@ -387,6 +414,7 @@ function AppContent() {
       <div style={{ flex: 1, display: 'flex', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
         <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
           <Panel
+            panelRef={chatPanelRef}
             defaultSize={securityWorkbenchOpen ? '45%' : '100%'}
             minSize="30%"
             style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
@@ -411,29 +439,43 @@ function AppContent() {
             />
           </Panel>
 
-          {securityWorkbenchOpen && (
-            <>
-              <Separator
-                style={{
-                  width: '5px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  cursor: 'col-resize',
-                  transition: 'background 0.2s',
-                  zIndex: 20,
-                }}
+          <Separator
+            style={{
+              width: '5px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              cursor: 'col-resize',
+              transition: 'background 0.2s',
+              zIndex: 20,
+              display: securityWorkbenchOpen ? undefined : 'none',
+            }}
+          />
+          <Panel
+            panelRef={workbenchPanelRef}
+            defaultSize="55%"
+            minSize="32%"
+            collapsible
+            collapsedSize={0}
+            style={{ height: '100%', overflow: 'hidden' }}
+          >
+            <div
+              className="nexus-workbench-content"
+              style={{
+                height: '100%',
+                overflow: 'hidden',
+                display: securityWorkbenchOpen ? undefined : 'none',
+              }}
+            >
+              <SecurityCanvas
+                activeTab={activeSecurityTab}
+                onTabChange={setActiveSecurityTab}
+                onClose={() => setSecurityWorkbenchOpen(false)}
+                onSendToAI={handleSendToAIFromSecurity}
+                initialCode={securityInitialCode}
+                initialDecoderInput={securityInitialDecoderInput}
+                payloadNonce={securityPayloadNonce}
               />
-              <Panel defaultSize="55%" minSize="32%" style={{ height: '100%', overflow: 'hidden' }}>
-                <SecurityCanvas
-                  activeTab={activeSecurityTab}
-                  onTabChange={setActiveSecurityTab}
-                  onClose={() => setSecurityWorkbenchOpen(false)}
-                  onSendToAI={handleSendToAIFromSecurity}
-                  initialCode={securityInitialCode}
-                  initialDecoderInput={securityInitialDecoderInput}
-                />
-              </Panel>
-            </>
-          )}
+            </div>
+          </Panel>
         </Group>
       </div>
       <VoiceOverlay
@@ -456,6 +498,9 @@ function AppContent() {
             onClearChats={handleDeleteAll}
             reloadChats={reloadChats}
             availableVoices={voice.availableVoices}
+            onImportResult={(success, message) => {
+              toast(success ? 'success' : 'error', message);
+            }}
           />
         </Suspense>
       )}

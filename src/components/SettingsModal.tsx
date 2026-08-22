@@ -32,6 +32,7 @@ interface SettingsModalProps {
   onClearChats: () => void;
   reloadChats?: () => void;
   availableVoices?: SpeechSynthesisVoice[];
+  onImportResult?: (success: boolean, message: string) => void;
 }
 
 export default function SettingsModal({
@@ -41,6 +42,7 @@ export default function SettingsModal({
   onClearChats,
   reloadChats,
   availableVoices = [],
+  onImportResult,
 }: SettingsModalProps) {
   const [provider, setProvider] = useState(settings.provider || 'chrome');
   const [theme, setTheme] = useState(settings.theme || 'dark');
@@ -83,26 +85,25 @@ export default function SettingsModal({
   };
 
   useEffect(() => {
-    if (provider === 'openai') {
-      const fetchModels = async () => {
-        try {
-          const res = await fetch(`${openaiBaseUrl}/models`, {
-            headers: { Authorization: `Bearer ${openaiApiKey}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const models = data.data || [];
-            setAvailableModels(models);
-            if (models.length > 0 && !openaiModel) {
-              setOpenaiModel(models[0].id);
-            }
+    if (provider !== 'openai') return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${openaiBaseUrl}/models`, {
+          headers: { Authorization: `Bearer ${openaiApiKey}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const models = data.data || [];
+          setAvailableModels(models);
+          if (models.length > 0 && !openaiModel) {
+            setOpenaiModel(models[0].id);
           }
-        } catch (e) {
-          console.error('Failed to fetch models', e);
         }
-      };
-      fetchModels();
-    }
+      } catch (e) {
+        console.error('Failed to fetch models', e);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
   }, [provider, openaiBaseUrl, openaiApiKey]);
 
   const handleSave = () => {
@@ -140,10 +141,11 @@ export default function SettingsModal({
     reader.onload = async (event) => {
       try {
         await db.importData(event.target?.result as string);
-        alert('Import successful!');
+        onImportResult?.(true, 'Import successful! Chats have been loaded.');
         if (reloadChats) reloadChats();
+        onClose();
       } catch (err) {
-        alert('Import failed: ' + (err instanceof Error ? err.message : String(err)));
+        onImportResult?.(false, 'Import failed: ' + (err instanceof Error ? err.message : String(err)));
       }
     };
     reader.readAsText(file);

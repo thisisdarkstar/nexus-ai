@@ -45,7 +45,7 @@ export function useChatEngine({
   const [hasQueuedPrompt, setHasQueuedPrompt] = useState(false);
   const [queuedPromptDisplay, setQueuedPromptDisplay] = useState('');
 
-  const undoRedo = useUndoRedo();
+  const undoRedo = useUndoRedo<Message[]>();
 
   const handleUndo = useCallback(() => {
     const prev = undoRedo.undo(messages);
@@ -429,7 +429,7 @@ export function useChatEngine({
   };
 
   const handleRegenerateTitle = async (currentMessages: Message[]) => {
-    if (currentMessages.length < 2 || isGenerating) return;
+    if (currentMessages.length < 2) return;
     const snippet = currentMessages
       .slice(0, 4)
       .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 200)}`)

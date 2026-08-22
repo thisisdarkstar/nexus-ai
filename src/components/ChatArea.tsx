@@ -301,6 +301,25 @@ export default function ChatArea({
             </div>
             <h1 className={styles.emptyTitle}>How can I help?</h1>
             <p className={styles.emptySubtitle}>Local, private, and exceptionally fast.</p>
+            <div className={styles.suggestions}>
+              {[
+                { label: '🔍 Explain SQL Injection', prompt: 'Explain SQL injection vulnerabilities with examples and how to prevent them.' },
+                { label: '🐍 Write a port scanner', prompt: 'Write a Python port scanner script that scans the top 1000 ports on a target host.' },
+                { label: '🔑 Analyze a JWT token', prompt: 'Explain how JWT tokens work and how to test them for common vulnerabilities like the alg:none bypass and weak HMAC secrets.' },
+                { label: '📑 CVSS score for RCE', prompt: 'Calculate and explain the CVSS v3.1 base score for an unauthenticated remote code execution vulnerability.' },
+                { label: '🛡️ XSS WAF bypass payloads', prompt: 'Show me common XSS bypass techniques for WAFs with example payloads and explanations.' },
+                { label: '⚡ Write a Sigma rule', prompt: 'Write a Sigma detection rule for detecting suspicious PowerShell execution with base64-encoded commands, mapped to MITRE ATT&CK.' },
+              ].map((s) => (
+                <button
+                  key={s.label}
+                  className={styles.suggestionChip}
+                  onClick={() => handleSend(s.prompt)}
+                  disabled={providerStatus.state !== 'ready'}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <Virtuoso

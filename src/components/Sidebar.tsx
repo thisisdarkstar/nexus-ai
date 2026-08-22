@@ -145,7 +145,8 @@ export default function Sidebar({
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onToggleCollapse} />
+      {/* Backdrop: only rendered on mobile where sidebar is a drawer overlay */}
+      <div className={styles.backdrop} onClick={onToggleCollapse} aria-hidden="true" />
       <aside className={`${styles.sidebar} glass-panel ${styles.expanded}`}>
       <div className={styles.header}>
         <div className={styles.headerRow}>

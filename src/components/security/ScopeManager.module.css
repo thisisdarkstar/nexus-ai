@@ -125,6 +125,88 @@
   color: var(--text-secondary, #94a3b8);
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tagRemoveBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  padding: 1px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.tagRemoveBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.tagAddInput {
+  background: var(--input-bg, #0f172a);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: var(--text-primary, #f8fafc);
+  font-size: 0.7rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  outline: none;
+  width: 90px;
+}
+
+.tagAddBtn {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  color: var(--text-muted, #64748b);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tagAddBtn:hover {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.notesEditable {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #94a3b8);
+  cursor: text;
+  border-radius: 4px;
+  padding: 0.1rem 0.25rem;
+  margin: -0.1rem -0.25rem;
+  transition: background 0.15s;
+}
+.notesEditable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.notesPlaceholder {
+  color: var(--text-muted, #475569);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  padding: 0.2rem 0.45rem;
+}
+.notesPlaceholder:hover {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.notesInput {
+  width: 100%;
+  background: var(--input-bg, #0f172a);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: var(--text-primary, #f8fafc);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
 }
 
 .btn {

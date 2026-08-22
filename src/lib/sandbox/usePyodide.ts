@@ -149,7 +149,9 @@ export function usePyodide() {
     Map<string, { resolve: (res: SandboxExecutionResult) => void; reject: (err: Error) => void }>
   >(new Map());
 
-  useEffect(() => {
+  // Spawns (or re-spawns) the Pyodide worker. A hung execution blocks the
+  // worker's event loop forever, so the only recovery is terminate + restart.
+  const spawnWorker = useCallback(() => {
     try {
       const worker = new Worker(new URL('./pyodideWorker.ts', import.meta.url), { type: 'module' });
       workerRef.current = worker;
@@ -203,16 +205,20 @@ export function usePyodide() {
 
       setIsInitializing(true);
       worker.postMessage({ id: 'init', type: 'INIT' });
-
-      return () => {
-        worker.terminate();
-      };
     } catch (err) {
       console.error('Failed to create Pyodide worker:', err);
       setIsInitializing(false);
       setIsReady(false);
     }
   }, []);
+
+  useEffect(() => {
+    spawnWorker();
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, [spawnWorker]);
 
   const executeCode = useCallback(
     async (code: string, timeoutMs = 15000): Promise<SandboxExecutionResult> => {
@@ -238,7 +244,38 @@ export function usePyodide() {
       const reqId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
       return new Promise<SandboxExecutionResult>((resolve, reject) => {
-        pendingRequests.current.set(reqId, { resolve, reject });
+        // Client-side timeout guard: if the worker never responds, unblock the UI.
+        // A blocking Python loop (e.g. `while True: pass`) freezes the worker's
+        // event loop entirely — the worker cannot recover on its own, so the
+        // only reliable recovery is terminating it and spawning a fresh one.
+        const timeoutHandle = setTimeout(() => {
+          if (!pendingRequests.current.has(reqId)) return;
+          pendingRequests.current.delete(reqId);
+          setIsExecuting(false);
+
+          try {
+            workerRef.current?.terminate();
+          } catch {
+            // already gone
+          }
+          workerRef.current = null;
+          setIsReady(false);
+          spawnWorker();
+
+          const timeoutResult: SandboxExecutionResult = {
+            status: 'error',
+            stdout: '',
+            stderr: `[Timeout] Script exceeded ${timeoutMs}ms. It may contain an infinite loop or blocking call. The sandbox worker was restarted.`,
+            executionTimeMs: timeoutMs,
+          };
+          setLastResult(timeoutResult);
+          resolve(timeoutResult);
+        }, timeoutMs);
+
+        pendingRequests.current.set(reqId, {
+          resolve: (res) => { clearTimeout(timeoutHandle); resolve(res); },
+          reject: (err) => { clearTimeout(timeoutHandle); reject(err); },
+        });
         workerRef.current?.postMessage({
           id: reqId,
           type: 'RUN',
@@ -259,7 +296,7 @@ export function usePyodide() {
         return res;
       });
     },
-    [isReady]
+    [isReady, spawnWorker]
   );
 
   const clearLogs = useCallback(() => {

@@ -1,10 +1,12 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 95;
-  background: rgba(2, 6, 23, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background: #020617;
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.2s ease-out;
@@ -30,6 +32,7 @@
   padding: 0 16px;
   gap: 12px;
   z-index: 100;
+  flex-shrink: 0;
 }
 
 .topBarLeft {
@@ -48,6 +51,7 @@
   font-size: 1.05rem;
   color: #34d399;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .boardTabsWrapper {
@@ -75,7 +79,7 @@
 .tabScrollBtn {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-muted);
+  color: var(--text-muted, #94a3b8);
   width: 22px;
   height: 26px;
   border-radius: 6px;
@@ -89,7 +93,7 @@
 }
 .tabScrollBtn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -99,7 +103,7 @@
   gap: 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   font-size: 0.78rem;
   font-weight: 600;
   padding: 4px 8px;
@@ -112,12 +116,12 @@
 }
 .boardTab:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
 }
 .boardTabActive {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  color: #34d399 !important;
 }
 
 .boardTabName {
@@ -143,7 +147,7 @@
 .boardTabActionBtn {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-muted, #94a3b8);
   cursor: pointer;
   padding: 2px;
   border-radius: 4px;
@@ -155,7 +159,7 @@
 }
 .boardTabActionBtn:hover {
   opacity: 1;
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
   background: rgba(255, 255, 255, 0.1);
 }
 .boardTabDeleteBtn:hover {
@@ -166,7 +170,7 @@
 .newBoardBtn {
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.15);
-  color: var(--text-muted);
+  color: var(--text-muted, #94a3b8);
   border-radius: 8px;
   padding: 5px 8px;
   cursor: pointer;
@@ -194,7 +198,7 @@
 .toolBtn {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   font-size: 0.78rem;
   font-weight: 600;
   font-family: 'Outfit', sans-serif;
@@ -208,7 +212,7 @@
 }
 .toolBtn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
 }
 .toolBtnActive {
   background: rgba(16, 185, 129, 0.2);
@@ -224,7 +228,7 @@
 .iconBtn {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   width: 34px;
   height: 34px;
   border-radius: 8px;
@@ -236,8 +240,20 @@
 }
 .iconBtn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
   border-color: rgba(255, 255, 255, 0.15);
+}
+.iconBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.iconBtn:disabled:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary, #94a3b8);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.iconBtnDisabled {
+  opacity: 0.35;
 }
 .iconBtnClose:hover {
   background: rgba(239, 68, 68, 0.2);
@@ -295,7 +311,7 @@
 .zoomLabel {
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   min-width: 44px;
   text-align: center;
   font-family: 'Inter', monospace;
@@ -304,7 +320,7 @@
 .hudBtn {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   padding: 4px;
   border-radius: 6px;
   display: flex;
@@ -315,7 +331,7 @@
 }
 .hudBtn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
 }
 
 /* AI Brainstorm Prompt Overlay */
@@ -351,7 +367,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 8px 12px;
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
   font-size: 0.85rem;
   outline: none;
   margin-bottom: 12px;
@@ -409,7 +425,7 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   padding: 4px 8px;
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
   font-size: 0.76rem;
   width: 110px;
   outline: none;
@@ -421,7 +437,7 @@
 .edgeStyleBtn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
+  color: var(--text-secondary, #94a3b8);
   font-size: 0.72rem;
   font-weight: 600;
   padding: 4px 8px;
@@ -431,7 +447,7 @@
 }
 .edgeStyleBtn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
+  color: var(--text-primary, #f8fafc);
 }
 .edgeStyleBtnActive {
   background: rgba(52, 211, 153, 0.2);
@@ -457,4 +473,38 @@
   background: #ef4444;
   color: #ffffff;
   border-color: #ef4444;
+}
+
+.edgeStyleGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edgeToolbarTitle {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #34d399;
+  white-space: nowrap;
+}
+
+.edgeCloseBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  margin-left: 2px;
+}
+.edgeCloseBtn:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
 }

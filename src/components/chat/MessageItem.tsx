@@ -173,6 +173,7 @@ export default memo(function MessageItem({
   const [showRetryMenu, setShowRetryMenu] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
 
+  // 1. Primary: run whenever content changes, raw is toggled, or renderKey bumped
   useEffect(() => {
     if (showRaw || !bodyRef.current) return;
     requestAnimationFrame(() => {
@@ -180,15 +181,27 @@ export default memo(function MessageItem({
     });
   }, [msg.content, showRaw, renderKey]);
 
+  // 2. MutationObserver: catches async/streamed markdown renders
   useEffect(() => {
     if (!bodyRef.current || showRaw) return;
     const observer = new MutationObserver(() => {
       if (bodyRef.current) injectActionButtons(bodyRef.current);
     });
-    if (bodyRef.current) {
-      observer.observe(bodyRef.current, { childList: true, subtree: true });
-    }
+    observer.observe(bodyRef.current, { childList: true, subtree: true });
     return () => observer.disconnect();
+  }, [showRaw]);
+
+  // 3. ResizeObserver: re-injects when the chat panel resizes (e.g. security
+  //    workbench opens/closes → Virtuoso remounts items with unchanged
+  //    msg.content, so effect 1 is skipped by React). injectActionButtons is
+  //    idempotent — it checks for .code-action-bar before injecting.
+  useEffect(() => {
+    if (showRaw || !bodyRef.current) return;
+    const ro = new ResizeObserver(() => {
+      if (bodyRef.current) injectActionButtons(bodyRef.current);
+    });
+    ro.observe(bodyRef.current);
+    return () => ro.disconnect();
   }, [showRaw]);
 
   const [importedSast, setImportedSast] = useState(false);

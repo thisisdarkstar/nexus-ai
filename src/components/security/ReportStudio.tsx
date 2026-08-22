@@ -9,8 +9,8 @@ import {
   Calculator,
   Printer,
   Sparkles,
-  ExternalLink,
   RotateCcw,
+  ListChecks,
 } from 'lucide-react';
 import { calculateCVSS31, DEFAULT_CVSS } from '../../lib/security/cvss';
 import {
@@ -21,25 +21,10 @@ import {
 } from '../../lib/security/reportGenerator';
 import ConfirmModal from '../ConfirmModal';
 import CustomSelect from '../CustomSelect';
+import { SEVERITY_OPTIONS } from '../../data/security/reportTemplates';
+import ReportMetaBar from './reports/ReportMetaBar';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
 import styles from './ReportStudio.module.css';
-
-const ASSESSMENT_TYPE_OPTIONS = [
-  { value: 'web', label: 'Web Application Pentest', badge: 'Web' },
-  { value: 'api', label: 'API Security Assessment', badge: 'API' },
-  { value: 'mobile', label: 'Mobile Application Security', badge: 'Mobile' },
-  { value: 'network', label: 'Network Infrastructure Pentest', badge: 'Net' },
-  { value: 'cloud', label: 'Cloud Architecture Review', badge: 'Cloud' },
-  { value: 'bug_bounty', label: 'Bug Bounty Engagement', badge: 'Bounty' },
-];
-
-const SEVERITY_OPTIONS = [
-  { value: 'critical', label: 'Critical', badge: 'Critical', badgeColor: '#ef4444' },
-  { value: 'high', label: 'High', badge: 'High', badgeColor: '#f97316' },
-  { value: 'medium', label: 'Medium', badge: 'Medium', badgeColor: '#fbbf24' },
-  { value: 'low', label: 'Low', badge: 'Low', badgeColor: '#60a5fa' },
-  { value: 'info', label: 'Informational', badge: 'Info', badgeColor: '#94a3b8' },
-];
 
 const REPORT_STORAGE_KEY = 'nexus_security_report';
 
@@ -67,10 +52,14 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
   }, [report]);
 
   const [subTab, setSubTab] = useState<'editor' | 'markdown' | 'bug_bounty' | 'html'>(() => {
-    return (
-      (localStorage.getItem('nexus_security_report_subtab') as 'editor' | 'markdown' | 'bug_bounty' | 'html') ||
-      'editor'
-    );
+    try {
+      return (
+        (localStorage.getItem('nexus_security_report_subtab') as 'editor' | 'markdown' | 'bug_bounty' | 'html') ||
+        'editor'
+      );
+    } catch {
+      return 'editor';
+    }
   });
 
   useEffect(() => {
@@ -80,6 +69,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
       console.error(e);
     }
   }, [subTab]);
+
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(
     report.findings[0]?.id || null
   );
@@ -114,11 +104,8 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     });
   };
 
-  // CVSS Modal state for currently edited finding
-  const [isCvssOpen, setIsCvssOpen] = useState(false);
-  const [activeCvss, setActiveCvss] = useState<CVSSMetrics>(
-    report.findings[0]?.cvss || DEFAULT_CVSS
-  );
+  // CVSS Calculator state
+  const [showCvssCalculator, setShowCvssCalculator] = useState(false);
 
   const selectedFinding = report.findings.find((f) => f.id === selectedFindingId);
 
@@ -169,21 +156,16 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
   };
 
   const handleCvssMetricChange = (metric: keyof CVSSMetrics, val: string) => {
+    if (!selectedFinding) return;
+    const currentCvss = selectedFinding.cvss || DEFAULT_CVSS;
     const updated = calculateCVSS31({
-      ...activeCvss,
+      ...currentCvss,
       [metric]: val,
     } as Omit<CVSSMetrics, 'score' | 'severity' | 'vectorString'>);
-    setActiveCvss(updated);
-  };
-
-  const handleApplyCvss = () => {
-    if (selectedFindingId) {
-      handleUpdateFinding(selectedFindingId, {
-        cvss: activeCvss,
-        severity: activeCvss.severity,
-      });
-    }
-    setIsCvssOpen(false);
+    handleUpdateFinding(selectedFinding.id, {
+      cvss: updated,
+      severity: updated.severity,
+    });
   };
 
   const handleCopy = (text: string) => {
@@ -209,6 +191,46 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     ? generateBugBountyMarkdown(selectedFinding, report.targetScope)
     : 'No finding selected';
   const htmlContent = useMemo(() => generateHTMLReport(report, htmlTheme), [report, htmlTheme]);
+
+  const activeCvss = selectedFinding?.cvss || DEFAULT_CVSS;
+
+  // Structured per-finding summary so the AI reviews every finding without a
+  // hard truncation of the full report (long fields are trimmed individually).
+  const buildAllFindingsPrompt = () => {
+    const findingsSummary = report.findings
+      .map((f, idx) => {
+        const cvss = f.cvss
+          ? `${f.cvss.score} ${f.cvss.severity.toUpperCase()} (${f.cvss.vectorString})`
+          : 'Not scored';
+        return [
+          `### Finding ${idx + 1}: [${f.id}] ${f.title}`,
+          `- Severity: ${f.severity.toUpperCase()}`,
+          f.cweId ? `- CWE: ${f.cweId}` : '',
+          f.owaspCategory ? `- OWASP Category: ${f.owaspCategory}` : '',
+          f.targetEndpoint ? `- Target: ${f.targetEndpoint}` : '',
+          `- CVSS v3.1: ${cvss}`,
+          `- Status: ${f.status}`,
+          `- Description: ${(f.description || '').trim().slice(0, 700)}${(f.description || '').length > 700 ? '…' : ''}`,
+          `- Remediation: ${(f.remediation || '').trim().slice(0, 500)}${(f.remediation || '').length > 500 ? '…' : ''}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+      })
+      .join('\n\n');
+
+    return `I have completed a VAPT assessment and need an expert review of ALL ${report.findings.length} findings.
+
+**Engagement**: ${report.title}${report.targetScope ? `\n**Target Scope**: ${report.targetScope}` : ''}
+
+${findingsSummary}
+
+Please act as a senior application security consultant reviewing this complete findings set:
+1. **Severity Validation**: Are the CVSS scores and severities justified? Flag any over/under-scored findings with corrected vectors.
+2. **Risk Prioritization**: Provide a remediation order considering exploitability, business impact, and effort.
+3. **Cross-Finding Attack Chains**: Identify combinations of findings that could be chained into higher-impact exploits.
+4. **Missing Coverage**: Based on the scope and these findings, what common vulnerability classes appear untested or unreported?
+5. **Executive Summary**: Draft a concise 150-word executive summary for the client.`;
+  };
 
   return (
     <div className={styles.reportContainer}>
@@ -250,17 +272,27 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             <RotateCcw size={12} /> Reset
           </button>
           {onSendToAI && (
-            <button
-              className={styles.btn}
-              onClick={() =>
-                onSendToAI(
-                  `Review and enhance this VAPT Report draft:\n\n${markdownContent.slice(0, 3000)}`
-                )
-              }
-              title="Send report to AI for executive review and polish"
-            >
-              <Sparkles size={13} color="var(--accent-color)" /> AI Review
-            </button>
+            <>
+              <button
+                className={styles.btn}
+                onClick={() =>
+                  onSendToAI(
+                    `Review and enhance this VAPT Report draft:\n\n${markdownContent.slice(0, 3000)}`
+                  )
+                }
+                title="Send report to AI for executive review and polish"
+              >
+                <Sparkles size={13} color="var(--accent-color)" /> AI Review
+              </button>
+              <button
+                className={styles.btn}
+                onClick={() => onSendToAI(buildAllFindingsPrompt())}
+                disabled={report.findings.length === 0}
+                title="Structured AI analysis of every finding (CVSS, severity, remediation) with no truncation"
+              >
+                <ListChecks size={13} color="var(--accent-color)" /> AI Analyze All Findings
+              </button>
+            </>
           )}
           <button
             className={styles.btn}
@@ -269,8 +301,8 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                 subTab === 'markdown'
                   ? markdownContent
                   : subTab === 'bug_bounty'
-                    ? bugBountyContent
-                    : htmlContent
+                  ? bugBountyContent
+                  : htmlContent
               )
             }
           >
@@ -281,7 +313,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             onClick={() =>
               handleDownload(
                 subTab === 'html' ? htmlContent : markdownContent,
-                `${report.title.toLowerCase().replace(/\\s+/g, '_')}.${subTab === 'html' ? 'html' : 'md'}`,
+                `${report.title.toLowerCase().replace(/\s+/g, '_')}.${subTab === 'html' ? 'html' : 'md'}`,
                 subTab === 'html' ? 'text/html' : 'text/markdown'
               )
             }
@@ -292,161 +324,102 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
       </div>
 
       {subTab === 'editor' && (
-        <>
-          {/* Assessment Metadata */}
-          <div className={styles.metaGrid}>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Report Title</label>
-              <input
-                className={styles.input}
-                value={report.title}
-                onChange={(e) => setReport({ ...report, title: e.target.value })}
-              />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Client Name</label>
-              <input
-                className={styles.input}
-                value={report.clientName}
-                onChange={(e) => setReport({ ...report, clientName: e.target.value })}
-              />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Assessment Type</label>
-              <CustomSelect
-                value={report.assessmentType}
-                options={ASSESSMENT_TYPE_OPTIONS}
-                onChange={(val) =>
-                  setReport({
-                    ...report,
-                    assessmentType: val as VAPTReport['assessmentType'],
-                  })
-                }
-              />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Target Scope</label>
-              <input
-                className={styles.input}
-                value={report.targetScope}
-                onChange={(e) => setReport({ ...report, targetScope: e.target.value })}
-              />
-            </div>
-          </div>
+        <div className={styles.editorTabContent}>
+          {/* Assessment Metadata Bar */}
+          <ReportMetaBar
+            report={report}
+            onUpdateMeta={(updates) => setReport((prev) => ({ ...prev, ...updates }))}
+          />
 
-          {/* Findings List & Selected Finding Editor */}
           <div className={styles.findingsHeader}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-              Technical Findings ({report.findings.length})
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>
+              Vulnerability Findings ({report.findings.length})
             </span>
             <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleAddFinding}>
               <Plus size={13} /> Add Finding
             </button>
           </div>
 
+          {/* Master-Detail Findings Workbench */}
           <div className={styles.findingsContainer}>
-            {/* Finding Selector Sidebar */}
+            {/* Left: Findings Master List */}
             <div className={styles.findingSidebar}>
-              {report.findings.map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => {
-                    setSelectedFindingId(f.id);
-                    if (f.cvss) setActiveCvss(f.cvss);
-                  }}
-                  className={`${styles.findingItem}`}
-                  style={{
-                    cursor: 'pointer',
-                    border:
-                      selectedFindingId === f.id
-                        ? '1px solid var(--accent-color, #10b981)'
-                        : undefined,
-                  }}
-                >
-                  <div className={styles.findingTop}>
-                    <span className={`${styles.severityBadge} ${styles[f.severity]}`}>
-                      {f.severity}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{f.id}</span>
-                  </div>
-                  <span
+              {report.findings.map((f) => {
+                const isSelected = f.id === selectedFindingId;
+                return (
+                  <div
+                    key={f.id}
+                    className={styles.findingItem}
                     style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      borderLeft: isSelected ? '3px solid #10b981' : '1px solid var(--card-border)',
+                      background: isSelected ? 'rgba(16, 185, 129, 0.05)' : undefined,
                     }}
+                    onClick={() => setSelectedFindingId(f.id)}
                   >
-                    {f.title}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Selected Finding Detail Form */}
-            {selectedFinding && (
-              <div className={styles.findingDetailForm}>
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}
-                >
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <span className={`${styles.severityBadge} ${styles[selectedFinding.severity]}`}>
-                      {selectedFinding.severity}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                      {selectedFinding.id}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      className={styles.btn}
-                      onClick={() => setIsCvssOpen(!isCvssOpen)}
-                      title="Calculate CVSS v3.1 score"
-                    >
-                      <Calculator size={13} /> CVSS ({selectedFinding.cvss?.score || 'N/A'})
-                    </button>
-                    <button
-                      className={styles.btn}
-                      style={{ color: '#ef4444' }}
-                      onClick={() => handleDeleteFinding(selectedFinding.id, selectedFinding.title)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* CVSS Modal Accordion */}
-                {isCvssOpen && (
-                  <div className={styles.cvssBox}>
+                    <div className={styles.findingTop}>
+                      <span
+                        className={`${styles.severityBadge} ${styles[f.severity] || ''}`}
+                      >
+                        {f.severity}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{f.id}</span>
+                    </div>
                     <div
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        color: isSelected ? '#f8fafc' : '#cbd5e1',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
                     >
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#10b981' }}>
-                        CVSS v3.1 Base Score: {activeCvss.score} ({activeCvss.severity.toUpperCase()})
-                      </span>
-                      <button
-                        className={`${styles.btn} ${styles.btnPrimary}`}
-                        onClick={handleApplyCvss}
-                      >
-                        Apply Score
-                      </button>
+                      {f.title}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                      Vector: <code>{activeCvss.vectorString}</code>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right: Selected Finding Detail Form */}
+            {selectedFinding && (
+              <div className={styles.findingDetailForm}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc' }}>
+                      {selectedFinding.id}
+                    </span>
+                    <button
+                      className={styles.btn}
+                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                      onClick={() => setShowCvssCalculator(!showCvssCalculator)}
+                    >
+                      <Calculator size={11} /> CVSS: {selectedFinding.cvss?.score || 'N/A'} (
+                      {selectedFinding.cvss?.severity.toUpperCase() || 'N/A'})
+                    </button>
+                  </div>
+                  <button
+                    className={styles.btn}
+                    style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    onClick={() => handleDeleteFinding(selectedFinding.id, selectedFinding.title)}
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+
+                {showCvssCalculator && (
+                  <div className={styles.cvssBox}>
+                    <div style={{ fontSize: '0.74rem', color: '#10b981', fontFamily: 'monospace' }}>
+                      Vector: {activeCvss.vectorString}
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Attack Vector (AV):</span>
+                      <span>Attack Vector (AV)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'A', 'L', 'P'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.av === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.av === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('av', v)}
                           >
                             {v}
@@ -456,12 +429,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Attack Complexity (AC):</span>
+                      <span>Attack Complexity (AC)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.ac === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.ac === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('ac', v)}
                           >
                             {v}
@@ -471,12 +444,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Privileges Required (PR):</span>
+                      <span>Privileges Required (PR)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.pr === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.pr === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('pr', v)}
                           >
                             {v}
@@ -486,12 +459,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>User Interaction (UI):</span>
+                      <span>User Interaction (UI)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'R'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.ui === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.ui === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('ui', v)}
                           >
                             {v}
@@ -501,12 +474,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Scope (S):</span>
+                      <span>Scope (S)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['U', 'C'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.s === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.s === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('s', v)}
                           >
                             {v}
@@ -516,12 +489,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Confidentiality (C):</span>
+                      <span>Confidentiality (C)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.c === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.c === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('c', v)}
                           >
                             {v}
@@ -531,12 +504,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Integrity (I):</span>
+                      <span>Integrity (I)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.i === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.i === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('i', v)}
                           >
                             {v}
@@ -546,12 +519,12 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </div>
 
                     <div className={styles.cvssRow}>
-                      <span>Availability (A):</span>
+                      <span>Availability (A)</span>
                       <div className={styles.cvssBtnGroup}>
                         {(['N', 'L', 'H'] as const).map((v) => (
                           <button
                             key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.a === v ? styles.cvssBtnActive : ''}`}
+                            className={`${styles.cvssOptionBtn} ${activeCvss.a === v ? styles.active : ''}`}
                             onClick={() => handleCvssMetricChange('a', v)}
                           >
                             {v}
@@ -612,11 +585,10 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   </div>
                 </div>
 
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Vulnerability Description & Impact</label>
+                <div className={styles.formGroup} style={{ flex: 1, minHeight: 0 }}>
+                  <label className={styles.label}>Vulnerability Description &amp; Impact</label>
                   <textarea
-                    className={styles.textarea}
-                    rows={3}
+                    className={`${styles.textarea} ${styles.textareaGrow}`}
                     value={selectedFinding.description}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { description: e.target.value })
@@ -624,11 +596,10 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   />
                 </div>
 
-                <div className={styles.formGroup}>
+                <div className={styles.formGroup} style={{ flex: 1, minHeight: 0 }}>
                   <label className={styles.label}>Remediation Guidance</label>
                   <textarea
-                    className={styles.textarea}
-                    rows={2}
+                    className={`${styles.textarea} ${styles.textareaGrow}`}
                     value={selectedFinding.remediation}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { remediation: e.target.value })
@@ -638,9 +609,10 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
+      {/* Markdown Preview Tab */}
       {subTab === 'markdown' && (
         <div className={styles.previewContainer}>
           <div className={styles.copyRow}>
@@ -653,7 +625,13 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             </button>
             <button
               className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => handleDownload(markdownContent, `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`, 'text/markdown')}
+              onClick={() =>
+                handleDownload(
+                  markdownContent,
+                  `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`,
+                  'text/markdown'
+                )
+              }
             >
               <Download size={12} /> Download .md
             </button>
@@ -667,6 +645,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
         </div>
       )}
 
+      {/* Bug Bounty Preview Tab */}
       {subTab === 'bug_bounty' && (
         <div className={styles.previewContainer}>
           <div className={styles.findingSelectorRow}>
@@ -678,7 +657,14 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   value: f.id,
                   label: `[${f.id}] ${f.title}`,
                   badge: f.severity.toUpperCase(),
-                  badgeColor: f.severity === 'critical' ? '#ef4444' : f.severity === 'high' ? '#f97316' : f.severity === 'medium' ? '#fbbf24' : '#10b981',
+                  badgeColor:
+                    f.severity === 'critical'
+                      ? '#ef4444'
+                      : f.severity === 'high'
+                      ? '#f97316'
+                      : f.severity === 'medium'
+                      ? '#fbbf24'
+                      : '#10b981',
                 }))}
                 onChange={(val) => setSelectedFindingId(val)}
                 style={{ minWidth: '220px' }}
@@ -699,6 +685,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
         </div>
       )}
 
+      {/* HTML / Print Preview Tab */}
       {subTab === 'html' && (
         <div className={styles.iframeContainer}>
           <div className={styles.htmlToolbar}>
@@ -743,6 +730,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
         </div>
       )}
 
+      {/* Confirmation Modal */}
       {modalConfig.isOpen && (
         <ConfirmModal
           title={modalConfig.title}

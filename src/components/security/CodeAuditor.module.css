@@ -18,6 +18,10 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-sizing: border-box;
 }
 
 .select {
@@ -80,6 +84,7 @@
   line-height: 1.5;
   color: #e2e8f0;
   resize: vertical;
+  box-sizing: border-box;
 }
 
 .actionRow {
@@ -152,6 +157,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  box-sizing: border-box;
 }
 
 .findingCard.critical {
@@ -178,6 +184,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .findingTitle {
@@ -204,34 +212,64 @@
   text-transform: uppercase;
 }
 
-.badge.critical {
+.badge.critical,
+.badgeCritical {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.badge.high {
+.badge.high,
+.badgeHigh {
   background: rgba(249, 115, 22, 0.15);
   color: #f97316;
   border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
-.badge.medium {
+.badge.medium,
+.badgeMedium {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-.badge.low {
+.badge.low,
+.badgeLow {
   background: rgba(59, 130, 246, 0.15);
   color: #3b82f6;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.cweTag {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.owaspTag {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
 .findingDesc {
   font-size: 0.8rem;
   color: var(--text-secondary, #94a3b8);
-  line-height: 1.4;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.remediationBox {
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
 }
 
 .diffContainer {
@@ -246,12 +284,13 @@
   font-size: 0.75rem;
   overflow-x: hidden;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .diffBlock {
   white-space: pre-wrap;
   word-break: break-all;
-  padding: 0.4rem;
+  padding: 0.45rem;
   border-radius: 4px;
 }
 
@@ -265,4 +304,19 @@
   background: rgba(16, 185, 129, 0.08);
   color: #a7f3d0;
   border-left: 2px solid #10b981;
+}
+
+.deleteBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.deleteBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
