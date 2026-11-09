@@ -12,6 +12,8 @@ import {
   Search,
   Pin,
   PinOff,
+  UploadCloud,
+  Command,
 } from 'lucide-react';
 import WorkspaceSelector from './sidebar/WorkspaceSelector';
 import { TagPicker, TagPills } from './sidebar/TagPicker';
@@ -37,6 +39,8 @@ interface SidebarProps {
   onUpdateChatTags: (id: string, tags: string[]) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onOpenIngest?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export default function Sidebar({
@@ -57,6 +61,8 @@ export default function Sidebar({
   onUpdateChatTags,
   collapsed,
   onToggleCollapse,
+  onOpenIngest,
+  onOpenCommandPalette,
 }: SidebarProps) {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -136,6 +142,16 @@ export default function Sidebar({
         <button onClick={onNewChat} className={styles.newChatBtn} title="New Conversation">
           <Plus size={20} />
         </button>
+        {onOpenIngest && (
+          <button onClick={onOpenIngest} className={styles.iconBtn} title="Ingest Scan Artifact">
+            <UploadCloud size={18} color="#38bdf8" />
+          </button>
+        )}
+        {onOpenCommandPalette && (
+          <button onClick={onOpenCommandPalette} className={styles.iconBtn} title="Command Palette (Ctrl+K)">
+            <Command size={18} />
+          </button>
+        )}
         <button onClick={onOpenSettings} className={styles.settingsBtn} title="Settings">
           <Settings size={18} />
         </button>
@@ -164,6 +180,41 @@ export default function Sidebar({
         <button onClick={onNewChat} className={styles.newChatFull}>
           <Plus size={16} /> New Chat
         </button>
+
+        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', marginBottom: '0.2rem' }}>
+          {onOpenIngest && (
+            <button
+              onClick={onOpenIngest}
+              className={styles.newChatFull}
+              style={{
+                flex: 1,
+                background: 'rgba(56, 189, 248, 0.1)',
+                borderColor: 'rgba(56, 189, 248, 0.3)',
+                color: '#38bdf8',
+                fontSize: '0.78rem',
+                padding: '0.4rem 0.6rem',
+              }}
+              title="Ingest Burp Suite XML, Nmap XML, Nuclei JSON, SARIF"
+            >
+              <UploadCloud size={14} /> Ingest Artifact
+            </button>
+          )}
+          {onOpenCommandPalette && (
+            <button
+              onClick={onOpenCommandPalette}
+              className={styles.newChatFull}
+              style={{
+                width: '38px',
+                padding: '0.4rem',
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.05)',
+              }}
+              title="Command Palette (Ctrl+K)"
+            >
+              <Command size={14} />
+            </button>
+          )}
+        </div>
 
         <div className={styles.searchWrapper}>
           <Search size={14} className={styles.searchIcon} />

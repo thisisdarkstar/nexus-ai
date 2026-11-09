@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -8,9 +8,25 @@ import {
   Copy,
   GitPullRequest,
   FileCode,
+  Zap,
+  ArrowRight,
 } from 'lucide-react';
+import CustomSelect from '../common/CustomSelect';
+import { scanSourceCode } from '../../lib/security/sastScanner';
+import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import type { VulnerabilityFinding } from '../../types';
 import styles from './CodeAuditor.module.css';
+
+const LANGUAGE_OPTIONS = [
+  { value: 'python', label: 'Python' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'go', label: 'Go' },
+  { value: 'java', label: 'Java' },
+  { value: 'c', label: 'C / C++' },
+  { value: 'php', label: 'PHP' },
+  { value: 'solidity', label: 'Solidity' },
+];
 
 interface CodeAuditorProps {
   initialCode?: string;
@@ -124,18 +140,36 @@ export default function CodeAuditor({
 }: CodeAuditorProps) {
   const [code, setCode] = useState(initialCode || SAMPLE_VULNERABILITIES[0].code);
   const [language, setLanguage] = useState('python');
+  const [selectedSample, setSelectedSample] = useState(SAMPLE_VULNERABILITIES[0].id);
   const [findings, setFindings] = useState<VulnerabilityFinding[]>([
     SAMPLE_VULNERABILITIES[0].finding,
   ]);
   const [copiedPatchId, setCopiedPatchId] = useState<string | null>(null);
+  const [exportedFindingId, setExportedFindingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialCode) {
+      setCode(initialCode);
+      const localFindings = scanSourceCode(initialCode, language);
+      if (localFindings.length > 0) {
+        setFindings(localFindings);
+      }
+    }
+  }, [initialCode]);
 
   const handleSelectSample = (sampleId: string) => {
+    setSelectedSample(sampleId);
     const sample = SAMPLE_VULNERABILITIES.find((s) => s.id === sampleId);
     if (sample) {
       setCode(sample.code);
       setLanguage(sample.language);
       setFindings([sample.finding]);
     }
+  };
+
+  const handleLocalScan = () => {
+    const scanned = scanSourceCode(code, language);
+    setFindings(scanned);
   };
 
   const handleAuditRequest = () => {
@@ -156,45 +190,46 @@ export default function CodeAuditor({
     setCode((prev) => prev.replace(finding.patchDiff!.original, finding.patchDiff!.patched));
   };
 
+  const exportFindingToReport = (finding: VulnerabilityFinding) => {
+    workbenchBridge.addFinding(finding);
+    setExportedFindingId(finding.id);
+    setTimeout(() => setExportedFindingId(null), 2500);
+  };
+
   return (
     <div className={styles.auditorContainer}>
       {/* Top Controls */}
       <div className={styles.topBar}>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <select
-            className={styles.select}
-            onChange={(e) => handleSelectSample(e.target.value)}
-            defaultValue={SAMPLE_VULNERABILITIES[0].id}
-          >
-            <option disabled>-- Sample Vulnerability Templates --</option>
-            {SAMPLE_VULNERABILITIES.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className={styles.select}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <CustomSelect
+            value={selectedSample}
+            onChange={handleSelectSample}
+            options={SAMPLE_VULNERABILITIES.map((s) => ({ value: s.id, label: s.name }))}
+            style={{ minWidth: '240px' }}
+          />
+          <CustomSelect
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          >
-            <option value="python">Python</option>
-            <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
-            <option value="go">Go</option>
-            <option value="java">Java</option>
-            <option value="c">C / C++</option>
-            <option value="php">PHP</option>
-            <option value="solidity">Solidity</option>
-          </select>
+            onChange={setLanguage}
+            options={LANGUAGE_OPTIONS}
+            style={{ minWidth: '130px' }}
+          />
         </div>
 
-        <button
-          className={`${styles.btn} ${styles.btnPrimary}`}
-          onClick={handleAuditRequest}
-        >
-          <Sparkles size={14} /> Audit with AppSec AI
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className={`${styles.btn}`}
+            onClick={handleLocalScan}
+            title="Scan code using client-side AST and OWASP pattern engine"
+          >
+            <Zap size={14} color="#f59e0b" /> Fast Scan
+          </button>
+          <button
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={handleAuditRequest}
+          >
+            <Sparkles size={14} /> Audit with AI
+          </button>
+        </div>
       </div>
 
       {/* Target Code Editor Area */}
@@ -217,7 +252,14 @@ export default function CodeAuditor({
         <textarea
           className={styles.codeArea}
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            const newCode = e.target.value;
+            setCode(newCode);
+            const liveFindings = scanSourceCode(newCode, language);
+            if (liveFindings.length > 0) {
+              setFindings(liveFindings);
+            }
+          }}
           placeholder="// Paste source code to inspect for vulnerabilities and logic flaws..."
           spellCheck={false}
         />
@@ -240,7 +282,12 @@ export default function CodeAuditor({
               <span className={styles.findingTitle}>
                 <ShieldAlert size={16} /> {finding.title}
               </span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                {finding.lineStart && (
+                  <span className={styles.badge} style={{ opacity: 0.8 }}>
+                    Line {finding.lineStart}
+                  </span>
+                )}
                 {finding.cweId && (
                   <span className={`${styles.badge} ${styles[finding.severity]}`}>
                     {finding.cweId}
@@ -258,23 +305,25 @@ export default function CodeAuditor({
             </p>
 
             {finding.patchDiff && (
-              <>
-                <div className={styles.diffContainer}>
-                  <div className={`${styles.diffBlock} ${styles.diffOriginal}`}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.2rem', color: '#f87171' }}>
-                      Insecure (Original)
-                    </div>
-                    {finding.patchDiff.original}
+              <div className={styles.diffContainer}>
+                <div className={`${styles.diffBlock} ${styles.diffOriginal}`}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.2rem', color: '#f87171' }}>
+                    Insecure (Original)
                   </div>
-                  <div className={`${styles.diffBlock} ${styles.diffPatched}`}>
-                    <div style={{ fontWeight: 600, marginBottom: '0.2rem', color: '#34d399' }}>
-                      Remediated (Secure)
-                    </div>
-                    {finding.patchDiff.patched}
-                  </div>
+                  {finding.patchDiff.original}
                 </div>
+                <div className={`${styles.diffBlock} ${styles.diffPatched}`}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.2rem', color: '#34d399' }}>
+                    Remediated (Secure)
+                  </div>
+                  {finding.patchDiff.patched}
+                </div>
+              </div>
+            )}
 
-                <div className={styles.actionRow} style={{ marginTop: '0.25rem' }}>
+            <div className={styles.actionRow} style={{ marginTop: '0.4rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {finding.patchDiff && (
+                <>
                   <button
                     className={styles.btn}
                     onClick={() => applyPatch(finding)}
@@ -288,9 +337,17 @@ export default function CodeAuditor({
                     {copiedPatchId === finding.id ? <Check size={12} /> : <Copy size={12} />}
                     {copiedPatchId === finding.id ? 'Copied' : 'Copy Patch'}
                   </button>
-                </div>
-              </>
-            )}
+                </>
+              )}
+              <button
+                className={styles.btn}
+                style={{ marginLeft: 'auto', background: 'rgba(56, 189, 248, 0.15)', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+                onClick={() => exportFindingToReport(finding)}
+              >
+                {exportedFindingId === finding.id ? <Check size={12} color="#38bdf8" /> : <ArrowRight size={12} color="#38bdf8" />}
+                {exportedFindingId === finding.id ? 'Added to Report' : 'Send to VAPT Report'}
+              </button>
+            </div>
           </div>
         ))}
 
@@ -306,7 +363,7 @@ export default function CodeAuditor({
             }}
           >
             <ShieldCheck size={28} style={{ opacity: 0.5, marginBottom: '0.5rem' }} />
-            <div>No active findings recorded. Paste code above and click "Audit with AppSec AI".</div>
+            <div>No active vulnerabilities detected in code. Paste source above or click "Fast Scan".</div>
           </div>
         )}
       </div>

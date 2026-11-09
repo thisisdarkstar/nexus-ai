@@ -12,8 +12,15 @@ import {
   ListPlus,
 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../common/CustomSelect';
 import type { SecurityChecklistItem } from '../../types';
 import styles from './ChecklistTracker.module.css';
+
+const SUITE_OPTIONS = [
+  { value: 'core4', label: '🎯 Core 4 Essentials' },
+  { value: 'wstg_full', label: '🛡️ OWASP WSTG v4.2 (8 Tests)' },
+  { value: 'api_top10', label: '⚡ OWASP API Top 10 (7 Tests)' },
+];
 
 export const CHECKLIST_SUITES: Record<string, { label: string; items: SecurityChecklistItem[] }> = {
   core4: {
@@ -235,6 +242,31 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
     }
   }, [items]);
 
+  useEffect(() => {
+    const handleUpdateChecklistEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ testId: string; status: SecurityChecklistItem['status']; evidence?: string }>;
+      if (custom.detail?.testId) {
+        setItems((prev) =>
+          prev.map((it) => {
+            const matches =
+              it.id.toLowerCase() === custom.detail.testId.toLowerCase() ||
+              it.code.toLowerCase() === custom.detail.testId.toLowerCase();
+            if (matches) {
+              return {
+                ...it,
+                status: custom.detail.status,
+                evidence: custom.detail.evidence || it.evidence,
+              };
+            }
+            return it;
+          })
+        );
+      }
+    };
+    window.addEventListener('nexus:workbench:update-checklist', handleUpdateChecklistEvent);
+    return () => window.removeEventListener('nexus:workbench:update-checklist', handleUpdateChecklistEvent);
+  }, []);
+
   const handleStatusChange = (id: string, newStatus: SecurityChecklistItem['status']) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: newStatus } : it)));
   };
@@ -331,33 +363,15 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           {/* Suite Loader Selector */}
-          <select
-            style={{
-              background: '#020617',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#10b981',
-              padding: '0.35rem 0.5rem',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              outline: 'none',
+          <CustomSelect
+            value=""
+            placeholder="📂 Load Standard Suite..."
+            onChange={(val) => {
+              if (val) handleLoadSuite(val);
             }}
-            onChange={(e) => {
-              if (e.target.value) {
-                handleLoadSuite(e.target.value);
-                e.target.value = '';
-              }
-            }}
-            defaultValue=""
-          >
-            <option value="" disabled>
-              📂 Load Standard Suite...
-            </option>
-            <option value="core4">🎯 Core 4 Essentials</option>
-            <option value="wstg_full">🛡️ OWASP WSTG v4.2 (8 Tests)</option>
-            <option value="api_top10">⚡ OWASP API Top 10 (7 Tests)</option>
-          </select>
+            options={SUITE_OPTIONS}
+            style={{ minWidth: '190px' }}
+          />
 
           <button
             style={{

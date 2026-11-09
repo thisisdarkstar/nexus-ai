@@ -233,11 +233,14 @@ export function useChatEngine({
         }
       }
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const wasCancelled = stopRef.current || !!abortRef.current?.signal.aborted;
       const finalMessages: Message[] = [
         ...history,
         {
           ...placeholderAi,
           content: accumulated,
+          cancelled: wasCancelled,
+          error: !wasCancelled && !accumulated,
           generationTime: duration,
           tokens: estimateTokens(accumulated),
           createdAt: Date.now(),
@@ -355,11 +358,14 @@ export function useChatEngine({
     } finally {
       clearTimeout(autosaveTimer);
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const wasCancelled = stopRef.current || !!abortRef.current?.signal.aborted;
       const finalMessages: Message[] = [
         ...history,
         {
           role: 'ai',
           content: accumulated,
+          cancelled: wasCancelled,
+          error: !wasCancelled && !accumulated,
           generationTime: duration,
           tokens: estimateTokens(accumulated),
           createdAt: Date.now(),
@@ -414,6 +420,18 @@ export function useChatEngine({
     stopRef.current = true;
     abortRef.current?.abort();
     setIsGenerating(false);
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const newMsgs = [...prev];
+      const last = newMsgs[newMsgs.length - 1];
+      if (last && last.role === 'ai') {
+        newMsgs[newMsgs.length - 1] = {
+          ...last,
+          cancelled: true,
+        };
+      }
+      return newMsgs;
+    });
   };
 
   const cancelQueue = () => {

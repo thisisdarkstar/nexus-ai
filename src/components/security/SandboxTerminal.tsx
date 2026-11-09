@@ -9,6 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
+import CustomSelect from '../common/CustomSelect';
 import { usePyodide, SECURITY_SCRIPT_PRESETS } from '../../lib/sandbox/usePyodide';
 import styles from './SandboxTerminal.module.css';
 
@@ -32,6 +33,7 @@ export default function SandboxTerminal({
   } = usePyodide();
 
   const [code, setCode] = useState(initialCode || SECURITY_SCRIPT_PRESETS[0].code);
+  const [selectedPreset, setSelectedPreset] = useState(SECURITY_SCRIPT_PRESETS[0].id);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -64,18 +66,15 @@ export default function SandboxTerminal({
       {/* Top Controls Bar */}
       <div className={styles.topBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <select
-            className={styles.presetSelect}
-            onChange={(e) => handleSelectPreset(e.target.value)}
-            defaultValue={SECURITY_SCRIPT_PRESETS[0].id}
-          >
-            <option disabled>-- Security Script Presets --</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.category})
-              </option>
-            ))}
-          </select>
+          <CustomSelect
+            value={selectedPreset}
+            onChange={(val) => {
+              setSelectedPreset(val);
+              handleSelectPreset(val);
+            }}
+            options={presets.map((p) => ({ value: p.id, label: `${p.name} (${p.category})` }))}
+            style={{ minWidth: '240px' }}
+          />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

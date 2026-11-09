@@ -14,7 +14,15 @@ import {
   FileCode,
   Zap,
 } from 'lucide-react';
+import CustomSelect from '../common/CustomSelect';
 import styles from './HttpStudio.module.css';
+
+const HTTP_PRESET_OPTIONS = [
+  { value: 'auth_login', label: 'Preset: JSON Login API (POST)' },
+  { value: 'idor_transaction', label: 'Preset: IDOR / BOLA Endpoint (GET)' },
+  { value: 'ssrf_webhook', label: 'Preset: SSRF Cloud Webhook (POST)' },
+  { value: 'graphql_query', label: 'Preset: GraphQL Information Leak (POST)' },
+];
 
 interface HttpStudioProps {
   onSendToAI: (prompt: string) => void;
@@ -95,11 +103,25 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
     }
   }, [rawText]);
 
+  useEffect(() => {
+    const handleLoadHttp = (e: Event) => {
+      const custom = e as CustomEvent<{ raw?: string } | string>;
+      const raw = typeof custom.detail === 'string' ? custom.detail : custom.detail?.raw;
+      if (raw) {
+        setRawText(raw);
+        setLeftTab('raw');
+      }
+    };
+    window.addEventListener('nexus:workbench:load-http', handleLoadHttp);
+    return () => window.removeEventListener('nexus:workbench:load-http', handleLoadHttp);
+  }, []);
+
   const [leftTab, setLeftTab] = useState<'raw' | 'headers' | 'params' | 'body' | 'cookies'>('raw');
   const [rightTab, setRightTab] = useState<'response' | 'code' | 'security' | 'fuzz'>('response');
   const [codeLang, setCodeLang] = useState<'curl' | 'python' | 'javascript' | 'go' | 'powershell'>('curl');
   const [copied, setCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [activePreset, setActivePreset] = useState<string>('auth_login');
 
   // Parse Raw HTTP Request
   const parsed = useMemo(() => {
@@ -232,29 +254,27 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
         headers: resHeaders,
         body: text,
       });
-    } catch {
-      // CORS or simulated offline response
-      const timeMs = Math.round(performance.now() - start + 25);
+    } catch (err) {
+      const timeMs = Math.round(performance.now() - start);
       setResponse({
-        status: 200,
-        statusText: 'OK (Mocked / Replayed)',
+        status: 0,
+        statusText: 'CORS Blocked / Network Failure',
         timeMs,
-        sizeBytes: 890,
+        sizeBytes: 0,
         headers: {
-          'content-type': 'application/json; charset=utf-8',
-          server: 'nginx/1.24.0 (Simulated)',
-          'x-ratelimit-remaining': '99',
-          'access-control-allow-origin': '*',
+          'x-security-warning': 'CORS restriction enforced by browser environment',
         },
         body: JSON.stringify(
           {
-            status: 200,
-            endpoint: parsed.fullUrl,
+            error: 'Direct request blocked by browser CORS security policy.',
+            target: parsed.fullUrl,
             method: parsed.method,
-            parametersReceived: parsed.queryParams,
-            headersReceived: parsed.headers.length,
-            bodyReceived: parsed.body ? parsed.body.length : 0,
-            notice: 'Direct browser CORS blocked external origin; simulated response returned.',
+            reason: 'Standard web browsers restrict unauthorized cross-origin HTTP tampering.',
+            solutions: [
+              'Click "Code" tab -> Copy as cURL or Python script for raw terminal execution.',
+              'Use the Python Sandbox tab to run custom request scripts via WebAssembly.',
+              'Run a local CORS proxy companion during engagements (e.g. npx local-cors-proxy --proxyUrl ' + (parsed.fullUrl.split('/')[0] + '//' + parsed.fullUrl.split('/')[2]) + ')'
+            ]
           },
           null,
           2
@@ -461,18 +481,17 @@ Please assess:
           title="Target Endpoint URL"
         />
 
-        <select
-          className={styles.presetSelect}
-          onChange={(e) => {
-            const val = e.target.value as keyof typeof PRESET_REQUESTS;
-            if (PRESET_REQUESTS[val]) setRawText(PRESET_REQUESTS[val]);
+        <CustomSelect
+          value={activePreset}
+          onChange={(val) => {
+            setActivePreset(val);
+            if (PRESET_REQUESTS[val as keyof typeof PRESET_REQUESTS]) {
+              setRawText(PRESET_REQUESTS[val as keyof typeof PRESET_REQUESTS]);
+            }
           }}
-        >
-          <option value="auth_login">Preset: JSON Login API (POST)</option>
-          <option value="idor_transaction">Preset: IDOR / BOLA Endpoint (GET)</option>
-          <option value="ssrf_webhook">Preset: SSRF Cloud Webhook (POST)</option>
-          <option value="graphql_query">Preset: GraphQL Information Leak (POST)</option>
-        </select>
+          options={HTTP_PRESET_OPTIONS}
+          style={{ minWidth: '220px' }}
+        />
 
         <button
           className={`${styles.btn} ${styles.btnSend}`}

@@ -27,6 +27,7 @@ import {
   defang,
   refang,
 } from '../../lib/security/transformers';
+import CustomSelect from '../common/CustomSelect';
 import styles from './DecoderHub.module.css';
 
 interface DecoderHubProps {
@@ -43,6 +44,13 @@ const DECODER_PRESETS = {
   hex_shellcode: "31c050682f2f7368682f62696e89e3505389e1b00bcd80",
   xor_sample: "3a3d242720233c3a3b2b",
 };
+
+const DECODER_PRESET_OPTIONS = [
+  { value: 'vulnerable_jwt', label: 'JWT (alg:none / Admin Claim)' },
+  { value: 'base64_payload', label: 'PowerShell Base64 Payload' },
+  { value: 'hex_shellcode', label: 'Hex Shellcode (execve /bin/sh)' },
+  { value: 'xor_sample', label: 'XOR Obfuscated Hex String' },
+];
 
 export default function DecoderHub({
   initialInput = '',
@@ -179,19 +187,17 @@ Please suggest:
             <Search size={16} color="var(--accent-color)" /> Input Data / Payload / Token
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <select
-              className={styles.presetSelect}
-              onChange={(e) => {
-                const val = e.target.value as keyof typeof DECODER_PRESETS;
-                if (DECODER_PRESETS[val]) setInput(DECODER_PRESETS[val]);
+            <CustomSelect
+              value=""
+              placeholder="Load Preset Example..."
+              onChange={(val) => {
+                if (DECODER_PRESETS[val as keyof typeof DECODER_PRESETS]) {
+                  setInput(DECODER_PRESETS[val as keyof typeof DECODER_PRESETS]);
+                }
               }}
-            >
-              <option value="">Load Preset Example...</option>
-              <option value="vulnerable_jwt">JWT (alg:none / Admin Claim)</option>
-              <option value="base64_payload">PowerShell Base64 Payload</option>
-              <option value="hex_shellcode">Hex Shellcode (execve /bin/sh)</option>
-              <option value="xor_sample">XOR Obfuscated Hex String</option>
-            </select>
+              options={DECODER_PRESET_OPTIONS}
+              style={{ minWidth: '190px' }}
+            />
             <span className={`${styles.cardBadge} ${styles[entropyAssessment.color]}`}>
               Entropy: {entropy} bits ({entropyAssessment.label})
             </span>

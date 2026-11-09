@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../common/CustomSelect';
 import type { ScopeItem } from '../../types';
 import styles from './ScopeManager.module.css';
+
+const SCOPE_TYPE_OPTIONS: Array<{ value: ScopeItem['type']; label: string }> = [
+  { value: 'domain', label: 'Domain / Subdomain' },
+  { value: 'ip_range', label: 'IP / CIDR Range' },
+  { value: 'api', label: 'API Endpoint' },
+  { value: 'mobile_app', label: 'Mobile App / Binary' },
+  { value: 'cloud_resource', label: 'Cloud Resource / ARN' },
+];
 
 const DEFAULT_SCOPE_ITEMS: ScopeItem[] = [
   {
@@ -58,6 +67,28 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
       console.error('Failed to save scope to localStorage:', e);
     }
   }, [scopeItems]);
+
+  useEffect(() => {
+    const handleAddScopeEvent = (e: Event) => {
+      const custom = e as CustomEvent<ScopeItem[]>;
+      if (custom.detail && Array.isArray(custom.detail)) {
+        setScopeItems((prev) => {
+          const updated = [...prev];
+          custom.detail.forEach((item) => {
+            const idx = updated.findIndex((s) => s.target.toLowerCase() === item.target.toLowerCase());
+            if (idx >= 0) {
+              updated[idx] = { ...updated[idx], ...item };
+            } else {
+              updated.push(item);
+            }
+          });
+          return updated;
+        });
+      }
+    };
+    window.addEventListener('nexus:workbench:add-scope', handleAddScopeEvent);
+    return () => window.removeEventListener('nexus:workbench:add-scope', handleAddScopeEvent);
+  }, []);
 
   const handleAdd = () => {
     if (!newTarget.trim()) return;
@@ -159,16 +190,12 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
           onChange={(e) => setNewTarget(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
         />
-        <select
-          className={styles.select}
+        <CustomSelect<ScopeItem['type']>
           value={newType}
-          onChange={(e) => setNewType(e.target.value as ScopeItem['type'])}
-        >
-          <option value="domain">Domain / Subdomain</option>
-          <option value="ip">IP / CIDR Range</option>
-          <option value="api">API Endpoint</option>
-          <option value="mobile">Mobile App / Binary</option>
-        </select>
+          onChange={setNewType}
+          options={SCOPE_TYPE_OPTIONS}
+          style={{ minWidth: '170px' }}
+        />
         <button
           className={styles.btn}
           onClick={() => setIsInScope(!isInScope)}

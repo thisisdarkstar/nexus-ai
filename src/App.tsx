@@ -5,6 +5,8 @@ import ChatArea from './components/ChatArea';
 import SecurityCanvas from './components/security/SecurityCanvas';
 import VoiceOverlay from './components/VoiceOverlay';
 import ConfirmModal from './components/ConfirmModal';
+import CommandPalette from './components/CommandPalette';
+import ArtifactIngestModal from './components/security/ArtifactIngestModal';
 import { ToastProvider, useToast } from './lib/toast';
 import { useVoice } from './hooks/useVoice';
 import { db } from './lib/db';
@@ -83,6 +85,8 @@ function AppContent() {
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [securityWorkbenchOpen, setSecurityWorkbenchOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [artifactIngestOpen, setArtifactIngestOpen] = useState(false);
   const [activeSecurityTab, setActiveSecurityTab] = useState<SecurityTab>(() => {
     try {
       const saved = localStorage.getItem('nexus_security_active_tab') as SecurityTab;
@@ -121,7 +125,12 @@ function AppContent() {
       setSecurityWorkbenchOpen(true);
     };
     window.addEventListener('nexus:open-security', handleOpenSecurity);
-    return () => window.removeEventListener('nexus:open-security', handleOpenSecurity);
+    const handleOpenIngest = () => setArtifactIngestOpen(true);
+    window.addEventListener('nexus:open-ingest', handleOpenIngest);
+    return () => {
+      window.removeEventListener('nexus:open-security', handleOpenSecurity);
+      window.removeEventListener('nexus:open-ingest', handleOpenIngest);
+    };
   }, []);
 
   const handleSendToAIFromSecurity = (prompt: string) => {
@@ -228,18 +237,32 @@ function AppContent() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'n') {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        setArtifactIngestOpen(true);
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setSecurityWorkbenchOpen((prev) => !prev);
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setSidebarCollapsed((prev) => !prev);
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         handleNewChat();
-      }
-      if (e.key === 'Escape') {
+      } else if (e.key === 'Escape') {
+        if (commandPaletteOpen) setCommandPaletteOpen(false);
+        if (artifactIngestOpen) setArtifactIngestOpen(false);
         if (settingsOpen) setSettingsOpen(false);
         if (confirmModal.isOpen) setConfirmModal((c) => ({ ...c, isOpen: false }));
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, confirmModal.isOpen]);
+  }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen]);
 
   const confirmAction = (title: string, message: string, onConfirm: () => Promise<void>) => {
     setConfirmModal({ isOpen: true, title, message, onConfirm });
@@ -369,6 +392,8 @@ function AppContent() {
         onUpdateChatTags={handleUpdateChatTags}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onOpenIngest={() => setArtifactIngestOpen(true)}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
       />
       <div style={{ flex: 1, display: 'flex', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
         <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
@@ -462,6 +487,26 @@ function AppContent() {
           onCancel={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
         />
       )}
+
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNewChat={handleNewChat}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenIngest={() => setArtifactIngestOpen(true)}
+        onToggleTheme={() => {
+          const next = settings.theme === 'dark' ? 'light' : 'dark';
+          saveSettings({ theme: next });
+        }}
+      />
+
+      <ArtifactIngestModal
+        isOpen={artifactIngestOpen}
+        onClose={() => setArtifactIngestOpen(false)}
+        onSuccess={(summary) => {
+          toast('success', `Artifact Ingested: ${summary}`);
+        }}
+      />
     </>
   );
 }

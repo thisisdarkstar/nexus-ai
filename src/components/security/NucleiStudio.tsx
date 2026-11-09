@@ -8,7 +8,24 @@ import {
   Layers,
   RefreshCw,
 } from 'lucide-react';
+import CustomSelect from '../common/CustomSelect';
 import styles from './NucleiStudio.module.css';
+
+const SEVERITY_OPTIONS = [
+  { value: 'critical', label: 'Critical' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+  { value: 'info', label: 'Info' },
+];
+
+const METHOD_OPTIONS = [
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+];
 
 interface NucleiStudioProps {
   onSendToAI: (prompt: string) => void;
@@ -167,17 +184,11 @@ Please review and enhance this template:
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Severity</label>
-              <select
-                className={styles.select}
+              <CustomSelect
                 value={severity}
-                onChange={(e) => setSeverity(e.target.value as typeof severity)}
-              >
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-                <option value="info">Info</option>
-              </select>
+                onChange={(val) => setSeverity(val as typeof severity)}
+                options={SEVERITY_OPTIONS}
+              />
             </div>
           </div>
 
@@ -209,13 +220,11 @@ Please review and enhance this template:
           <div className={styles.twoCol}>
             <div className={styles.formGroup}>
               <label className={styles.label}>HTTP Method</label>
-              <select className={styles.select} value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
-                <option value="PATCH">PATCH</option>
-              </select>
+              <CustomSelect
+                value={method}
+                onChange={setMethod}
+                options={METHOD_OPTIONS}
+              />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Status Matcher</label>

@@ -19,6 +19,7 @@ export interface Message {
   role: 'user' | 'ai';
   content: string;
   error?: boolean;
+  cancelled?: boolean;
   generationTime?: string;
   tokens?: number;
   createdAt?: number;

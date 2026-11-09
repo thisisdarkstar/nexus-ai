@@ -14,11 +14,58 @@ import {
   Sparkles,
   AlertTriangle,
   GitBranch,
+  Square,
 } from 'lucide-react';
 import { renderMarkdown } from '../../lib/markdown';
 import { escapeHtml } from '../../lib/sanitize';
+import ActionCard, { type ActionCardData } from './ActionCard';
 import type { Message, Settings, AvailableModel } from '../../types';
 import styles from './MessageItem.module.css';
+
+function extractActionCards(content: string): ActionCardData[] {
+  if (!content) return [];
+  const cards: ActionCardData[] = [];
+
+  // 1. Explicit nexus-action code blocks
+  const actionRegex = /```(?:nexus-action|action)\s*([\s\S]*?)```/g;
+  let match;
+  while ((match = actionRegex.exec(content)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.type) cards.push(parsed);
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Auto-detect vulnerability findings in text if no explicit action blocks
+  if (cards.length === 0) {
+    const vulnRegex = /(?:###?\s*(?:Vulnerability|Finding|Issue)[:\s]+([^\n]+)|(?:\*\*Vulnerability\*\*|\*\*Finding\*\*)[:\s]+([^\n]+))/i;
+    const vulnMatch = vulnRegex.exec(content);
+    if (vulnMatch) {
+      const title = (vulnMatch[1] || vulnMatch[2] || '').trim();
+      const sevMatch = /(?:Severity|Risk)[:\s]+(Critical|High|Medium|Low|Info)/i.exec(content);
+      const cweMatch = /(CWE-\d+)/i.exec(content);
+      const owaspMatch = /(A0\d:\d{4}[^\n,]+)/i.exec(content);
+
+      if (title && title.length < 80) {
+        cards.push({
+          type: 'finding',
+          title,
+          finding: {
+            title,
+            severity: (sevMatch ? sevMatch[1].toLowerCase() : 'high') as any,
+            cweId: cweMatch ? cweMatch[1] : undefined,
+            owaspCategory: owaspMatch ? owaspMatch[1] : undefined,
+            description: `Identified by security AI: ${title}`,
+          },
+        });
+      }
+    }
+  }
+
+  return cards;
+}
 
 const COPY_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
@@ -28,6 +75,7 @@ const CHECK_SVG =
 interface MessageItemProps {
   msg: Message;
   i: number;
+  isLatest?: boolean;
   isGenerating: boolean;
   onEdit: (index: number) => void;
   onRegenerate: (index: number, provider?: string | null, modelId?: string | null) => void;
@@ -130,6 +178,7 @@ function injectActionButtons(el: HTMLElement) {
 export default memo(function MessageItem({
   msg,
   i,
+  isLatest = false,
   isGenerating,
   onEdit,
   onRegenerate,
@@ -171,6 +220,7 @@ export default memo(function MessageItem({
         .trim()
     : '';
   const isUser = msg.role === 'user';
+  const actionCards = !isUser && msg.content ? extractActionCards(msg.content) : [];
 
   const retryOptions = [
     { label: 'Same model', provider: null, modelId: null },
@@ -182,9 +232,22 @@ export default memo(function MessageItem({
     })),
   ];
 
+  const isThinking = !isUser && !msg.content && isGenerating && isLatest;
+  const isCancelled = !isUser && (msg.cancelled || (!msg.content && !isThinking && !msg.error));
+
   return (
     <div className={`${styles.container} ${isUser ? styles.containerUser : styles.containerAi}`}>
-      <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : msg.error ? styles.bubbleError : styles.bubbleAi}`}>
+      <div
+        className={`${styles.bubble} ${
+          isUser
+            ? styles.bubbleUser
+            : msg.error
+              ? styles.bubbleError
+              : isCancelled && !msg.content
+                ? styles.bubbleCancelled
+                : styles.bubbleAi
+        }`}
+      >
         {msg.error ? (
           <div className={styles.errorContent}>
             <div className={styles.errorHeader}>
@@ -200,23 +263,63 @@ export default memo(function MessageItem({
               <RotateCw size={13} /> Retry
             </button>
           </div>
+        ) : isCancelled && !msg.content ? (
+          <div className={styles.cancelledContent}>
+            <div className={styles.cancelledHeader}>
+              <Square size={13} fill="#ef4444" color="#ef4444" />
+              <span>Prompt cancelled</span>
+            </div>
+            <div className={styles.cancelledMessage}>Generation was stopped by user.</div>
+            <button
+              onClick={() => onRegenerate(i)}
+              className={styles.cancelledRetryBtn}
+              title="Retry generation"
+            >
+              <RotateCw size={12} /> Retry Prompt
+            </button>
+          </div>
         ) : !isUser && msg.content && showRaw ? (
           <pre className={`message-body ${styles.rawContent}`}>{msg.content}</pre>
+        ) : isThinking ? (
+          <div className="message-body">
+            <span
+              style={{
+                opacity: 0.75,
+                animation: 'pulse 2s infinite',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+              }}
+            >
+              <Sparkles size={13} color="var(--accent-color, #10b981)" /> Thinking...
+            </span>
+          </div>
         ) : (
-          <div
-            ref={bodyRef}
-            className="message-body"
-            dangerouslySetInnerHTML={{
-              __html:
-                !isUser && msg.content
-                  ? renderMarkdown(msg.content)
-                  : !msg.content
-                    ? '<span style="opacity:0.7; animation: pulse 2s infinite">Thinking...</span>'
-                    : escapeHtml(msg.content).replace(/\n/g, '<br/>'),
-            }}
-          />
+          <div ref={bodyRef} className="message-body">
+            {isUser ? (
+              <span dangerouslySetInnerHTML={{ __html: escapeHtml(msg.content).replace(/\n/g, '<br/>') }} />
+            ) : (
+              <>
+                <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                {isCancelled && (
+                  <div className={styles.cancelledNoticeStrip}>
+                    <Square size={10} fill="#f59e0b" color="#f59e0b" />
+                    <span>Generation stopped</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
+
+      {!isUser && actionCards.length > 0 && (
+        <div style={{ width: '100%', marginTop: '0.25rem' }}>
+          {actionCards.map((card, idx) => (
+            <ActionCard key={idx} data={card} />
+          ))}
+        </div>
+      )}
 
       {msg.content && !msg.error && (
         <div className={styles.actions}>

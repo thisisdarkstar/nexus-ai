@@ -17,6 +17,7 @@ import {
   Minimize2,
   ChevronDown,
   Check,
+  UploadCloud,
 } from 'lucide-react';
 import CodeAuditor from './CodeAuditor';
 import SandboxTerminal from './SandboxTerminal';
@@ -259,6 +260,14 @@ export default function SecurityCanvas({
 
         {/* Action Controls */}
         <div className={styles.controlsGroup}>
+          <button
+            className={styles.iconBtn}
+            onClick={() => window.dispatchEvent(new CustomEvent('nexus:open-ingest'))}
+            title="Ingest Scan Artifact (Burp, Nmap, Nuclei, SARIF)"
+          >
+            <UploadCloud size={14} color="#38bdf8" />
+          </button>
+
           <button
             className={styles.aiCoPilotBtn}
             onClick={handleAskAIWithActiveContext}

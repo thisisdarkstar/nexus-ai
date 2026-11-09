@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Folder, FolderPlus, Edit2, Trash2, Check, X as CloseIcon } from 'lucide-react';
+import { Folder, FolderPlus, Edit2, Trash2, Check, X as CloseIcon, Download, Upload } from 'lucide-react';
 import { sanitizePlainText } from '../../lib/sanitize';
+import { exportEngagementBundle, importEngagementBundle } from '../../lib/security/engagementBundle';
 import type { Project } from '../../types';
 import styles from './WorkspaceSelector.module.css';
 
@@ -50,9 +51,41 @@ export default function WorkspaceSelector({
     <div className={styles.container}>
       <div className={styles.header}>
         <h3 className={styles.headerTitle}>Workspace</h3>
-        <button onClick={() => setIsCreating(true)} className={styles.newBtn} title="New Workspace">
-          <FolderPlus size={14} />
-        </button>
+        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <button
+            onClick={() => exportEngagementBundle(currentProjectId)}
+            className={styles.newBtn}
+            title="Export engagement as .nexus backup bundle"
+          >
+            <Download size={13} />
+          </button>
+          <button
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.nexus,.json';
+              input.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) {
+                  try {
+                    await importEngagementBundle(file);
+                    window.location.reload();
+                  } catch (err) {
+                    console.error('Failed to import bundle:', err);
+                  }
+                }
+              };
+              input.click();
+            }}
+            className={styles.newBtn}
+            title="Import .nexus engagement bundle"
+          >
+            <Upload size={13} />
+          </button>
+          <button onClick={() => setIsCreating(true)} className={styles.newBtn} title="New Workspace">
+            <FolderPlus size={13} />
+          </button>
+        </div>
       </div>
 
       {isCreating ? (

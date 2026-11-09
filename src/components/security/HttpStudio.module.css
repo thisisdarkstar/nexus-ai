@@ -24,10 +24,10 @@
 .methodSelect {
   background: #020617;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 0.35rem 0.6rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   outline: none;
   cursor: pointer;
 }
@@ -43,10 +43,10 @@
   background: #020617;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #f8fafc;
-  padding: 0.38rem 0.65rem;
+  padding: 0.4rem 0.75rem;
   border-radius: 6px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   outline: none;
   min-width: 180px;
 }
@@ -57,14 +57,15 @@
 
 .presetSelect {
   background: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 0.4rem 0.75rem;
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   outline: none;
   cursor: pointer;
-  max-width: 180px;
+  max-width: 240px;
+  min-width: 160px;
 }
 
 .btn {

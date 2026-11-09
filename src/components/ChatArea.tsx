@@ -312,6 +312,7 @@ export default function ChatArea({
                 <MessageItem
                   msg={msg}
                   i={i}
+                  isLatest={i === messages.length - 1}
                   isGenerating={isGenerating}
                   onEdit={handleEditMessage}
                   onRegenerate={handleRegenerate}

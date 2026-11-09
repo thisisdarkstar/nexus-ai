@@ -11,6 +11,8 @@ import {
   Sparkles,
   ExternalLink,
   RotateCcw,
+  Eye,
+  Code,
 } from 'lucide-react';
 import { calculateCVSS31, DEFAULT_CVSS } from '../../lib/security/cvss';
 import {
@@ -19,9 +21,28 @@ import {
   generateHTMLReport,
   SAMPLE_VAPT_REPORT,
 } from '../../lib/security/reportGenerator';
+import { renderMarkdown } from '../../lib/markdown';
 import ConfirmModal from '../ConfirmModal';
+import CustomSelect from '../common/CustomSelect';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
 import styles from './ReportStudio.module.css';
+
+const ASSESSMENT_TYPE_OPTIONS: Array<{ value: VAPTReport['assessmentType']; label: string }> = [
+  { value: 'web', label: 'Web Application Pentest' },
+  { value: 'api', label: 'API Security Assessment' },
+  { value: 'mobile', label: 'Mobile Application Security' },
+  { value: 'network', label: 'Network Infrastructure Pentest' },
+  { value: 'cloud', label: 'Cloud Architecture Review' },
+  { value: 'bug_bounty', label: 'Bug Bounty Engagement' },
+];
+
+const SEVERITY_LEVEL_OPTIONS: Array<{ value: VulnerabilitySeverity; label: string }> = [
+  { value: 'critical', label: 'Critical' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+  { value: 'info', label: 'Informational' },
+];
 
 const REPORT_STORAGE_KEY = 'nexus_security_report';
 
@@ -48,10 +69,41 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     }
   }, [report]);
 
+  useEffect(() => {
+    const handleAddFindingEvent = (e: Event) => {
+      const custom = e as CustomEvent<VulnerabilityFinding>;
+      if (custom.detail) {
+        setReport((prev) => {
+          const exists = prev.findings.some(
+            (f) => f.id === custom.detail.id || f.title.toLowerCase() === custom.detail.title.toLowerCase()
+          );
+          if (exists) {
+            return {
+              ...prev,
+              findings: prev.findings.map((f) =>
+                f.id === custom.detail.id || f.title.toLowerCase() === custom.detail.title.toLowerCase()
+                  ? { ...f, ...custom.detail }
+                  : f
+              ),
+            };
+          }
+          return {
+            ...prev,
+            findings: [custom.detail, ...prev.findings],
+          };
+        });
+        setSelectedFindingId(custom.detail.id);
+      }
+    };
+    window.addEventListener('nexus:workbench:add-finding', handleAddFindingEvent);
+    return () => window.removeEventListener('nexus:workbench:add-finding', handleAddFindingEvent);
+  }, []);
+
   const [subTab, setSubTab] = useState<'editor' | 'markdown' | 'bug_bounty' | 'html'>('editor');
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(
     report.findings[0]?.id || null
   );
+  const [previewMode, setPreviewMode] = useState<'rendered' | 'raw'>('rendered');
   const [copied, setCopied] = useState(false);
 
   const [modalConfig, setModalConfig] = useState<{
@@ -280,23 +332,11 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Assessment Type</label>
-              <select
-                className={styles.select}
+              <CustomSelect<VAPTReport['assessmentType']>
                 value={report.assessmentType}
-                onChange={(e) =>
-                  setReport({
-                    ...report,
-                    assessmentType: e.target.value as VAPTReport['assessmentType'],
-                  })
-                }
-              >
-                <option value="web">Web Application Pentest</option>
-                <option value="api">API Security Assessment</option>
-                <option value="mobile">Mobile Application Security</option>
-                <option value="network">Network Infrastructure Pentest</option>
-                <option value="cloud">Cloud Architecture Review</option>
-                <option value="bug_bounty">Bug Bounty Engagement</option>
-              </select>
+                onChange={(val) => setReport({ ...report, assessmentType: val })}
+                options={ASSESSMENT_TYPE_OPTIONS}
+              />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Target Scope</label>
@@ -328,14 +368,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     setSelectedFindingId(f.id);
                     if (f.cvss) setActiveCvss(f.cvss);
                   }}
-                  className={`${styles.findingItem}`}
-                  style={{
-                    cursor: 'pointer',
-                    border:
-                      selectedFindingId === f.id
-                        ? '1px solid var(--accent-color, #10b981)'
-                        : undefined,
-                  }}
+                  className={`${styles.findingItem} ${selectedFindingId === f.id ? styles.findingItemActive : ''} ${styles[f.severity] || ''}`}
                 >
                   <div className={styles.findingTop}>
                     <span className={`${styles.severityBadge} ${styles[f.severity]}`}>
@@ -343,15 +376,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{f.id}</span>
                   </div>
-                  <span
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <span className={styles.findingTitleText}>
                     {f.title}
                   </span>
                 </div>
@@ -536,55 +561,48 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   </div>
                 )}
 
-                <div className={styles.twoColGrid}>
-                  <div className={styles.formGroup}>
-                    <label className={styles.label}>Finding Title</label>
-                    <input
-                      className={styles.input}
-                      value={selectedFinding.title}
-                      onChange={(e) =>
-                        handleUpdateFinding(selectedFinding.id, { title: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label className={styles.label}>Severity Level</label>
-                    <select
-                      className={styles.select}
-                      value={selectedFinding.severity}
-                      onChange={(e) =>
-                        handleUpdateFinding(selectedFinding.id, {
-                          severity: e.target.value as VulnerabilitySeverity,
-                        })
-                      }
-                    >
-                      <option value="critical">Critical</option>
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                      <option value="info">Informational</option>
-                    </select>
-                  </div>
+                {/* Finding Title: Full width */}
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Finding Title</label>
+                  <input
+                    className={styles.input}
+                    value={selectedFinding.title}
+                    placeholder="e.g. Broken Object-Level Authorization (BOLA/IDOR) in Transaction Details API"
+                    onChange={(e) =>
+                      handleUpdateFinding(selectedFinding.id, { title: e.target.value })
+                    }
+                  />
                 </div>
 
-                <div className={styles.twoColGrid}>
-                  <div className={styles.formGroup}>
+                {/* Severity, CWE & Target Endpoint Row */}
+                <div className={styles.metaRow}>
+                  <div className={styles.formGroup} style={{ flex: '1 1 150px' }}>
+                    <label className={styles.label}>Severity Level</label>
+                    <CustomSelect<VulnerabilitySeverity>
+                      value={selectedFinding.severity}
+                      onChange={(val) =>
+                        handleUpdateFinding(selectedFinding.id, { severity: val })
+                      }
+                      options={SEVERITY_LEVEL_OPTIONS}
+                    />
+                  </div>
+                  <div className={styles.formGroup} style={{ flex: '1 1 120px' }}>
                     <label className={styles.label}>CWE Identifier</label>
                     <input
                       className={styles.input}
                       value={selectedFinding.cweId || ''}
-                      placeholder="e.g. CWE-89 or CWE-79"
+                      placeholder="e.g. CWE-639"
                       onChange={(e) =>
                         handleUpdateFinding(selectedFinding.id, { cweId: e.target.value })
                       }
                     />
                   </div>
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ flex: '2 1 240px' }}>
                     <label className={styles.label}>Target Endpoint / Asset</label>
                     <input
                       className={styles.input}
                       value={selectedFinding.targetEndpoint || ''}
-                      placeholder="e.g. POST /api/v1/auth/login"
+                      placeholder="e.g. GET /api/v2/transactions/{id}"
                       onChange={(e) =>
                         handleUpdateFinding(selectedFinding.id, { targetEndpoint: e.target.value })
                       }
@@ -596,7 +614,6 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   <label className={styles.label}>Vulnerability Description & Impact</label>
                   <textarea
                     className={styles.textarea}
-                    rows={3}
                     value={selectedFinding.description}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { description: e.target.value })
@@ -608,7 +625,6 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                   <label className={styles.label}>Remediation Guidance</label>
                   <textarea
                     className={styles.textarea}
-                    rows={2}
                     value={selectedFinding.remediation}
                     onChange={(e) =>
                       handleUpdateFinding(selectedFinding.id, { remediation: e.target.value })
@@ -624,76 +640,198 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
       {subTab === 'markdown' && (
         <div className={styles.previewContainer}>
           <div className={styles.copyRow}>
-            <button
-              className={styles.btn}
-              onClick={() => handleCopy(markdownContent)}
-            >
-              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-              {copied ? 'Copied' : 'Copy Markdown'}
-            </button>
-            <button
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => handleDownload(markdownContent, `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`, 'text/markdown')}
-            >
-              <Download size={12} /> Download .md
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <div className={styles.viewToggle}>
+                <button
+                  className={`${styles.toggleBtn} ${previewMode === 'rendered' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setPreviewMode('rendered')}
+                  title="Rendered Executive Document"
+                >
+                  <Eye size={12} /> Rendered View
+                </button>
+                <button
+                  className={`${styles.toggleBtn} ${previewMode === 'raw' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setPreviewMode('raw')}
+                  title="Raw Markdown Syntax"
+                >
+                  <Code size={12} /> Raw Markdown
+                </button>
+              </div>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
+                {report.findings.length} findings • {markdownContent.split(/\s+/).filter(Boolean).length} words
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <button
+                className={styles.btn}
+                onClick={() => handleCopy(markdownContent)}
+                title="Copy markdown text to clipboard"
+              >
+                {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => handleDownload(markdownContent, `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`, 'text/markdown')}
+                title="Download as Markdown file"
+              >
+                <Download size={12} /> Download .md
+              </button>
+            </div>
           </div>
-          <textarea
-            className={styles.previewCode}
-            value={markdownContent}
-            readOnly
-            spellCheck={false}
-          />
+
+          {previewMode === 'rendered' ? (
+            <div
+              className={styles.renderedContainer}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(markdownContent) }}
+            />
+          ) : (
+            <textarea
+              className={styles.previewCode}
+              value={markdownContent}
+              readOnly
+              spellCheck={false}
+            />
+          )}
         </div>
       )}
 
       {subTab === 'bug_bounty' && (
         <div className={styles.previewContainer}>
           <div className={styles.findingSelectorRow}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Active Finding:</span>
-              <select
-                className={styles.select}
-                value={selectedFindingId || ''}
-                onChange={(e) => setSelectedFindingId(e.target.value)}
-              >
-                {report.findings.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    [{f.id}] {f.title} ({f.severity.toUpperCase()})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {selectedFinding?.cvss && (
-              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 500 }}>
-                CVSS v3.1: {selectedFinding.cvss.score} ({selectedFinding.cvss.severity.toUpperCase()})
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary, #94a3b8)' }}>
+                Target Finding:
               </span>
-            )}
+              <CustomSelect
+                value={selectedFindingId || ''}
+                onChange={setSelectedFindingId}
+                options={report.findings.map((f) => ({
+                  value: f.id,
+                  label: `[${f.id}] ${f.title} (${f.severity.toUpperCase()})`,
+                }))}
+                style={{ width: 'auto', minWidth: '240px', maxWidth: '380px' }}
+              />
+              {selectedFinding?.cvss && (
+                <span className={`${styles.severityBadge} ${styles[selectedFinding.severity]}`}>
+                  CVSS {selectedFinding.cvss.score} ({selectedFinding.cvss.severity.toUpperCase()})
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.viewToggle}>
+                <button
+                  className={`${styles.toggleBtn} ${previewMode === 'rendered' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setPreviewMode('rendered')}
+                  title="Rendered Document"
+                >
+                  <Eye size={12} /> Rendered
+                </button>
+                <button
+                  className={`${styles.toggleBtn} ${previewMode === 'raw' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setPreviewMode('raw')}
+                  title="Raw Markdown"
+                >
+                  <Code size={12} /> Raw
+                </button>
+              </div>
+              <button
+                className={styles.btn}
+                onClick={() => handleCopy(bugBountyContent)}
+                title="Copy HackerOne / Bugcrowd markdown to clipboard"
+              >
+                {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() =>
+                  handleDownload(
+                    bugBountyContent,
+                    `${(selectedFinding?.title || 'bounty_report').toLowerCase().replace(/\s+/g, '_')}.md`,
+                    'text/markdown'
+                  )
+                }
+                title="Download Bug Bounty Report"
+              >
+                <Download size={12} /> Download
+              </button>
+            </div>
           </div>
-          <textarea
-            className={styles.previewCode}
-            value={bugBountyContent}
-            readOnly
-            spellCheck={false}
-          />
+
+          {previewMode === 'rendered' ? (
+            <div
+              className={styles.renderedContainer}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(bugBountyContent) }}
+            />
+          ) : (
+            <textarea
+              className={styles.previewCode}
+              value={bugBountyContent}
+              readOnly
+              spellCheck={false}
+            />
+          )}
         </div>
       )}
 
       {subTab === 'html' && (
         <div className={styles.iframeContainer}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-            <button
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => {
-                const win = window.open('', '_blank');
-                if (win) {
-                  win.document.write(htmlContent);
-                  win.document.close();
+          <div className={styles.copyRow}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <FileText size={14} color="#10b981" />
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f1f5f9' }}>
+                Executive VAPT Audit Report
+              </span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
+                (Self-contained HTML • Ready for A4 Print & PDF)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                className={styles.btn}
+                onClick={() => {
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(htmlContent);
+                    win.document.close();
+                  }
+                }}
+                title="Open in a dedicated browser window"
+              >
+                <ExternalLink size={12} /> Open Fullpage
+              </button>
+              <button
+                className={styles.btn}
+                onClick={() =>
+                  handleDownload(
+                    htmlContent,
+                    `${report.title.toLowerCase().replace(/\s+/g, '_')}.html`,
+                    'text/html'
+                  )
                 }
-              }}
-            >
-              <Printer size={13} /> Open in Print View (PDF)
-            </button>
+                title="Download HTML file"
+              >
+                <Download size={12} /> Download HTML
+              </button>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => {
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(htmlContent);
+                    win.document.close();
+                    win.focus();
+                    setTimeout(() => win.print(), 350);
+                  }
+                }}
+                title="Print or Save to PDF via system print dialog"
+              >
+                <Printer size={13} /> Print / Save PDF
+              </button>
+            </div>
           </div>
           <iframe
             srcDoc={htmlContent}
