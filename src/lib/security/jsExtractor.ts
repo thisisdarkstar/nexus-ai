@@ -345,3 +345,4 @@ export const API_ROUTES = {
   webhookCallback: "/api/webhooks/incoming_payment"
 };
 `;
+

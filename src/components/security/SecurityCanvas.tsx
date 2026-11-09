@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import {
   ShieldAlert,
   Terminal,
@@ -19,17 +19,18 @@ import {
   Check,
   UploadCloud,
 } from 'lucide-react';
-import CodeAuditor from './CodeAuditor';
-import SandboxTerminal from './SandboxTerminal';
-import DecoderHub from './DecoderHub';
-import DetectionStudio from './DetectionStudio';
-import ReportStudio from './ReportStudio';
-import ScopeManager from './ScopeManager';
-import ChecklistTracker from './ChecklistTracker';
-import HttpStudio from './HttpStudio';
-import PayloadCrafter from './PayloadCrafter';
-import ReconHub from './ReconHub';
-import NucleiStudio from './NucleiStudio';
+
+const CodeAuditor = lazy(() => import('./CodeAuditor'));
+const SandboxTerminal = lazy(() => import('./SandboxTerminal'));
+const DecoderHub = lazy(() => import('./DecoderHub'));
+const DetectionStudio = lazy(() => import('./DetectionStudio'));
+const ReportStudio = lazy(() => import('./ReportStudio'));
+const ScopeManager = lazy(() => import('./ScopeManager'));
+const ChecklistTracker = lazy(() => import('./ChecklistTracker'));
+const HttpStudio = lazy(() => import('./HttpStudio'));
+const PayloadCrafter = lazy(() => import('./PayloadCrafter'));
+const ReconHub = lazy(() => import('./ReconHub'));
+const NucleiStudio = lazy(() => import('./NucleiStudio'));
 import type { SecurityTab } from '../../types';
 import styles from './SecurityCanvas.module.css';
 
@@ -295,75 +296,103 @@ export default function SecurityCanvas({
 
       {/* Tab Panels */}
       <div className={styles.tabContent}>
-        {activeTab === 'auditor' && (
-          <CodeAuditor
-            initialCode={initialCode}
-            onSendToAI={onSendToAI}
-          />
-        )}
+        <Suspense
+          fallback={
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                color: 'var(--text-muted, #94a3b8)',
+                fontSize: '0.85rem',
+                gap: '0.5rem',
+              }}
+            >
+              <div
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  border: '2px solid rgba(16, 185, 129, 0.2)',
+                  borderTopColor: '#10b981',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
+              Loading Security Module...
+            </div>
+          }
+        >
+          {activeTab === 'auditor' && (
+            <CodeAuditor
+              initialCode={initialCode}
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'sandbox' && (
-          <SandboxTerminal
-            initialCode={sandboxCode}
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'sandbox' && (
+            <SandboxTerminal
+              initialCode={sandboxCode}
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'decoders' && (
-          <DecoderHub
-            initialInput={initialDecoderInput}
-            onSendToSandbox={handleSendToSandbox}
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'decoders' && (
+            <DecoderHub
+              initialInput={initialDecoderInput}
+              onSendToSandbox={handleSendToSandbox}
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'threat_studio' && (
-          <DetectionStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'threat_studio' && (
+            <DetectionStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'reports' && (
-          <ReportStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'reports' && (
+            <ReportStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'scope' && (
-          <ScopeManager
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'scope' && (
+            <ScopeManager
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'checklists' && (
-          <ChecklistTracker
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'checklists' && (
+            <ChecklistTracker
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'http_studio' && (
-          <HttpStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'http_studio' && (
+            <HttpStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'payloads' && (
-          <PayloadCrafter
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'payloads' && (
+            <PayloadCrafter
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'recon' && (
-          <ReconHub
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'recon' && (
+            <ReconHub
+              onSendToAI={onSendToAI}
+            />
+          )}
 
-        {activeTab === 'nuclei' && (
-          <NucleiStudio
-            onSendToAI={onSendToAI}
-          />
-        )}
+          {activeTab === 'nuclei' && (
+            <NucleiStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   );

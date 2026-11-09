@@ -10,6 +10,7 @@ import ArtifactIngestModal from './components/security/ArtifactIngestModal';
 import { ToastProvider, useToast } from './lib/toast';
 import { useVoice } from './hooks/useVoice';
 import { db } from './lib/db';
+import { runStorageMigration } from './core/storage/StorageMigration';
 import { DEFAULT_OPENAI_BASE_URL } from './lib/constants';
 import { providerManager } from './lib/providers/ProviderManager';
 import type {
@@ -146,6 +147,7 @@ function AppContent() {
   useEffect(() => {
     async function init() {
       await db.init();
+      runStorageMigration('default').catch(console.error);
 
       let savedProjects = await db.getProjects();
       if (savedProjects.length === 0) {
