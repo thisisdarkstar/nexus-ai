@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Check,
   UploadCloud,
+  Wrench,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -31,6 +32,7 @@ const HttpStudio = lazy(() => import('./HttpStudio'));
 const PayloadCrafter = lazy(() => import('./PayloadCrafter'));
 const ReconHub = lazy(() => import('./ReconHub'));
 const NucleiStudio = lazy(() => import('./NucleiStudio'));
+const RemediationHub = lazy(() => import('./RemediationHub'));
 import type { SecurityTab } from '../../types';
 import styles from './SecurityCanvas.module.css';
 
@@ -78,6 +80,7 @@ const SECURITY_TABS: TabItem[] = [
 
   // Code & Defense
   { id: 'auditor', name: 'SAST Audit', category: 'defense', icon: ShieldAlert, tooltip: 'Static Vulnerability Code Auditor' },
+  { id: 'remediation', name: 'Remediation', category: 'defense', icon: Wrench, tooltip: 'Patch Diff Viewer, Root-Cause & Fix Verification' },
   { id: 'threat_studio', name: 'Threat Studio', category: 'defense', icon: Layers, tooltip: 'Sigma Rules & STRIDE Threat Modeler' },
 ];
 
@@ -326,6 +329,12 @@ export default function SecurityCanvas({
           {activeTab === 'auditor' && (
             <CodeAuditor
               initialCode={initialCode}
+              onSendToAI={onSendToAI}
+            />
+          )}
+
+          {activeTab === 'remediation' && (
+            <RemediationHub
               onSendToAI={onSendToAI}
             />
           )}

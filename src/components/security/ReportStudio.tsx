@@ -22,6 +22,7 @@ import {
   SAMPLE_VAPT_REPORT,
 } from '../../lib/security/reportGenerator';
 import { renderMarkdown } from '../../lib/markdown';
+import { evidenceVault } from '../../domain/evidence/EvidenceVault';
 import ConfirmModal from '../ConfirmModal';
 import CustomSelect from '../common/CustomSelect';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
@@ -630,6 +631,117 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                       handleUpdateFinding(selectedFinding.id, { remediation: e.target.value })
                     }
                   />
+                </div>
+
+                {/* Remediation Patch Diff */}
+                <div className={styles.formGroup}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label className={styles.label} style={{ margin: 0 }}>Remediation Patch Diff (Suggested Fix)</label>
+                    {!selectedFinding.patchDiff && (
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                        onClick={() =>
+                          handleUpdateFinding(selectedFinding.id, {
+                            patchDiff: {
+                              original: '// Vulnerable code example',
+                              patched: '// Secure remediated code example',
+                            },
+                          })
+                        }
+                      >
+                        + Add Code Diff
+                      </button>
+                    )}
+                  </div>
+
+                  {selectedFinding.patchDiff && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 600 }}>Original (Insecure)</span>
+                        <textarea
+                          className={styles.textarea}
+                          style={{ height: '90px', fontFamily: 'monospace', fontSize: '0.78rem' }}
+                          value={selectedFinding.patchDiff.original}
+                          onChange={(e) =>
+                            handleUpdateFinding(selectedFinding.id, {
+                              patchDiff: {
+                                ...selectedFinding.patchDiff!,
+                                original: e.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>Patched (Remediated)</span>
+                        <textarea
+                          className={styles.textarea}
+                          style={{ height: '90px', fontFamily: 'monospace', fontSize: '0.78rem' }}
+                          value={selectedFinding.patchDiff.patched}
+                          onChange={(e) =>
+                            handleUpdateFinding(selectedFinding.id, {
+                              patchDiff: {
+                                ...selectedFinding.patchDiff!,
+                                patched: e.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Evidence Integrity Hashes (SHA-256) */}
+                <div className={styles.formGroup}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label className={styles.label} style={{ margin: 0 }}>Cryptographic Evidence Hashes (SHA-256)</label>
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                      onClick={async () => {
+                        const snippet = prompt('Paste evidence snippet (HTTP trace, log, or code) to compute SHA-256:');
+                        if (snippet) {
+                          const hash = await evidenceVault.computeSha256(snippet);
+                          const existing = selectedFinding.evidenceHashes || [];
+                          if (!existing.includes(hash)) {
+                            handleUpdateFinding(selectedFinding.id, {
+                              evidenceHashes: [...existing, hash],
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      + Hash & Attach Evidence
+                    </button>
+                  </div>
+                  {selectedFinding.evidenceHashes && selectedFinding.evidenceHashes.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {selectedFinding.evidenceHashes.map((h, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.76rem', fontFamily: 'monospace' }}>
+                          <span style={{ color: '#10b981' }}>{h}</span>
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}
+                            onClick={() => {
+                              handleUpdateFinding(selectedFinding.id, {
+                                evidenceHashes: selectedFinding.evidenceHashes?.filter((_, idx) => idx !== i),
+                              });
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+                      No cryptographic evidence hashes attached yet.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

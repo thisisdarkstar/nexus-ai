@@ -145,7 +145,8 @@ export type SecurityTab =
   | 'http_studio'
   | 'payloads'
   | 'recon'
-  | 'nuclei';
+  | 'nuclei'
+  | 'remediation';
 
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
@@ -184,6 +185,7 @@ export interface VulnerabilityFinding {
     original: string;
     patched: string;
   };
+  evidenceHashes?: string[];
 }
 
 export interface SecurityArtifact {

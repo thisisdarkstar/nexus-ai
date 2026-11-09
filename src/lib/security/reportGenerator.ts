@@ -79,6 +79,13 @@ ${f.patchDiff.patched.split('\n').map((l) => `+ ${l}`).join('\n')}
 `;
     }
 
+    if (f.evidenceHashes && f.evidenceHashes.length > 0) {
+      md += `#### Cryptographic Evidence Hashes (SHA-256)
+${f.evidenceHashes.map((h) => `- \`${h}\``).join('\n')}
+
+`;
+    }
+
     if (f.references && f.references.length > 0) {
       md += `#### References
 ${f.references.map((r) => `- [${r}](${r})`).join('\n')}
@@ -119,6 +126,18 @@ An attacker exploiting this vulnerability could compromise user confidentiality,
 
 ## Recommended Fix
 ${finding.remediation}
+${finding.patchDiff ? `
+## Suggested Patch (Diff)
+\`\`\`diff
+--- Original Insecure
++++ Patched Secure
+${finding.patchDiff.original.split('\n').map((l) => `- ${l}`).join('\n')}
+${finding.patchDiff.patched.split('\n').map((l) => `+ ${l}`).join('\n')}
+\`\`\`
+` : ''}${finding.evidenceHashes && finding.evidenceHashes.length > 0 ? `
+## Evidence Integrity Hashes (SHA-256)
+${finding.evidenceHashes.map((h) => `- \`${h}\``).join('\n')}
+` : ''}
 `;
 }
 
@@ -222,10 +241,23 @@ export function generateHTMLReport(report: VAPTReport): string {
       }
 
       ${
+        f.evidenceHashes && f.evidenceHashes.length > 0
+          ? `
+      <div class="finding-section">
+        <h4 class="section-subtitle">5. Cryptographic Evidence Hashes (SHA-256)</h4>
+        <ul class="ref-list">
+          ${f.evidenceHashes.map((h) => `<li><code>${escapeHtml(h)}</code></li>`).join('')}
+        </ul>
+      </div>
+      `
+          : ''
+      }
+
+      ${
         f.references && f.references.length > 0
           ? `
       <div class="finding-section">
-        <h4 class="section-subtitle">5. References & Documentation</h4>
+        <h4 class="section-subtitle">6. References & Documentation</h4>
         <ul class="ref-list">
           ${f.references.map((r) => `<li><a href="${escapeHtml(r)}" target="_blank">${escapeHtml(r)}</a></li>`).join('')}
         </ul>
