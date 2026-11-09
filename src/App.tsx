@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import Sidebar from './components/Sidebar';
-import ChatArea from './components/ChatArea';
+import WorkbenchHeader from './components/workbench/WorkbenchHeader';
 import SecurityCanvas from './components/security/SecurityCanvas';
+import CopilotDrawer from './components/copilot/CopilotDrawer';
 import VoiceOverlay from './components/VoiceOverlay';
 import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
@@ -84,10 +84,21 @@ function AppContent() {
     type: null,
     text: '',
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [securityWorkbenchOpen, setSecurityWorkbenchOpen] = useState(false);
+
+  // Workbench & Copilot Layout State
+  const [copilotOpen, setCopilotOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_copilot_open');
+      if (saved !== null) return saved === 'true';
+    } catch {
+      // ignore
+    }
+    return window.innerWidth > 1024;
+  });
+
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [artifactIngestOpen, setArtifactIngestOpen] = useState(false);
+  const [scopeCount, setScopeCount] = useState<number>(1);
   const [activeSecurityTab, setActiveSecurityTab] = useState<SecurityTab>(() => {
     try {
       const saved = localStorage.getItem('nexus_security_active_tab') as SecurityTab;
@@ -95,7 +106,7 @@ function AppContent() {
     } catch {
       // fallback
     }
-    return 'reports';
+    return 'dashboard';
   });
 
   useEffect(() => {
@@ -104,6 +115,38 @@ function AppContent() {
     } catch (e) {
       console.error(e);
     }
+  }, [activeSecurityTab]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_copilot_open', String(copilotOpen));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [copilotOpen]);
+
+  // Load scope count from storage
+  const refreshScopeCount = () => {
+    try {
+      const raw = localStorage.getItem('nexus_security_scope');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const inScope = parsed.filter((item: any) => item.inScope !== false).length;
+          setScopeCount(inScope);
+          return;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    setScopeCount(1);
+  };
+
+  useEffect(() => {
+    refreshScopeCount();
+    window.addEventListener('storage', refreshScopeCount);
+    return () => window.removeEventListener('storage', refreshScopeCount);
   }, [activeSecurityTab]);
 
   const [securityInitialCode, setSecurityInitialCode] = useState<string | undefined>(undefined);
@@ -123,7 +166,6 @@ function AppContent() {
       if (custom.detail?.input) {
         setSecurityInitialDecoderInput(custom.detail.input);
       }
-      setSecurityWorkbenchOpen(true);
     };
     window.addEventListener('nexus:open-security', handleOpenSecurity);
     const handleOpenIngest = () => setArtifactIngestOpen(true);
@@ -135,9 +177,12 @@ function AppContent() {
   }, []);
 
   const handleSendToAIFromSecurity = (prompt: string) => {
-    window.dispatchEvent(
-      new CustomEvent('nexus:send-ai-prompt', { detail: { prompt } })
-    );
+    setCopilotOpen(true);
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent('nexus:send-ai-prompt', { detail: { prompt } })
+      );
+    }, 60);
   };
 
   useEffect(() => {
@@ -153,7 +198,7 @@ function AppContent() {
       if (savedProjects.length === 0) {
         const defaultProj: Project = {
           id: 'default',
-          name: 'Default Workspace',
+          name: 'Default Engagement',
           createdAt: Date.now(),
         };
         await db.saveProject(defaultProj);
@@ -235,7 +280,10 @@ function AppContent() {
     }
   }, [currentProjectId]);
 
-  const handleNewChat = () => setCurrentChatId(null);
+  const handleNewChat = () => {
+    setCurrentChatId(null);
+    setCopilotOpen(true);
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -248,10 +296,7 @@ function AppContent() {
         setArtifactIngestOpen(true);
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'j') {
         e.preventDefault();
-        setSecurityWorkbenchOpen((prev) => !prev);
-      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'b') {
-        e.preventDefault();
-        setSidebarCollapsed((prev) => !prev);
+        setCopilotOpen((prev) => !prev);
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         handleNewChat();
@@ -296,69 +341,13 @@ function AppContent() {
     );
   };
 
-  const handleRenameChat = async (id: string, newTitle: string) => {
-    const savedChats = await db.getChats();
-    const chat = savedChats.find((c) => c.id === id);
-    if (chat) {
-      await db.saveChat({ ...chat, title: newTitle });
-      reloadChats();
-    }
-  };
-
-  const handlePinChat = async (id: string) => {
-    const savedChats = await db.getChats();
-    const chat = savedChats.find((c) => c.id === id);
-    if (chat) {
-      await db.saveChat({ ...chat, pinned: !chat.pinned });
-      reloadChats();
-    }
-  };
-
-  const handleUpdateChatTags = async (id: string, tags: string[]) => {
-    const savedChats = await db.getChats();
-    const chat = savedChats.find((c) => c.id === id);
-    if (chat) {
-      await db.saveChat({ ...chat, tags });
-      reloadChats();
-    }
-  };
-
   const handleCreateProject = async (name: string) => {
     const newProj: Project = { id: Date.now().toString(), name, createdAt: Date.now() };
     await db.saveProject(newProj);
     setProjects(await db.getProjects());
     setCurrentProjectId(newProj.id);
     setCurrentChatId(null);
-    toast('success', `Workspace "${name}" created`);
-  };
-
-  const handleDeleteProject = async (id: string) => {
-    if (id === 'default') return;
-    confirmAction(
-      'Delete Workspace',
-      'Are you sure you want to delete this workspace and all its chats? This cannot be undone.',
-      async () => {
-        await db.deleteProject(id);
-        const allChats = await db.getChats();
-        await Promise.all(
-          allChats.filter((c) => c.workspaceId === id).map((c) => db.deleteChat(c.id))
-        );
-        setProjects(await db.getProjects());
-        setCurrentProjectId('default');
-        setCurrentChatId(null);
-        reloadChats();
-        toast('success', 'Workspace deleted');
-      }
-    );
-  };
-
-  const handleRenameProject = async (id: string, newName: string) => {
-    const proj = projects.find((p) => p.id === id);
-    if (proj) {
-      const updated = { ...proj, name: newName };
-      await db.saveProject(updated);
-      setProjects(await db.getProjects());
-    }
+    toast('success', `Engagement "${name}" created`);
   };
 
   const reloadChats = async () => {
@@ -366,15 +355,10 @@ function AppContent() {
     setChats(savedChats);
   };
 
-  const projectChats = useMemo(
-    () => chats.filter((c) => (c.workspaceId || 'default') === currentProjectId),
-    [chats, currentProjectId]
-  );
-
   return (
-    <>
-      <Sidebar
-        chats={projectChats}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {/* Top Header: Workbench Branding, Engagement Switcher, Scope Badge, ⌘K, Ingest, Copilot & Settings */}
+      <WorkbenchHeader
         projects={projects}
         currentProjectId={currentProjectId}
         onSelectProject={(id) => {
@@ -382,49 +366,39 @@ function AppContent() {
           setCurrentChatId(null);
         }}
         onCreateProject={handleCreateProject}
-        onDeleteProject={handleDeleteProject}
-        onRenameProject={handleRenameProject}
-        currentChatId={currentChatId}
-        onSelectChat={setCurrentChatId}
-        onNewChat={handleNewChat}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onDeleteChat={requestDeleteChat}
-        onRenameChat={handleRenameChat}
-        onPinChat={handlePinChat}
-        onUpdateChatTags={handleUpdateChatTags}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onOpenIngest={() => setArtifactIngestOpen(true)}
+        activeTab={activeSecurityTab}
+        onTabChange={setActiveSecurityTab}
+        scopeCount={scopeCount}
+        copilotOpen={copilotOpen}
+        onToggleCopilot={() => setCopilotOpen((prev) => !prev)}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+        onOpenIngest={() => setArtifactIngestOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        theme={settings.theme || 'dark'}
+        onToggleTheme={() => {
+          const next = settings.theme === 'dark' ? 'light' : 'dark';
+          saveSettings({ theme: next });
+        }}
       />
-      <div style={{ flex: 1, display: 'flex', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
+
+      {/* Main Area: Security Workbench is 100% Core + Dockable Resizable Copilot Drawer */}
+      <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
           <Panel
-            defaultSize={securityWorkbenchOpen ? '45%' : '100%'}
-            minSize="30%"
-            style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            defaultSize={copilotOpen ? 72 : 100}
+            minSize={45}
+            style={{ height: '100%', overflow: 'hidden' }}
           >
-            <ChatArea
-              currentChatId={currentChatId}
-              setCurrentChatId={setCurrentChatId}
-              currentProjectId={currentProjectId}
-              providerStatus={providerStatus}
-              reloadChats={reloadChats}
-              settings={settings}
-              availableModels={availableModels}
-              onModelChange={(p, m) => {
-                if (settings.provider !== p || (p === 'openai' && settings.openaiModel !== m)) {
-                  saveSettings({ provider: p as Settings['provider'], openaiModel: m });
-                }
-              }}
-              voice={voice}
-              setVoiceOverlay={setVoiceOverlay}
-              onToggleSecurityWorkbench={() => setSecurityWorkbenchOpen(!securityWorkbenchOpen)}
-              securityWorkbenchOpen={securityWorkbenchOpen}
+            <SecurityCanvas
+              activeTab={activeSecurityTab}
+              onTabChange={setActiveSecurityTab}
+              onSendToAI={handleSendToAIFromSecurity}
+              initialCode={securityInitialCode}
+              initialDecoderInput={securityInitialDecoderInput}
             />
           </Panel>
 
-          {securityWorkbenchOpen && (
+          {copilotOpen && (
             <>
               <Separator
                 style={{
@@ -435,20 +409,38 @@ function AppContent() {
                   zIndex: 20,
                 }}
               />
-              <Panel defaultSize="55%" minSize="32%" style={{ height: '100%', overflow: 'hidden' }}>
-                <SecurityCanvas
-                  activeTab={activeSecurityTab}
-                  onTabChange={setActiveSecurityTab}
-                  onClose={() => setSecurityWorkbenchOpen(false)}
-                  onSendToAI={handleSendToAIFromSecurity}
-                  initialCode={securityInitialCode}
-                  initialDecoderInput={securityInitialDecoderInput}
+              <Panel
+                defaultSize={28}
+                minSize={22}
+                maxSize={45}
+                style={{ height: '100%', overflow: 'hidden' }}
+              >
+                <CopilotDrawer
+                  currentChatId={currentChatId}
+                  setCurrentChatId={setCurrentChatId}
+                  chats={chats}
+                  currentProjectId={currentProjectId}
+                  providerStatus={providerStatus}
+                  reloadChats={reloadChats}
+                  settings={settings}
+                  onModelChange={(p, m) => {
+                    if (settings.provider !== p || (p === 'openai' && settings.openaiModel !== m)) {
+                      saveSettings({ provider: p as Settings['provider'], openaiModel: m });
+                    }
+                  }}
+                  availableModels={availableModels}
+                  voice={voice}
+                  setVoiceOverlay={setVoiceOverlay}
+                  activeSecurityTab={activeSecurityTab}
+                  onClose={() => setCopilotOpen(false)}
+                  onDeleteChat={requestDeleteChat}
                 />
               </Panel>
             </>
           )}
         </Group>
-      </div>
+      </main>
+
       <VoiceOverlay
         isActive={voiceOverlay.active}
         type={voiceOverlay.type}
@@ -460,6 +452,7 @@ function AppContent() {
           setVoiceOverlay({ active: false, type: null, text: '' });
         }}
       />
+
       {settingsOpen && (
         <Suspense fallback={null}>
           <SettingsModal
@@ -509,6 +502,6 @@ function AppContent() {
           toast('success', `Artifact Ingested: ${summary}`);
         }}
       />
-    </>
+    </div>
   );
 }
