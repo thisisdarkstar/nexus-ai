@@ -41,6 +41,9 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
     inScopeCount: number;
     advisoryCount: number;
     findingsCount: number;
+    graphNodesCount?: number;
+    prioritizedCount?: number;
+    regressionCount?: number;
   }>({
     inScopeCount: 0,
     advisoryCount: 0,
@@ -165,6 +168,9 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
         inScopeCount: ctx.inScopeAssets.length,
         advisoryCount: ctx.flaggedAdvisories.length,
         findingsCount: ctx.draftFindings.length,
+        graphNodesCount: ctx.assetGraph ? ctx.assetGraph.getStats().nodeCount : undefined,
+        prioritizedCount: ctx.prioritizedItems ? ctx.prioritizedItems.length : undefined,
+        regressionCount: ctx.regressionSuites ? ctx.regressionSuites.length : undefined,
       });
       if (!runnerRef.current.isWaitingForApproval()) {
         setAllLogs((prev) => [...prev, `[PIPELINE] Execution completed successfully.`]);
@@ -188,6 +194,9 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
         inScopeCount: ctx.inScopeAssets.length,
         advisoryCount: ctx.flaggedAdvisories.length,
         findingsCount: ctx.draftFindings.length,
+        graphNodesCount: ctx.assetGraph ? ctx.assetGraph.getStats().nodeCount : undefined,
+        prioritizedCount: ctx.prioritizedItems ? ctx.prioritizedItems.length : undefined,
+        regressionCount: ctx.regressionSuites ? ctx.regressionSuites.length : undefined,
       });
       if (!runnerRef.current.isWaitingForApproval()) {
         setAllLogs((prev) => [...prev, '[PIPELINE] All stages finished. Findings drafted.']);

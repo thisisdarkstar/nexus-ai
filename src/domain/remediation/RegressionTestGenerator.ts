@@ -140,4 +140,8 @@ fi
       verificationCommand: `bash verify_${finding.id.toLowerCase()}.sh`,
     };
   }
+
+  public static generateCurl(finding: VulnerabilityFinding): GeneratedRegressionSuite {
+    return this.generateCurlScript(finding);
+  }
 }

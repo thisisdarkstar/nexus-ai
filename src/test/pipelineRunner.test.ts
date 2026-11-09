@@ -89,4 +89,35 @@ describe('PipelineRunner', () => {
       expect(step.logs.length).toBe(0);
     });
   });
+
+  it('executes end-to-end defensive research and regression pipeline successfully', async () => {
+    const endToEndPreset = PRESET_PIPELINES.find((p) => p.id === 'pipeline-end-to-end-defense');
+    expect(endToEndPreset).toBeDefined();
+
+    const runner = new PipelineRunner(endToEndPreset!, {
+      assets: sampleAssets,
+      scopeRules: sampleScope,
+    });
+
+    // Run until manual checkpoint
+    const midCtx = await runner.execute();
+    expect(runner.isWaitingForApproval()).toBe(true);
+    expect(midCtx.assetGraph).toBeDefined();
+    expect(midCtx.assetGraph?.getAllNodes().length).toBeGreaterThan(0);
+    expect(midCtx.prioritizedItems).toBeDefined();
+    expect(midCtx.prioritizedItems?.length).toBeGreaterThan(0);
+
+    // Approve checkpoint and continue to findings and regression suite synthesis
+    const finalCtx = await runner.approveAndContinue();
+    expect(runner.isWaitingForApproval()).toBe(false);
+    expect(finalCtx.draftFindings.length).toBeGreaterThanOrEqual(1);
+    expect(finalCtx.regressionSuites).toBeDefined();
+    expect(finalCtx.regressionSuites?.length).toBeGreaterThanOrEqual(3); // pytest + jest + curl per finding
+
+    const suites = finalCtx.regressionSuites!;
+    expect(suites.some((s) => s.framework === 'pytest')).toBe(true);
+    expect(suites.some((s) => s.framework === 'jest')).toBe(true);
+    expect(suites.some((s) => s.framework === 'curl')).toBe(true);
+    expect(suites.every((s) => s.wasExecuted === false)).toBe(true);
+  });
 });

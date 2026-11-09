@@ -82,6 +82,13 @@ export class AssetGraph {
     return Array.from(this.edges.values());
   }
 
+  public getStats(): { nodeCount: number; edgeCount: number } {
+    return {
+      nodeCount: this.nodes.size,
+      edgeCount: this.edges.size,
+    };
+  }
+
   public getNodesByType(type: AssetNodeType): GraphNode[] {
     return Array.from(this.nodes.values()).filter((n) => n.type === type);
   }

@@ -1,6 +1,9 @@
 import { ScopeEvaluator } from '../assessment/ScopeEvaluator';
 import { CorrelationService } from '../intelligence/CorrelationService';
 import { OpenApiParser } from '../api/OpenApiParser';
+import { AssetGraph } from '../graph/AssetGraph';
+import { PrioritizationEngine, type PrioritizedItem } from '../prioritization/PrioritizationEngine';
+import { RegressionTestGenerator, type GeneratedRegressionSuite } from '../remediation/RegressionTestGenerator';
 import type { ReconAsset, ScopeItem, VulnerabilityFinding } from '../../types';
 
 export type PipelineStepStatus =
@@ -17,8 +20,11 @@ export type PipelineStepType =
   | 'tech_cluster'
   | 'advisory_correlate'
   | 'api_contract_audit'
+  | 'build_asset_graph'
+  | 'prioritize_attack_surface'
   | 'manual_checkpoint'
-  | 'report_draft';
+  | 'report_draft'
+  | 'generate_regression_suite';
 
 export interface PipelineStep {
   id: string;
@@ -49,6 +55,9 @@ export interface PipelineExecutionContext {
     severity: string;
   }>;
   draftFindings: VulnerabilityFinding[];
+  assetGraph?: AssetGraph;
+  prioritizedItems?: PrioritizedItem[];
+  regressionSuites?: GeneratedRegressionSuite[];
 }
 
 export interface PipelineDefinition {
@@ -268,6 +277,64 @@ export class PipelineRunner {
         break;
       }
 
+      case 'build_asset_graph': {
+        const targetAssets = this.context.inScopeAssets.length > 0 ? this.context.inScopeAssets : this.context.assets;
+        step.logs.push(`Constructing relational attack surface graph from ${targetAssets.length} assets...`);
+        const graph = new AssetGraph(this.context.projectId);
+        graph.buildFromFlatAssets(targetAssets);
+        this.context.assetGraph = graph;
+        const stats = graph.getStats();
+        step.logs.push(`Graph constructed: ${stats.nodeCount} nodes, ${stats.edgeCount} relationship edges.`);
+        step.outputSummary = `Relational graph created with ${stats.nodeCount} entities and ${stats.edgeCount} edges.`;
+        break;
+      }
+
+      case 'prioritize_attack_surface': {
+        step.logs.push('Evaluating attack surface risk priority matrix across all endpoints...');
+        const prioritized: PrioritizedItem[] = [];
+        const graph = this.context.assetGraph || new AssetGraph(this.context.projectId);
+        if (!this.context.assetGraph) {
+          graph.buildFromFlatAssets(this.context.inScopeAssets.length > 0 ? this.context.inScopeAssets : this.context.assets);
+          this.context.assetGraph = graph;
+        }
+
+        const endpointNodes = graph.getAllNodes().filter((n) => n.type === 'http_endpoint');
+        const engine = PrioritizationEngine.getInstance();
+
+        for (const ep of endpointNodes) {
+          const item = engine.prioritizeEndpoint(ep, this.context.draftFindings);
+          prioritized.push(item);
+          if (item.compositeScore >= 60) {
+            step.logs.push(`[PRIORITY ${item.priorityLevel.toUpperCase()}] ${item.url} -> Score ${item.compositeScore} (${item.rationales.join('; ')})`);
+          }
+        }
+
+        prioritized.sort((a, b) => b.compositeScore - a.compositeScore);
+        this.context.prioritizedItems = prioritized;
+        const highCount = prioritized.filter((p) => p.compositeScore >= 60).length;
+        step.logs.push(`Prioritization complete: ${highCount} high/critical priority targets identified.`);
+        step.outputSummary = `Prioritized ${prioritized.length} endpoints: ${highCount} high/critical targets.`;
+        break;
+      }
+
+      case 'generate_regression_suite': {
+        step.logs.push(`Synthesizing automated regression test suites for ${this.context.draftFindings.length} findings...`);
+        const suites: GeneratedRegressionSuite[] = [];
+
+        for (const finding of this.context.draftFindings) {
+          const py = RegressionTestGenerator.generatePyTest(finding);
+          const jest = RegressionTestGenerator.generateJest(finding);
+          const curl = RegressionTestGenerator.generateCurl(finding);
+          suites.push(py, jest, curl);
+          step.logs.push(`Generated PyTest, Jest, and cURL templates for ${finding.id}: "${finding.title}"`);
+        }
+
+        this.context.regressionSuites = suites;
+        step.logs.push(`Automated regression suite synthesis complete: ${suites.length} scripts prepared.`);
+        step.outputSummary = `${suites.length} regression test scripts generated across PyTest, Jest, and cURL.`;
+        break;
+      }
+
       case 'report_draft': {
         step.logs.push('Synthesizing correlated observations into draft findings...');
         const findings: VulnerabilityFinding[] = [];
@@ -385,6 +452,79 @@ export const PRESET_PIPELINES: PipelineDefinition[] = [
         name: 'Draft Findings & Checklists',
         type: 'report_draft',
         description: 'Generates API security test cases and vulnerability drafts.',
+        status: 'idle',
+        logs: [],
+      },
+    ],
+  },
+  {
+    id: 'pipeline-end-to-end-defense',
+    name: 'End-to-End Defensive Research & Regression Pipeline',
+    description: 'Complete lifecycle: Ingestion → Scope Enforcement → Relational Graph → Prioritization → Correlation → Tester Review Checkpoint → Findings → Regression Suite Synthesis.',
+    isPreset: true,
+    steps: [
+      {
+        id: 'step-1',
+        name: 'Ingest Recon Dataset',
+        type: 'ingest_recon',
+        description: 'Loads all normalized endpoints and HTTP metadata.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-2',
+        name: 'Evaluate Scope Boundaries',
+        type: 'scope_filter',
+        description: 'Filters out-of-scope hosts and subnets.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-3',
+        name: 'Build Relational Asset Graph',
+        type: 'build_asset_graph',
+        description: 'Constructs relational entity-relationship graph connecting services, endpoints, and parameters.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-4',
+        name: 'Explainable Risk Prioritization',
+        type: 'prioritize_attack_surface',
+        description: 'Computes explainable 0-100 risk scores combining CISA KEV, severity, and sensitivity.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-5',
+        name: 'Advisory Knowledge Correlation',
+        type: 'advisory_correlate',
+        description: 'Cross-references detected services against CWE and OWASP Top 10.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-6',
+        name: 'Tester Verification Gate',
+        type: 'manual_checkpoint',
+        description: 'Pauses for human analyst review before populating report findings.',
+        status: 'idle',
+        requiresApproval: true,
+        logs: [],
+      },
+      {
+        id: 'step-7',
+        name: 'Synthesize Draft Findings',
+        type: 'report_draft',
+        description: 'Files verified observations as draft findings in Report Studio.',
+        status: 'idle',
+        logs: [],
+      },
+      {
+        id: 'step-8',
+        name: 'Synthesize Automated Regression Suites',
+        type: 'generate_regression_suite',
+        description: 'Generates PyTest, Jest, and cURL regression verification scripts for all findings.',
         status: 'idle',
         logs: [],
       },
