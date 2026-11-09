@@ -24,10 +24,14 @@ import {
   FileSearch,
   Lock,
   Plus,
+  BookOpen,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import { parseSecurityArtifact } from '../../lib/security/artifactParsers';
+import { correlationService } from '../../domain/intelligence/CorrelationService';
 import {
   extractFromJavaScript,
   SAMPLE_JS_BUNDLE,
@@ -269,6 +273,7 @@ export default function ReconHub({ onSendToAI }: ReconHubProps) {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
   const [techFilter, setTechFilter] = useState<string>('all');
+  const [expandedAdvisories, setExpandedAdvisories] = useState<Record<string, boolean>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1040,6 +1045,105 @@ Generate an end-to-end OSINT and Reconnaissance Attack Plan tailored specificall
                         ))}
                       </div>
                     )}
+
+                    {/* Security Intelligence Advisory Correlation */}
+                    {(() => {
+                      const observations = correlationService.correlateAsset(asset);
+                      if (observations.length === 0) return null;
+                      const isExpanded = !!expandedAdvisories[asset.id];
+
+                      return (
+                        <div className={styles.advisoryContainer}>
+                          <button
+                            className={styles.advisoryTrigger}
+                            onClick={() =>
+                              setExpandedAdvisories((prev) => ({
+                                ...prev,
+                                [asset.id]: !prev[asset.id],
+                              }))
+                            }
+                            title="View correlated CWE advisory, defensive checks, and remediation guidance"
+                          >
+                            <BookOpen size={11} />
+                            <span>
+                              Advisory: {observations[0].advisory.title} ({observations[0].advisory.cweId})
+                            </span>
+                            <span
+                              className={`${styles.confidenceBadge} ${
+                                observations[0].confidence === 'confirmed'
+                                  ? styles.confidenceConfirmed
+                                  : observations[0].confidence === 'high_confidence'
+                                    ? styles.confidenceHigh
+                                    : styles.confidenceTentative
+                              }`}
+                            >
+                              {observations[0].confidence}
+                            </span>
+                            {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                          </button>
+
+                          {isExpanded && (
+                            <div className={styles.advisoryBox}>
+                              <div className={styles.advisoryHeader}>
+                                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                  <Shield size={12} color="#10b981" />
+                                  <span style={{ fontWeight: 600, color: '#f8fafc' }}>
+                                    {observations[0].advisory.owaspCategory}
+                                  </span>
+                                </div>
+                                <button
+                                  className={`${styles.btn} ${styles.btnPrimary}`}
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                                  onClick={() => {
+                                    const obs = observations[0];
+                                    workbenchBridge.addFinding({
+                                      id: `f-adv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                                      title: `${obs.advisory.title} (${asset.host})`,
+                                      severity: obs.advisory.severity,
+                                      cweId: obs.advisory.cweId,
+                                      owaspCategory: obs.advisory.owaspCategory,
+                                      targetEndpoint: asset.url,
+                                      description: `${obs.advisory.description}\n\n**Discovered Evidence**: ${obs.evidenceText}\n**Confidence Score**: ${obs.confidence.toUpperCase()}`,
+                                      remediation: obs.remediation,
+                                    });
+                                    workbenchBridge.switchTab('reports');
+                                  }}
+                                  title="Add correlated advisory as a formal finding in ReportStudio"
+                                >
+                                  <Shield size={10} /> File in Report
+                                </button>
+                              </div>
+
+                              <div style={{ color: '#cbd5e1', lineHeight: 1.45 }}>
+                                {observations[0].advisory.description}
+                              </div>
+
+                              <div>
+                                <div className={styles.advisorySectionTitle}>Defensive Verification Procedure</div>
+                                <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                                  {observations[0].suggestedCheck}
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className={styles.advisorySectionTitle}>Remediation Pattern</div>
+                                <div
+                                  style={{
+                                    fontFamily: 'JetBrains Mono, monospace',
+                                    color: '#38bdf8',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  {observations[0].remediation}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Action Toolbar */}
                     <div className={styles.assetActions}>
