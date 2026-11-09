@@ -1,6 +1,9 @@
 import { db } from '../db';
 import { workbenchBridge } from './workbenchBridge';
-import type { Chat, Project, ScopeItem, SecurityChecklistItem, VAPTReport } from '../../types';
+import { storageManager } from '../../core/storage/StorageManager';
+import { evidenceVault } from '../../domain/evidence/EvidenceVault';
+import { eventBus } from '../../core/bus/EventBus';
+import type { Chat, Project, ScopeItem, SecurityChecklistItem, VAPTReport, ReconAsset } from '../../types';
 
 export interface NexusEngagementBundle {
   version: '1.0.0';
@@ -11,6 +14,8 @@ export interface NexusEngagementBundle {
   checklistItems?: SecurityChecklistItem[];
   chats?: Chat[];
   httpRequest?: string;
+  reconAssets?: ReconAsset[];
+  evidence?: any[];
 }
 
 /**
@@ -51,6 +56,26 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
     // ignore
   }
 
+  let reconAssets: ReconAsset[] | undefined;
+  try {
+    const idbAssets = await storageManager.getAssets(currentProjectId);
+    if (idbAssets && idbAssets.length > 0) {
+      reconAssets = idbAssets as unknown as ReconAsset[];
+    } else {
+      const raw = localStorage.getItem('nexus_security_recon_assets');
+      if (raw) reconAssets = JSON.parse(raw);
+    }
+  } catch {
+    // ignore
+  }
+
+  let evidence: any[] | undefined;
+  try {
+    evidence = await evidenceVault.getEvidence(currentProjectId);
+  } catch {
+    // ignore
+  }
+
   const httpRequest = localStorage.getItem('nexus_security_http_request') || undefined;
 
   const bundle: NexusEngagementBundle = {
@@ -62,6 +87,8 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
     checklistItems,
     chats: workspaceChats,
     httpRequest,
+    reconAssets,
+    evidence,
   };
 
   const json = JSON.stringify(bundle, null, 2);
@@ -130,6 +157,25 @@ export async function importEngagementBundle(file: File): Promise<{
   // 6. Restore HTTP Request
   if (bundle.httpRequest) {
     workbenchBridge.loadHttp(bundle.httpRequest);
+  }
+
+  // 7. Restore Recon Assets (Fixing Line 48 Data Loss liability)
+  if (bundle.reconAssets && Array.isArray(bundle.reconAssets)) {
+    try {
+      await storageManager.saveAssets(
+        bundle.reconAssets.map((a) => ({
+          ...a,
+          createdAt: a.createdAt || Date.now(),
+          projectId: bundle.project.id,
+        }))
+      );
+      eventBus.publish('recon:assets-added', {
+        assets: bundle.reconAssets,
+        projectId: bundle.project.id,
+      });
+    } catch {
+      // ignore
+    }
   }
 
   return {
