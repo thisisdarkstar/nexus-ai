@@ -177,3 +177,4 @@ export class StorageManager {
 }
 
 export const storageManager = StorageManager.getInstance();
+

@@ -135,3 +135,4 @@ export const ADVISORY_CATALOG: SecurityAdvisory[] = [
     ],
   },
 ];
+

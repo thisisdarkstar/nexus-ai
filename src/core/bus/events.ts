@@ -60,3 +60,4 @@ export interface SecurityEventMap {
   // Project & Workspace Context
   'project:switched': { projectId: string; previousProjectId?: string };
 }
+

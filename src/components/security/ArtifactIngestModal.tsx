@@ -11,6 +11,7 @@ import {
   Radar,
 } from 'lucide-react';
 import { parseSecurityArtifact, type ParsedArtifactResult } from '../../lib/security/artifactParsers';
+import { ingestionService } from '../../services/IngestionService';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import styles from './ArtifactIngestModal.module.css';
 
@@ -24,18 +25,30 @@ export default function ArtifactIngestModal({ isOpen, onClose, onSuccess }: Arti
   const [parsedResult, setParsedResult] = useState<ParsedArtifactResult | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   const handleFileProcess = (file: File) => {
     setFileName(file.name);
+    setIsProcessing(true);
+    setProgressMessage(`Reading ${file.name}...`);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string;
       if (text) {
-        const result = parseSecurityArtifact(text, file.name);
-        setParsedResult(result);
+        try {
+          const result = await ingestionService.ingestFile(text, file.name, {
+            onProgress: (p) => setProgressMessage(p.message),
+          });
+          setParsedResult(result);
+        } catch (err) {
+          console.error('Ingestion failed:', err);
+        } finally {
+          setIsProcessing(false);
+        }
       }
     };
     reader.readAsText(file);

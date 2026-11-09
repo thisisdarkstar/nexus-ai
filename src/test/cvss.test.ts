@@ -75,3 +75,4 @@ describe('CVSS v3.1 Calculator', () => {
     expect(result.severity).toBe('info');
   });
 });
+

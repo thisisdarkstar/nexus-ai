@@ -107,7 +107,61 @@ export function parseSecurityArtifact(content: string, fileName: string): Parsed
 // -------------------------------------------------------------
 // BURP SUITE XML PARSER
 // -------------------------------------------------------------
+function parseBurpXmlRegex(xmlText: string): ParsedArtifactResult {
+  const scopeMap = new Map<string, ScopeItem>();
+  const rawRequests: string[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match: RegExpExecArray | null;
+  let idx = 0;
+
+  while ((match = itemRegex.exec(xmlText)) !== null) {
+    const itemContent = match[1];
+    const host = (/<host[^>]*>([^<]+)<\/host>/i.exec(itemContent)?.[1] || '').trim();
+    const port = (/<port[^>]*>([^<]+)<\/port>/i.exec(itemContent)?.[1] || '443').trim();
+    const protocol = (/<protocol[^>]*>([^<]+)<\/protocol>/i.exec(itemContent)?.[1] || 'https').trim();
+    const requestBase64 = /<request[^>]*base64="true"[^>]*>([^<]+)<\/request>/i.exec(itemContent)?.[1];
+    const requestRaw = /<request[^>]*>([^<]+)<\/request>/i.exec(itemContent)?.[1];
+
+    if (host && !scopeMap.has(host)) {
+      scopeMap.set(host, {
+        id: `scope-burp-${idx}-${Date.now()}`,
+        target: `${protocol}://${host}${port !== '80' && port !== '443' ? `:${port}` : ''}`,
+        type: 'domain',
+        inScope: true,
+        techStack: ['Burp Suite Ingested'],
+        notes: `Extracted from Burp XML`,
+        status: 'untested',
+      });
+    }
+
+    if (rawRequests.length < 50) {
+      if (requestBase64) {
+        try {
+          rawRequests.push(atob(requestBase64));
+        } catch {
+          // ignore
+        }
+      } else if (requestRaw) {
+        rawRequests.push(requestRaw);
+      }
+    }
+    idx++;
+  }
+
+  const scopeItems = Array.from(scopeMap.values());
+  return {
+    sourceType: 'burp',
+    summary: `Burp Suite XML: Ingested ${idx} requests across ${scopeItems.length} unique hosts.`,
+    findings: [],
+    scopeItems,
+    rawRequests,
+  };
+}
+
 function parseBurpXml(xmlText: string, fileName: string): ParsedArtifactResult {
+  if (typeof DOMParser === 'undefined') {
+    return parseBurpXmlRegex(xmlText);
+  }
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const items = doc.querySelectorAll('item');
@@ -164,7 +218,51 @@ function parseBurpXml(xmlText: string, fileName: string): ParsedArtifactResult {
 // -------------------------------------------------------------
 // NMAP XML PARSER
 // -------------------------------------------------------------
+function parseNmapXmlRegex(xmlText: string): ParsedArtifactResult {
+  const scopeItems: ScopeItem[] = [];
+  const hostRegex = /<host[\s\S]*?<\/host>/g;
+  let match: RegExpExecArray | null;
+  let idx = 0;
+
+  while ((match = hostRegex.exec(xmlText)) !== null) {
+    const hostContent = match[1];
+    const addr = /<address[^>]*addr="([^"]+)"/i.exec(hostContent)?.[1] || '';
+    const hostName = /<hostname[^>]*name="([^"]+)"/i.exec(hostContent)?.[1] || addr;
+    const target = hostName || addr;
+    if (!target) continue;
+
+    const ports: string[] = [];
+    const portRegex = /<port[^>]*portid="([^"]+)"[\s\S]*?<state[^>]*state="open"[\s\S]*?<\/port>/g;
+    let pMatch: RegExpExecArray | null;
+    while ((pMatch = portRegex.exec(hostContent)) !== null) {
+      ports.push(pMatch[1]);
+    }
+
+    scopeItems.push({
+      id: `scope-nmap-${idx}-${Date.now()}`,
+      target,
+      type: target.match(/^\d+\.\d+\.\d+\.\d+$/) ? 'ip_range' : 'domain',
+      inScope: true,
+      techStack: ports.length > 0 ? [`Ports: ${ports.join(', ')}`] : ['Host Up'],
+      notes: `Discovered by Nmap`,
+      status: 'untested',
+    });
+    idx++;
+  }
+
+  return {
+    sourceType: 'nmap',
+    summary: `Nmap XML: Discovered ${scopeItems.length} active network hosts.`,
+    findings: [],
+    scopeItems,
+    rawRequests: [],
+  };
+}
+
 function parseNmapXml(xmlText: string, fileName: string): ParsedArtifactResult {
+  if (typeof DOMParser === 'undefined') {
+    return parseNmapXmlRegex(xmlText);
+  }
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const hosts = doc.querySelectorAll('host');

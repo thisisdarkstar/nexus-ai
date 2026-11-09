@@ -142,3 +142,4 @@ export class ScopeEvaluator {
     return matchDomainWildcard(hostname, rawTarget);
   }
 }
+

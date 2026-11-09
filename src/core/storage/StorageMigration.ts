@@ -96,3 +96,4 @@ export async function runStorageMigration(targetProjectId: string = 'default'): 
     return { migrated: false, counts: {} };
   }
 }
+

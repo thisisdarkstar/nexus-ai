@@ -88,3 +88,4 @@ class TypedEventBus {
 }
 
 export const eventBus = TypedEventBus.getInstance();
+

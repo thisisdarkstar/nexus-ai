@@ -54,3 +54,4 @@ describe('Typed EventBus Engine', () => {
     expect(healthySubscriber).toHaveBeenCalledWith({ id: 'scope-99' });
   });
 });
+

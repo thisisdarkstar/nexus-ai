@@ -60,3 +60,4 @@ describe('Security Intelligence Correlation Service', () => {
     expect(envObs?.confidence).toBe('confirmed');
   });
 });
+

@@ -31,6 +31,7 @@ import {
 import CustomSelect from '../common/CustomSelect';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import { parseSecurityArtifact } from '../../lib/security/artifactParsers';
+import { ingestionService } from '../../services/IngestionService';
 import { correlationService } from '../../domain/intelligence/CorrelationService';
 import {
   extractFromJavaScript,
@@ -448,20 +449,24 @@ Please formulate an aggressive bug bounty testing plan for this endpoint:
   // Ingest Recon File (httpx JSON, text, subdomains, endpoints)
   const handleFileProcess = (file: File) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string;
       if (text) {
-        const result = parseSecurityArtifact(text, file.name);
-        if (result.reconAssets && result.reconAssets.length > 0) {
-          setAssets((prev) => {
-            const map = new Map<string, ReconAsset>();
-            prev.forEach((a) => map.set(a.url.toLowerCase(), a));
-            result.reconAssets!.forEach((a) => map.set(a.url.toLowerCase(), a));
-            return Array.from(map.values());
-          });
-          if (result.scopeItems.length > 0) {
-            workbenchBridge.addScopeItems(result.scopeItems);
+        try {
+          const result = await ingestionService.ingestFile(text, file.name);
+          if (result.reconAssets && result.reconAssets.length > 0) {
+            setAssets((prev) => {
+              const map = new Map<string, ReconAsset>();
+              prev.forEach((a) => map.set(a.url.toLowerCase(), a));
+              result.reconAssets!.forEach((a) => map.set(a.url.toLowerCase(), a));
+              return Array.from(map.values());
+            });
+            if (result.scopeItems.length > 0) {
+              workbenchBridge.addScopeItems(result.scopeItems);
+            }
           }
+        } catch (err) {
+          console.error('Ingestion failed in ReconHub:', err);
         }
       }
     };
