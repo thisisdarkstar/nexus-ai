@@ -23,11 +23,16 @@ import {
   Activity,
   FileCode,
   Download,
+  Paperclip,
+  Mic,
+  MicOff,
+  Send,
+  Square,
 } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useChatEngine } from '../../hooks/useChatEngine';
 import MessageItem from '../chat/MessageItem';
-import InputBar from '../chat/InputBar';
+import ModelMenu from '../chat/ModelMenu';
 import AttachModal from '../chat/AttachModal';
 import SkeletonBubble from '../chat/SkeletonBubble';
 import CustomSelect from '../common/CustomSelect';
@@ -229,6 +234,7 @@ export default function CopilotDrawer({
   const [historySearch, setHistorySearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [attachModalOpen, setAttachModalOpen] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     messages,
@@ -266,6 +272,14 @@ export default function CopilotDrawer({
     setVoiceOverlay,
     onModelChange,
   });
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [input]);
 
   // Listen to cross-workbench AI dispatch
   useEffect(() => {
@@ -328,6 +342,17 @@ export default function CopilotDrawer({
     handleSend(prompt);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (!e.shiftKey && !e.ctrlKey) {
+        e.preventDefault();
+        if (input.trim() && !isGenerating) {
+          handleSend(input);
+        }
+      }
+    }
+  };
+
   // Drag and drop support
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -368,8 +393,8 @@ export default function CopilotDrawer({
       <div className={styles.header}>
         <div className={styles.brandGroup}>
           <div className={styles.copilotBadge}>
-            <Sparkles size={15} className={styles.copilotBadgeIcon} />
-            <span>AI Copilot</span>
+            <Sparkles size={14} className={styles.copilotBadgeIcon} />
+            <span>Copilot</span>
           </div>
 
           <div className={styles.threadSelectWrapper}>
@@ -377,7 +402,7 @@ export default function CopilotDrawer({
               value={currentChatId || '__new_chat__'}
               onChange={handleThreadSelect}
               options={threadOptions}
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+              style={{ fontSize: '0.74rem', padding: '0.2rem 0.45rem' }}
               ariaLabel="Select Thread"
             />
           </div>
@@ -519,12 +544,12 @@ export default function CopilotDrawer({
         {messages.length === 0 ? (
           <div className={styles.welcomeState}>
             <div className={styles.welcomeIconWrapper}>
-              <Sparkles size={24} />
+              <Sparkles size={22} />
             </div>
             <div>
               <h3 className={styles.welcomeTitle}>Nexus Security Copilot</h3>
               <p className={styles.welcomeDesc}>
-                Pair with an AI security specialist for vulnerability validation, scope verification, PoC crafting, and safe remediation.
+                Pair with an AI security specialist for vulnerability triage, scope verification, PoC crafting, and safe remediation.
               </p>
             </div>
 
@@ -573,25 +598,88 @@ export default function CopilotDrawer({
         )}
       </div>
 
-      {/* Input Bar */}
-      <InputBar
-        input={input}
-        onInputChange={setInput}
-        isGenerating={isGenerating}
-        providerStatus={providerStatus}
-        isSttActive={isSttActive}
-        voice={voice}
-        hasQueuedPrompt={hasQueuedPrompt}
-        queuedPromptDisplay={queuedPromptDisplay}
-        settings={settings}
-        availableModels={availableModels}
-        onModelChange={onModelChange}
-        onSend={() => handleSend(input)}
-        onStop={handleStop}
-        onSttToggle={handleSttToggle}
-        onAttachOpen={() => setAttachModalOpen(true)}
-        onCancelQueue={cancelQueue}
-      />
+      {/* Dedicated Integrated Bottom Input Dock */}
+      <div className={styles.inputDock}>
+        {hasQueuedPrompt && (
+          <div className={styles.queuedPill}>
+            <span className={styles.queuedDot} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Queued: {queuedPromptDisplay}
+            </span>
+            <button
+              type="button"
+              onClick={cancelQueue}
+              style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '0.7rem' }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        <div className={styles.inputCard}>
+          <textarea
+            ref={textareaRef}
+            className={styles.textarea}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Ask Copilot about ${activeMeta.name}...`}
+            rows={1}
+          />
+
+          <div className={styles.inputToolbar}>
+            <div className={styles.toolbarLeft}>
+              <button
+                type="button"
+                className={styles.toolBtn}
+                onClick={() => setAttachModalOpen(true)}
+                title="Attach files or logs"
+              >
+                <Paperclip size={14} />
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.toolBtn} ${isSttActive ? styles.micActive : ''}`}
+                onClick={handleSttToggle}
+                title={isSttActive ? 'Stop listening' : 'Voice dictation'}
+              >
+                {isSttActive ? <MicOff size={14} /> : <Mic size={14} />}
+              </button>
+
+              <ModelMenu
+                settings={settings}
+                availableModels={availableModels}
+                isGenerating={isGenerating}
+                onModelChange={onModelChange}
+              />
+            </div>
+
+            <div className={styles.toolbarRight}>
+              {isGenerating ? (
+                <button
+                  type="button"
+                  className={styles.stopBtn}
+                  onClick={handleStop}
+                  title="Stop generating response"
+                >
+                  <Square size={12} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.sendBtn}
+                  disabled={!input.trim() || providerStatus.state !== 'ready'}
+                  onClick={() => handleSend(input)}
+                  title="Send to Copilot (Enter)"
+                >
+                  <Send size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Attach Modal */}
       {attachModalOpen && (

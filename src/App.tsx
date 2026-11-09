@@ -383,10 +383,14 @@ function AppContent() {
 
       {/* Main Area: Security Workbench is 100% Core + Dockable Resizable Copilot Drawer */}
       <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-        <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
+        <Group
+          key={copilotOpen ? 'workbench-split' : 'workbench-full'}
+          orientation="horizontal"
+          style={{ width: '100%', height: '100%' }}
+        >
           <Panel
-            defaultSize={copilotOpen ? 72 : 100}
-            minSize={45}
+            defaultSize={copilotOpen ? '70%' : '100%'}
+            minSize="40%"
             style={{ height: '100%', overflow: 'hidden' }}
           >
             <SecurityCanvas
@@ -403,16 +407,16 @@ function AppContent() {
               <Separator
                 style={{
                   width: '5px',
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'rgba(255, 255, 255, 0.08)',
                   cursor: 'col-resize',
                   transition: 'background 0.2s',
                   zIndex: 20,
                 }}
               />
               <Panel
-                defaultSize={28}
-                minSize={22}
-                maxSize={45}
+                defaultSize="30%"
+                minSize="20%"
+                maxSize="50%"
                 style={{ height: '100%', overflow: 'hidden' }}
               >
                 <CopilotDrawer
