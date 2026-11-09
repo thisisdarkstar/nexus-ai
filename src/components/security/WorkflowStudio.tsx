@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Workflow,
   Play,
@@ -20,6 +20,7 @@ import {
   type PipelineExecutionContext,
 } from '../../domain/workflow/PipelineRunner';
 import { storageManager } from '../../core/storage/StorageManager';
+import CustomSelect from '../common/CustomSelect';
 import type { ReconAsset, ScopeItem } from '../../types';
 import styles from './WorkflowStudio.module.css';
 
@@ -51,6 +52,13 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
   });
 
   const runnerRef = useRef<PipelineRunner | null>(null);
+
+  const presetOptions = useMemo(() => {
+    return PRESET_PIPELINES.map((p) => ({
+      value: p.id,
+      label: p.name,
+    }));
+  }, []);
 
   // Initialize runner when preset changes
   useEffect(() => {
@@ -276,18 +284,13 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
       <div className={styles.presetBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#94a3b8' }}>Workflow Template:</span>
-          <select
-            className={styles.presetSelect}
+          <CustomSelect
             value={selectedPresetId}
-            onChange={(e) => setSelectedPresetId(e.target.value)}
+            onChange={(val) => setSelectedPresetId(val)}
+            options={presetOptions}
             disabled={isRunning}
-          >
-            {PRESET_PIPELINES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            style={{ minWidth: '320px' }}
+          />
         </div>
 
         <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>

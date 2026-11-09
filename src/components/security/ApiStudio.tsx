@@ -17,11 +17,29 @@ import {
 import { OpenApiParser, type ApiAuditResult, type ApiEndpoint, type HttpMethod, type ApiRiskLevel } from '../../domain/api/OpenApiParser';
 import { eventBus } from '../../core/bus/EventBus';
 import { useToast } from '../../lib/toast';
+import CustomSelect from '../common/CustomSelect';
 import styles from './ApiStudio.module.css';
 
 interface ApiStudioProps {
   onSendToAI?: (prompt: string) => void;
 }
+
+const METHOD_OPTIONS = [
+  { value: 'ALL', label: 'All Methods' },
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+];
+
+const RISK_OPTIONS = [
+  { value: 'ALL', label: 'All Risks' },
+  { value: 'critical', label: 'Critical' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+];
 
 const SAMPLE_VULNERABLE_BANK_SPEC = JSON.stringify(
   {
@@ -424,31 +442,18 @@ Please provide:
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <select
-              className={styles.searchBox}
-              style={{ flex: 'none', width: '90px' }}
+            <CustomSelect
               value={filterMethod}
-              onChange={(e) => setFilterMethod(e.target.value)}
-            >
-              <option value="ALL">All Methods</option>
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="DELETE">DELETE</option>
-              <option value="PATCH">PATCH</option>
-            </select>
-            <select
-              className={styles.searchBox}
-              style={{ flex: 'none', width: '100px' }}
+              onChange={(val) => setFilterMethod(val)}
+              options={METHOD_OPTIONS}
+              style={{ minWidth: '130px' }}
+            />
+            <CustomSelect
               value={filterRisk}
-              onChange={(e) => setFilterRisk(e.target.value)}
-            >
-              <option value="ALL">All Risks</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+              onChange={(val) => setFilterRisk(val)}
+              options={RISK_OPTIONS}
+              style={{ minWidth: '120px' }}
+            />
           </div>
 
           <div className={styles.endpointList}>

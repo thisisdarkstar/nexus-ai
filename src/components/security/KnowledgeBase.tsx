@@ -16,6 +16,7 @@ import {
 } from '../../domain/knowledge/KnowledgeBaseData';
 import { eventBus } from '../../core/bus/EventBus';
 import { useToast } from '../../lib/toast';
+import CustomSelect from '../common/CustomSelect';
 import styles from './KnowledgeBase.module.css';
 
 interface KnowledgeBaseProps {
@@ -35,6 +36,23 @@ export default function KnowledgeBase({ onSendToAI }: KnowledgeBaseProps) {
     const cats = new Set(KNOWLEDGE_BASE_ENTRIES.map((e) => e.category));
     return ['ALL', ...Array.from(cats)];
   }, []);
+
+  const categoryOptions = useMemo(() => {
+    return categories.map((c) => ({
+      value: c,
+      label: c === 'ALL' ? 'All Categories' : c,
+    }));
+  }, [categories]);
+
+  const severityOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All Severities' },
+      { value: 'critical', label: 'Critical' },
+      { value: 'high', label: 'High' },
+      { value: 'medium', label: 'Medium' },
+    ],
+    []
+  );
 
   const filteredEntries = useMemo(() => {
     return KNOWLEDGE_BASE_ENTRIES.filter((entry) => {
@@ -142,29 +160,18 @@ Please provide:
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <select
-              className={styles.searchBox}
-              style={{ flex: 'none', width: '110px' }}
+            <CustomSelect
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <select
-              className={styles.searchBox}
-              style={{ flex: 'none', width: '90px' }}
+              onChange={(val) => setSelectedCategory(val)}
+              options={categoryOptions}
+              style={{ minWidth: '150px' }}
+            />
+            <CustomSelect
               value={selectedSeverity}
-              onChange={(e) => setSelectedSeverity(e.target.value)}
-            >
-              <option value="ALL">All Sev</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-            </select>
+              onChange={(val) => setSelectedSeverity(val)}
+              options={severityOptions}
+              style={{ minWidth: '130px' }}
+            />
           </div>
 
           <div className={styles.entryList}>

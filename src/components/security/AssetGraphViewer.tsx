@@ -14,6 +14,7 @@ import { prioritizationEngine } from '../../domain/prioritization/Prioritization
 import { storageManager } from '../../core/storage/StorageManager';
 import { eventBus } from '../../core/bus/EventBus';
 import { useToast } from '../../lib/toast';
+import CustomSelect from '../common/CustomSelect';
 import type { ReconAsset, ScopeItem, SecurityTab } from '../../types';
 import styles from './AssetGraphViewer.module.css';
 
@@ -519,17 +520,12 @@ export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <select
-            className={styles.filterSelect}
+          <CustomSelect
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setFilterType(val)}
+            options={FILTER_OPTIONS}
+            style={{ minWidth: '170px' }}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.78rem', color: '#94a3b8' }}>
