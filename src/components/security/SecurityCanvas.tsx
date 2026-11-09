@@ -23,6 +23,7 @@ import {
   Network,
   Activity,
   BookOpen,
+  Share2,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -35,6 +36,7 @@ const ChecklistTracker = lazy(() => import('./ChecklistTracker'));
 const HttpStudio = lazy(() => import('./HttpStudio'));
 const PayloadCrafter = lazy(() => import('./PayloadCrafter'));
 const ReconHub = lazy(() => import('./ReconHub'));
+const AssetGraphViewer = lazy(() => import('./AssetGraphViewer'));
 const NucleiStudio = lazy(() => import('./NucleiStudio'));
 const RemediationHub = lazy(() => import('./RemediationHub'));
 const ApiStudio = lazy(() => import('./ApiStudio'));
@@ -84,6 +86,7 @@ const SECURITY_TABS: TabItem[] = [
   { id: 'decoders', name: 'Decoders', category: 'web', icon: Binary, tooltip: 'JWT Inspector, Encoders & Hashes' },
 
   // Recon & Automation
+  { id: 'graph', name: 'Asset Graph', category: 'recon', icon: Share2, tooltip: 'Relational Attack Surface Entity-Relationship Graph' },
   { id: 'recon', name: 'Recon Hub', category: 'recon', icon: Search, tooltip: 'Recon CLI Tool Chains & Google/GitHub Dorks' },
   { id: 'workflow', name: 'Workflows', category: 'recon', icon: Workflow, tooltip: 'Visual Assessment Orchestration & Pipeline Runner' },
   { id: 'nuclei', name: 'Nuclei Studio', category: 'recon', icon: FileCode, tooltip: 'Nuclei v3 YAML Template Builder' },
@@ -424,6 +427,13 @@ export default function SecurityCanvas({
           {activeTab === 'recon' && (
             <ReconHub
               onSendToAI={onSendToAI}
+            />
+          )}
+
+          {activeTab === 'graph' && (
+            <AssetGraphViewer
+              onSendToAI={onSendToAI}
+              onTabChange={onTabChange}
             />
           )}
 

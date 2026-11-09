@@ -13,8 +13,11 @@ import {
   Layers,
   FileCode,
   Zap,
+  GitCompare,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
+import { replayService } from '../../services/ReplayService';
+import type { HttpMethod, ExecutionRequest } from '../../core/policy/ExecutionPolicyGuard';
 import styles from './HttpStudio.module.css';
 
 const HTTP_PRESET_OPTIONS = [
@@ -118,10 +121,19 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
 
   const [leftTab, setLeftTab] = useState<'raw' | 'headers' | 'params' | 'body' | 'cookies'>('raw');
   const [rightTab, setRightTab] = useState<'response' | 'code' | 'security' | 'fuzz'>('response');
+  const [responseView, setResponseView] = useState<'body' | 'headers' | 'diff'>('body');
   const [codeLang, setCodeLang] = useState<'curl' | 'python' | 'javascript' | 'go' | 'powershell'>('curl');
   const [copied, setCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activePreset, setActivePreset] = useState<string>('auth_login');
+  const [mutateApproved, setMutateApproved] = useState<boolean>(false);
+  const [policyStatus, setPolicyStatus] = useState<{
+    allowed: boolean;
+    code?: string;
+    reason?: string;
+    responseHash?: string;
+  } | null>(null);
+  const [baselineResponse, setBaselineResponse] = useState<HttpResponseState | null>(null);
 
   // Parse Raw HTTP Request
   const parsed = useMemo(() => {
@@ -224,62 +236,109 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
 
   const handleSendRequest = async () => {
     setIsSending(true);
-    const start = performance.now();
     try {
-      // Attempt real fetch if possible, or provide high-fidelity security simulated response
       const headersObj: Record<string, string> = {};
       parsed.headers.forEach((h) => {
         if (h.key.toLowerCase() !== 'host') headersObj[h.key] = h.value;
       });
 
-      const res = await fetch(parsed.fullUrl, {
-        method: parsed.method,
+      const method = parsed.method as HttpMethod;
+      const executionReq: ExecutionRequest = {
+        id: `http-req-${Date.now()}`,
+        url: parsed.fullUrl,
+        method,
         headers: headersObj,
-        body: ['GET', 'HEAD'].includes(parsed.method) ? undefined : parsed.body || undefined,
-        mode: 'cors',
-      });
+        body: ['GET', 'HEAD'].includes(method) ? undefined : parsed.body || undefined,
+        isMutatingApproved: mutateApproved,
+        initiator: 'HttpStudio',
+      };
 
-      const timeMs = Math.round(performance.now() - start);
-      const text = await res.text();
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((v, k) => {
-        resHeaders[k] = v;
-      });
+      const dispatchRes = await replayService.dispatchAuthorizedRequest(executionReq, 'default', 8000);
 
-      setResponse({
-        status: res.status,
-        statusText: res.statusText,
-        timeMs,
-        sizeBytes: text.length,
-        headers: resHeaders,
-        body: text,
-      });
-    } catch (err) {
-      const timeMs = Math.round(performance.now() - start);
-      setResponse({
-        status: 0,
-        statusText: 'CORS Blocked / Network Failure',
-        timeMs,
-        sizeBytes: 0,
-        headers: {
-          'x-security-warning': 'CORS restriction enforced by browser environment',
-        },
-        body: JSON.stringify(
-          {
-            error: 'Direct request blocked by browser CORS security policy.',
-            target: parsed.fullUrl,
-            method: parsed.method,
-            reason: 'Standard web browsers restrict unauthorized cross-origin HTTP tampering.',
-            solutions: [
-              'Click "Code" tab -> Copy as cURL or Python script for raw terminal execution.',
-              'Use the Python Sandbox tab to run custom request scripts via WebAssembly.',
-              'Run a local CORS proxy companion during engagements (e.g. npx local-cors-proxy --proxyUrl ' + (parsed.fullUrl.split('/')[0] + '//' + parsed.fullUrl.split('/')[2]) + ')'
-            ]
+      if (!dispatchRes.validation.allowed) {
+        setPolicyStatus({
+          allowed: false,
+          code: dispatchRes.validation.rejectionCode,
+          reason: dispatchRes.validation.reason,
+        });
+
+        setResponse({
+          status: 0,
+          statusText: `Policy Guard: ${dispatchRes.validation.rejectionCode || 'REJECTED'}`,
+          timeMs: dispatchRes.timingMs || 0,
+          sizeBytes: 0,
+          headers: {
+            'x-guard-action': 'BLOCKED',
+            'x-rejection-code': dispatchRes.validation.rejectionCode || 'UNKNOWN',
           },
-          null,
-          2
-        ),
-      });
+          body: JSON.stringify(
+            {
+              error: 'Request Blocked by Defensive Execution Policy Guard',
+              rejectionCode: dispatchRes.validation.rejectionCode,
+              reason: dispatchRes.validation.reason,
+              target: parsed.fullUrl,
+              method: parsed.method,
+              guidance:
+                dispatchRes.validation.rejectionCode === 'MUTATION_UNAPPROVED'
+                  ? 'Mutating HTTP method detected (POST/PUT/DELETE). Check "Authorize Mutating" in the top bar to explicitly confirm authorization.'
+                  : dispatchRes.validation.rejectionCode === 'OUT_OF_SCOPE'
+                  ? 'Target is outside the current authorized engagement scope. Add the domain/IP in the Scope Manager tab.'
+                  : dispatchRes.validation.rejectionCode === 'BLOCKED_HOST'
+                  ? 'Target is a loopback, RFC1918 internal IP, or cloud metadata endpoint (169.254.169.254). Direct dispatch is blocked for safety.'
+                  : dispatchRes.validation.rejectionCode === 'RATE_LIMITED'
+                  ? 'Domain request rate limit exceeded (5 req/sec). Throttled to prevent unintended load.'
+                  : dispatchRes.validation.rejectionCode === 'BUDGET_EXCEEDED'
+                  ? 'Session request budget reached. Reset session in configuration to resume.'
+                  : 'Check scope boundaries and authorization rules.',
+            },
+            null,
+            2
+          ),
+        });
+      } else {
+        // Request passed defensive policy guard
+        setBaselineResponse(response);
+        setPolicyStatus({
+          allowed: true,
+          responseHash: dispatchRes.responseHash,
+        });
+
+        if (dispatchRes.success) {
+          setResponse({
+            status: dispatchRes.status || 200,
+            statusText: dispatchRes.statusText || 'OK',
+            timeMs: dispatchRes.timingMs || 0,
+            sizeBytes: (dispatchRes.body || '').length,
+            headers: dispatchRes.headers || {},
+            body: dispatchRes.body || '',
+          });
+        } else {
+          setResponse({
+            status: 0,
+            statusText: 'CORS Blocked / Network Failure',
+            timeMs: dispatchRes.timingMs || 0,
+            sizeBytes: 0,
+            headers: {
+              'x-security-warning': 'CORS restriction enforced by browser environment',
+            },
+            body: JSON.stringify(
+              {
+                error: 'Direct request blocked by browser CORS policy.',
+                target: parsed.fullUrl,
+                method: parsed.method,
+                reason: dispatchRes.error || 'Standard web browsers restrict unauthorized cross-origin HTTP tampering.',
+                solutions: [
+                  'Click "Code" tab -> Copy as cURL or Python script for raw terminal execution.',
+                  'Use the Python Sandbox tab to run custom request scripts via WebAssembly.',
+                  'Run a local CORS proxy companion during engagements (e.g. npx local-cors-proxy --proxyUrl ' + (parsed.fullUrl.split('/')[0] + '//' + parsed.fullUrl.split('/')[2]) + ')',
+                ],
+              },
+              null,
+              2
+            ),
+          });
+        }
+      }
     } finally {
       setIsSending(false);
       setRightTab('response');
@@ -418,6 +477,25 @@ ${parsed.headers
     return findings;
   }, [parsed]);
 
+  const diffLines = useMemo(() => {
+    if (!baselineResponse) return [];
+    const oldLines = baselineResponse.body.split('\n');
+    const newLines = response.body.split('\n');
+    const diff: Array<{ type: 'same' | 'add' | 'rem'; line: string }> = [];
+    const max = Math.max(oldLines.length, newLines.length);
+    for (let i = 0; i < max; i++) {
+      const o = oldLines[i];
+      const n = newLines[i];
+      if (o === n) {
+        if (o !== undefined) diff.push({ type: 'same', line: o });
+      } else {
+        if (o !== undefined) diff.push({ type: 'rem', line: o });
+        if (n !== undefined) diff.push({ type: 'add', line: n });
+      }
+    }
+    return diff;
+  }, [baselineResponse, response.body]);
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -493,12 +571,24 @@ Please assess:
           style={{ minWidth: '220px' }}
         />
 
+        {['POST', 'PUT', 'DELETE', 'PATCH'].includes(parsed.method) && (
+          <label className={styles.mutateCheckbox} title="Explicit Authorization Checkpoint for state-modifying HTTP methods">
+            <input
+              type="checkbox"
+              checked={mutateApproved}
+              onChange={(e) => setMutateApproved(e.target.checked)}
+            />
+            Authorize Mutating
+          </label>
+        )}
+
         <button
           className={`${styles.btn} ${styles.btnSend}`}
           onClick={handleSendRequest}
           disabled={isSending}
+          title="Dispatch request through strict defensive scope, budget, rate-limiting, and redirect guard"
         >
-          <Play size={13} fill="currentColor" /> {isSending ? 'Sending...' : 'Send / Replay'}
+          <Play size={13} fill="currentColor" /> {isSending ? 'Replaying...' : 'Safe Policy Replay'}
         </button>
 
         <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleAuditRequest}>
@@ -747,9 +837,108 @@ Please assess:
                   <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
                     📦 {response.sizeBytes} B
                   </span>
+
+                  {policyStatus && (
+                    policyStatus.allowed ? (
+                      <span className={styles.policyBadgeAllowed} title="Scope and defensive policy verified">
+                        <ShieldCheck size={12} /> Policy: Approved
+                      </span>
+                    ) : (
+                      <span className={styles.policyBadgeBlocked} title={policyStatus.reason}>
+                        <ShieldAlert size={12} /> Guard Blocked: [{policyStatus.code}]
+                      </span>
+                    )
+                  )}
+
+                  {policyStatus?.responseHash && (
+                    <span
+                      className={styles.hashBadge}
+                      title={`SHA-256 Fingerprint: ${policyStatus.responseHash}`}
+                    >
+                      🔐 {policyStatus.responseHash.substring(0, 10)}…
+                    </span>
+                  )}
                 </div>
 
-                <pre className={styles.codeBox}>{response.body}</pre>
+                <div className={styles.subTabs} style={{ alignSelf: 'flex-start' }}>
+                  <button
+                    className={`${styles.subTabBtn} ${responseView === 'body' ? styles.active : ''}`}
+                    onClick={() => setResponseView('body')}
+                  >
+                    Body
+                  </button>
+                  <button
+                    className={`${styles.subTabBtn} ${responseView === 'headers' ? styles.active : ''}`}
+                    onClick={() => setResponseView('headers')}
+                  >
+                    Headers ({Object.keys(response.headers).length})
+                  </button>
+                  {baselineResponse && (
+                    <button
+                      className={`${styles.subTabBtn} ${responseView === 'diff' ? styles.active : ''}`}
+                      onClick={() => setResponseView('diff')}
+                    >
+                      <GitCompare size={11} style={{ marginRight: '3px' }} /> Diff vs Previous
+                    </button>
+                  )}
+                </div>
+
+                {responseView === 'body' && (
+                  <pre className={styles.codeBox}>{response.body}</pre>
+                )}
+
+                {responseView === 'headers' && (
+                  <div className={styles.tableWrapper}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '35%' }}>Response Header</th>
+                          <th>Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(response.headers).length === 0 ? (
+                          <tr>
+                            <td colSpan={2} style={{ color: '#64748b', textAlign: 'center', padding: '1rem' }}>
+                              No response headers available
+                            </td>
+                          </tr>
+                        ) : (
+                          Object.entries(response.headers).map(([k, v], i) => (
+                            <tr key={i}>
+                              <td style={{ fontWeight: 600, color: '#38bdf8' }}>{k}</td>
+                              <td>{v}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {responseView === 'diff' && baselineResponse && (
+                  <div className={styles.diffContainer}>
+                    {diffLines.length === 0 ? (
+                      <span style={{ color: '#94a3b8' }}>Responses are identical.</span>
+                    ) : (
+                      diffLines.map((d, i) => (
+                        <div
+                          key={i}
+                          className={
+                            d.type === 'add'
+                              ? styles.diffLineAdded
+                              : d.type === 'rem'
+                              ? styles.diffLineRemoved
+                              : styles.diffLineUnchanged
+                          }
+                        >
+                          {d.type === 'add' ? '+ ' : d.type === 'rem' ? '- ' : '  '}
+                          {d.line}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -150,7 +150,8 @@ export type SecurityTab =
   | 'api_studio'
   | 'workflow'
   | 'dashboard'
-  | 'knowledge_base';
+  | 'knowledge_base'
+  | 'graph';
 
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 

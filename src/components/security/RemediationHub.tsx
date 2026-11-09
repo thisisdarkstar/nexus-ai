@@ -11,9 +11,12 @@ import {
   ArrowRight,
   Shield,
   Layers,
+  Download,
+  Copy,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
+import { RegressionTestGenerator } from '../../domain/remediation/RegressionTestGenerator';
 import type { VulnerabilityFinding, VulnerabilitySeverity } from '../../types';
 import styles from './RemediationHub.module.css';
 
@@ -156,10 +159,19 @@ export default function RemediationHub({ onSendToAI }: RemediationHubProps) {
 
   const [selectedId, setSelectedId] = useState<string>(findings[0]?.id || '');
   const [verificationSteps, setVerificationSteps] = useState<Record<string, boolean>>({});
+  const [testFramework, setTestFramework] = useState<'pytest' | 'jest' | 'curl'>('pytest');
+  const [testCopied, setTestCopied] = useState<boolean>(false);
 
   const selectedFinding = useMemo(() => {
     return findings.find((f) => f.id === selectedId) || findings[0];
   }, [findings, selectedId]);
+
+  const generatedSuite = useMemo(() => {
+    if (!selectedFinding) return null;
+    if (testFramework === 'pytest') return RegressionTestGenerator.generatePyTest(selectedFinding);
+    if (testFramework === 'jest') return RegressionTestGenerator.generateJest(selectedFinding);
+    return RegressionTestGenerator.generateCurlScript(selectedFinding);
+  }, [selectedFinding, testFramework]);
 
   const diff = useMemo(() => {
     if (!selectedFinding) return null;
@@ -386,6 +398,105 @@ Please provide:
                 })}
               </div>
             </div>
+
+            {/* Automated Regression Test Suite Generator */}
+            {generatedSuite && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Code2 size={14} color="#38bdf8" />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f1f5f9' }}>
+                      Automated Regression Test Generator
+                    </span>
+                    <span style={{ fontSize: '0.65rem', background: 'rgba(234,179,8,0.15)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.3)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                      Not Executed (Template)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                    {(['pytest', 'jest', 'curl'] as const).map((fw) => (
+                      <button
+                        key={fw}
+                        type="button"
+                        style={{
+                          background: testFramework === fw ? '#0284c7' : 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          color: '#fff',
+                          borderRadius: '4px',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          fontWeight: testFramework === fw ? 700 : 500,
+                        }}
+                        onClick={() => setTestFramework(fw)}
+                      >
+                        {fw === 'pytest' ? 'PyTest' : fw === 'jest' ? 'Jest (TS)' : 'cURL (Bash)'}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#fff',
+                        borderRadius: '4px',
+                        padding: '0.2rem 0.5rem',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                      }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedSuite.testCode);
+                        setTestCopied(true);
+                        setTimeout(() => setTestCopied(false), 1500);
+                      }}
+                    >
+                      {testCopied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
+                      {testCopied ? 'Copied' : 'Copy'}
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#fff',
+                        borderRadius: '4px',
+                        padding: '0.2rem 0.5rem',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                      }}
+                      onClick={() => {
+                        const blob = new Blob([generatedSuite.testCode], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = generatedSuite.fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download size={11} /> Download
+                    </button>
+                  </div>
+                </div>
+
+                <pre style={{ margin: 0, padding: '0.65rem', background: 'rgba(0,0,0,0.5)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#cbd5e1', overflowX: 'auto', maxHeight: '160px' }}>
+                  <code>{generatedSuite.testCode}</code>
+                </pre>
+                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                  Run in developer environment: <code>{generatedSuite.verificationCommand}</code>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className={styles.emptyState}>

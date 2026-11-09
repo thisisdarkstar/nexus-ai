@@ -325,6 +325,90 @@
 .securityCard.warn { border-left: 3px solid #f59e0b; }
 .securityCard.fail { border-left: 3px solid #ef4444; }
 
+.mutateCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #fbbf24;
+  cursor: pointer;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  user-select: none;
+}
+
+.policyBadgeAllowed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.policyBadgeBlocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.hashBadge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  background: #020617;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.diffContainer {
+  display: flex;
+  flex-direction: column;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  background: #020617;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.6rem;
+  overflow: auto;
+  max-height: 100%;
+}
+
+.diffLineAdded {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+  padding: 0 0.25rem;
+  border-radius: 2px;
+}
+
+.diffLineRemoved {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  padding: 0 0.25rem;
+  border-radius: 2px;
+}
+
+.diffLineUnchanged {
+  color: #64748b;
+  padding: 0 0.25rem;
+}
+
 @media (max-width: 768px) {
   .editorGrid {
     flex-direction: column;
