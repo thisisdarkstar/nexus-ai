@@ -1,0 +1,320 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary, #090d16);
+  color: var(--text-primary, #f1f5f9);
+  overflow-y: auto;
+  padding: 1.25rem;
+  gap: 1.25rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1rem;
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.titleIcon {
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.1);
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  color: #fff;
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnPrimary {
+  background: #7c3aed;
+  border-color: #6d28d9;
+  color: #fff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.btnSuccess {
+  background: #059669;
+  border-color: #047857;
+  color: #fff;
+}
+
+.btnSuccess:hover:not(:disabled) {
+  background: #047857;
+}
+
+.btnWarning {
+  background: #d97706;
+  border-color: #b45309;
+  color: #fff;
+}
+
+.btnWarning:hover:not(:disabled) {
+  background: #b45309;
+}
+
+/* Preset Selector Bar */
+.presetBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.presetSelect {
+  padding: 0.45rem 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.presetSelect:focus {
+  border-color: #a855f7;
+}
+
+/* Checkpoint Alert Banner */
+.checkpointBanner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.checkpointContent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.checkpointTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin: 0;
+}
+
+.checkpointText {
+  font-size: 0.8rem;
+  color: #fde68a;
+  margin: 0.2rem 0 0 0;
+}
+
+/* Pipeline Step Flow Grid */
+.stepsFlow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stepCard {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.stepCardRunning {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.stepCardWaiting {
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.stepCardCompleted {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.stepCardFailed {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.stepLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.stepNumber {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.stepNumberCompleted {
+  background: #059669;
+  border-color: #10b981;
+  color: #fff;
+}
+
+.stepInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.stepTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.stepDesc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.stepSummary {
+  font-size: 0.76rem;
+  color: #34d399;
+  font-family: monospace;
+}
+
+.statusBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.statusIdle { background: rgba(255, 255, 255, 0.06); color: #94a3b8; }
+.statusRunning { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+.statusWaiting { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+.statusCompleted { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+.statusFailed { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+/* Execution Logs Drawer */
+.logConsole {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.logHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.logLines {
+  font-family: monospace;
+  font-size: 0.76rem;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.logLine {
+  line-height: 1.4;
+  word-break: break-all;
+}

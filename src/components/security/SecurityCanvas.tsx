@@ -19,6 +19,8 @@ import {
   Check,
   UploadCloud,
   Wrench,
+  Workflow,
+  Network,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -33,6 +35,8 @@ const PayloadCrafter = lazy(() => import('./PayloadCrafter'));
 const ReconHub = lazy(() => import('./ReconHub'));
 const NucleiStudio = lazy(() => import('./NucleiStudio'));
 const RemediationHub = lazy(() => import('./RemediationHub'));
+const ApiStudio = lazy(() => import('./ApiStudio'));
+const WorkflowStudio = lazy(() => import('./WorkflowStudio'));
 import type { SecurityTab } from '../../types';
 import styles from './SecurityCanvas.module.css';
 
@@ -70,11 +74,13 @@ const SECURITY_TABS: TabItem[] = [
 
   // Web & Exploits
   { id: 'http_studio', name: 'HTTP Studio', category: 'web', icon: Globe, tooltip: 'Burp Request Parser, cURL/Python Converter & Fuzzing' },
+  { id: 'api_studio', name: 'API Studio', category: 'web', icon: Network, tooltip: 'OpenAPI 3.0 / Swagger Contract Reviewer & Auth Gap Matrix' },
   { id: 'payloads', name: 'Payloads', category: 'web', icon: Radio, tooltip: 'Reverse Shell Generator, SSRF Cloud & SSTI Matrix' },
   { id: 'decoders', name: 'Decoders', category: 'web', icon: Binary, tooltip: 'JWT Inspector, Encoders & Hashes' },
 
   // Recon & Automation
   { id: 'recon', name: 'Recon Hub', category: 'recon', icon: Search, tooltip: 'Recon CLI Tool Chains & Google/GitHub Dorks' },
+  { id: 'workflow', name: 'Workflows', category: 'recon', icon: Workflow, tooltip: 'Visual Assessment Orchestration & Pipeline Runner' },
   { id: 'nuclei', name: 'Nuclei Studio', category: 'recon', icon: FileCode, tooltip: 'Nuclei v3 YAML Template Builder' },
   { id: 'sandbox', name: 'Sandbox', category: 'recon', icon: Terminal, tooltip: 'In-Browser Python Wasm Runtime' },
 
@@ -384,6 +390,12 @@ export default function SecurityCanvas({
             />
           )}
 
+          {activeTab === 'api_studio' && (
+            <ApiStudio
+              onSendToAI={onSendToAI}
+            />
+          )}
+
           {activeTab === 'payloads' && (
             <PayloadCrafter
               onSendToAI={onSendToAI}
@@ -392,6 +404,12 @@ export default function SecurityCanvas({
 
           {activeTab === 'recon' && (
             <ReconHub
+              onSendToAI={onSendToAI}
+            />
+          )}
+
+          {activeTab === 'workflow' && (
+            <WorkflowStudio
               onSendToAI={onSendToAI}
             />
           )}

@@ -60,6 +60,10 @@ export class ScopeEvaluator {
     this.scopeItems = items;
   }
 
+  public static isTargetInScope(targetUrlOrHost: string, rules: ScopeItem[]): ScopeEvaluationResult {
+    return new ScopeEvaluator(rules).evaluate(targetUrlOrHost);
+  }
+
   public evaluate(targetUrlOrHost: string): ScopeEvaluationResult {
     if (!this.scopeItems || this.scopeItems.length === 0) {
       return {
