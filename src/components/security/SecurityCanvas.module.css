@@ -35,19 +35,71 @@
   position: relative;
 }
 
+.tabNavWrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  margin: 0 4px;
+}
+
 .tabList {
   display: flex;
   align-items: center;
   gap: 2px;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   flex: 1;
   min-width: 0;
-  max-width: 100%;
+  padding: 2px 0;
+  scroll-behavior: smooth;
 }
 
 .tabList::-webkit-scrollbar {
-  display: none;
+  height: 3px;
+}
+
+.tabList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+.scrollArrowBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 26px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+  z-index: 5;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.scrollArrowBtn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.scrollArrowLeft {
+  margin-right: 3px;
+}
+
+.scrollArrowRight {
+  margin-left: 3px;
 }
 
 /* Custom Dropdown Selector for Narrow Views */
@@ -298,6 +350,9 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 6px;
+  margin-left: 2px;
 }
 
 .aiCoPilotBtn {
@@ -367,11 +422,11 @@
   box-sizing: border-box;
 }
 
-@container workbench (max-width: 1020px) {
+@container workbench (max-width: 680px) {
   .categoryGroup {
     display: none !important;
   }
-  .tabList {
+  .tabNavWrapper {
     display: none !important;
   }
   .dropdownWrapper {
@@ -379,11 +434,11 @@
   }
 }
 
-@container workbench (min-width: 1021px) and (max-width: 1340px) {
+@container workbench (min-width: 681px) and (max-width: 1080px) {
   .categoryGroup {
     display: none !important;
   }
-  .tabList {
+  .tabNavWrapper {
     display: flex !important;
   }
   .dropdownWrapper {
@@ -391,11 +446,11 @@
   }
 }
 
-@container workbench (min-width: 1341px) {
+@container workbench (min-width: 1081px) {
   .categoryGroup {
     display: flex !important;
   }
-  .tabList {
+  .tabNavWrapper {
     display: flex !important;
   }
   .dropdownWrapper {
@@ -403,11 +458,11 @@
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 720px) {
   .categoryGroup {
     display: none;
   }
-  .tabList {
+  .tabNavWrapper {
     display: none;
   }
   .dropdownWrapper {

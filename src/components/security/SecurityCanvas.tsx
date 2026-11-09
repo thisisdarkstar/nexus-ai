@@ -16,6 +16,8 @@ import {
   Maximize2,
   Minimize2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   UploadCloud,
   Wrench,
@@ -112,6 +114,47 @@ export default function SecurityCanvas({
   const [sandboxCode, setSandboxCode] = useState<string | undefined>(undefined);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollability = () => {
+    const el = tabListRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  };
+
+  const handleTabWheel = (e: React.WheelEvent) => {
+    if (tabListRef.current && e.deltaY !== 0) {
+      tabListRef.current.scrollLeft += e.deltaY;
+      checkScrollability();
+    }
+  };
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (!tabListRef.current) return;
+    const amount = direction === 'left' ? -220 : 220;
+    tabListRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    setTimeout(checkScrollability, 300);
+  };
+
+  useEffect(() => {
+    checkScrollability();
+    const handleResize = () => checkScrollability();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (tabListRef.current) {
+      const activeEl = tabListRef.current.querySelector<HTMLElement>(`.${styles.active}`);
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+    }
+    checkScrollability();
+  }, [activeTab, category]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -258,23 +301,52 @@ export default function SecurityCanvas({
           )}
         </div>
 
-        {/* Tab Switcher List */}
-        <div className={styles.tabList}>
-          {filteredTabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                className={`${styles.tabBtn} ${isActive ? styles.active : ''}`}
-                onClick={() => onTabChange(t.id)}
-                title={t.tooltip}
-              >
-                <Icon size={14} />
-                <span>{t.name}</span>
-              </button>
-            );
-          })}
+        {/* Tab Switcher List with Wheel & Arrow Scrolling */}
+        <div className={styles.tabNavWrapper}>
+          {canScrollLeft && (
+            <button
+              type="button"
+              className={`${styles.scrollArrowBtn} ${styles.scrollArrowLeft}`}
+              onClick={() => scrollTabs('left')}
+              title="Scroll tabs left"
+            >
+              <ChevronLeft size={13} />
+            </button>
+          )}
+
+          <div
+            className={styles.tabList}
+            ref={tabListRef}
+            onWheel={handleTabWheel}
+            onScroll={checkScrollability}
+          >
+            {filteredTabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  className={`${styles.tabBtn} ${isActive ? styles.active : ''}`}
+                  onClick={() => onTabChange(t.id)}
+                  title={t.tooltip}
+                >
+                  <Icon size={14} />
+                  <span>{t.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {canScrollRight && (
+            <button
+              type="button"
+              className={`${styles.scrollArrowBtn} ${styles.scrollArrowRight}`}
+              onClick={() => scrollTabs('right')}
+              title="Scroll tabs right"
+            >
+              <ChevronRight size={13} />
+            </button>
+          )}
         </div>
 
         {/* Action Controls */}
