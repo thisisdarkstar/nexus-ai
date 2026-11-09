@@ -134,3 +134,4 @@ export class IngestionService {
 }
 
 export const ingestionService = IngestionService.getInstance();
+

@@ -92,3 +92,4 @@ export class EvidenceVault {
 }
 
 export const evidenceVault = EvidenceVault.getInstance();
+

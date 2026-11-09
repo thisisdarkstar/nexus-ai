@@ -21,6 +21,8 @@ import {
   Wrench,
   Workflow,
   Network,
+  Activity,
+  BookOpen,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -37,6 +39,8 @@ const NucleiStudio = lazy(() => import('./NucleiStudio'));
 const RemediationHub = lazy(() => import('./RemediationHub'));
 const ApiStudio = lazy(() => import('./ApiStudio'));
 const WorkflowStudio = lazy(() => import('./WorkflowStudio'));
+const SecurityDashboard = lazy(() => import('./SecurityDashboard'));
+const KnowledgeBase = lazy(() => import('./KnowledgeBase'));
 import type { SecurityTab } from '../../types';
 import styles from './SecurityCanvas.module.css';
 
@@ -68,6 +72,7 @@ const CATEGORIES: Array<{ id: TabCategory; label: string }> = [
 
 const SECURITY_TABS: TabItem[] = [
   // Assess
+  { id: 'dashboard', name: 'Dashboard', category: 'assess', icon: Activity, tooltip: 'Security Posture & Engagement Executive Dashboard' },
   { id: 'reports', name: 'Reports', category: 'assess', icon: FileText, tooltip: 'VAPT & Bug Bounty Report Studio (CVSS Calculator)' },
   { id: 'scope', name: 'Scope', category: 'assess', icon: Target, tooltip: 'Target Scope & Asset Matrix' },
   { id: 'checklists', name: 'Checklists', category: 'assess', icon: CheckSquare, tooltip: 'OWASP WSTG v4.2 & API Checklist' },
@@ -87,6 +92,7 @@ const SECURITY_TABS: TabItem[] = [
   // Code & Defense
   { id: 'auditor', name: 'SAST Audit', category: 'defense', icon: ShieldAlert, tooltip: 'Static Vulnerability Code Auditor' },
   { id: 'remediation', name: 'Remediation', category: 'defense', icon: Wrench, tooltip: 'Patch Diff Viewer, Root-Cause & Fix Verification' },
+  { id: 'knowledge_base', name: 'Knowledge Base', category: 'defense', icon: BookOpen, tooltip: 'CWE & OWASP Technical Weakness Encyclopedia' },
   { id: 'threat_studio', name: 'Threat Studio', category: 'defense', icon: Layers, tooltip: 'Sigma Rules & STRIDE Threat Modeler' },
 ];
 
@@ -332,6 +338,13 @@ export default function SecurityCanvas({
             </div>
           }
         >
+          {activeTab === 'dashboard' && (
+            <SecurityDashboard
+              onTabChange={onTabChange}
+              onSendToAI={onSendToAI}
+            />
+          )}
+
           {activeTab === 'auditor' && (
             <CodeAuditor
               initialCode={initialCode}
@@ -341,6 +354,12 @@ export default function SecurityCanvas({
 
           {activeTab === 'remediation' && (
             <RemediationHub
+              onSendToAI={onSendToAI}
+            />
+          )}
+
+          {activeTab === 'knowledge_base' && (
+            <KnowledgeBase
               onSendToAI={onSendToAI}
             />
           )}

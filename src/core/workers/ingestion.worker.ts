@@ -18,3 +18,4 @@ self.onmessage = (e: MessageEvent) => {
     });
   }
 };
+

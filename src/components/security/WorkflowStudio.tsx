@@ -400,3 +400,4 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
     </div>
   );
 }
+

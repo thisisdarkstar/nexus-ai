@@ -135,6 +135,18 @@ export class StorageManager {
     });
   }
 
+  public async saveFindings(findings: StorageFinding[]): Promise<void> {
+    if (findings.length === 0) return;
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('findings', 'readwrite');
+      const store = tx.objectStore('findings');
+      findings.forEach((f) => store.put(f));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   public async deleteFinding(id: string): Promise<void> {
     const db = await this.init();
     return new Promise((resolve, reject) => {

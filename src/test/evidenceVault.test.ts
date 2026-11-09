@@ -39,3 +39,4 @@ describe('Cryptographic Evidence Vault', () => {
     expect(allRecords.find((r) => r.id === evidence.id)).toBeDefined();
   });
 });
+

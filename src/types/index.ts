@@ -148,7 +148,9 @@ export type SecurityTab =
   | 'nuclei'
   | 'remediation'
   | 'api_studio'
-  | 'workflow';
+  | 'workflow'
+  | 'dashboard'
+  | 'knowledge_base';
 
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 

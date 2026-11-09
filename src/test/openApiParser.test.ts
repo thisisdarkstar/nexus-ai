@@ -128,3 +128,4 @@ paths:
     expect(() => OpenApiParser.parse('NOT_A_VALID_SPEC: [')).toThrow();
   });
 });
+

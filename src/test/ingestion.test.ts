@@ -54,3 +54,4 @@ https://app.testacme.com/actuator/env`;
     expect(result.findings.length).toBe(0);
   });
 });
+
