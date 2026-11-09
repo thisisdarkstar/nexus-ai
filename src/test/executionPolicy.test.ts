@@ -205,3 +205,4 @@ describe('ExecutionPolicyGuard (P0 Security Boundary)', () => {
     expect(logs[0].rejectionCode).toBe('OUT_OF_SCOPE');
   });
 });
+

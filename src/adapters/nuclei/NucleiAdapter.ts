@@ -104,3 +104,4 @@ export class NucleiAdapter implements ScannerAdapter {
     return { nodes, edges, findings };
   }
 }
+

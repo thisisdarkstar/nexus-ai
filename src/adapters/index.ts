@@ -9,3 +9,4 @@ scannerAdapterRegistry.register(new SemgrepAdapter());
 export * from './ScannerAdapter';
 export * from './nuclei/NucleiAdapter';
 export * from './semgrep/SemgrepAdapter';
+

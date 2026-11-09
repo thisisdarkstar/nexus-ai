@@ -3,6 +3,7 @@ import { X, Download, Upload, Monitor, Volume2 } from 'lucide-react';
 import CustomSelect from './common/CustomSelect';
 import { db } from '../lib/db';
 import { DEFAULT_OPENAI_BASE_URL } from '../lib/constants';
+import { useToast } from '../lib/toast';
 import type { Settings } from '../types';
 import styles from './SettingsModal.module.css';
 
@@ -42,6 +43,7 @@ export default function SettingsModal({
   reloadChats,
   availableVoices = [],
 }: SettingsModalProps) {
+  const { toast } = useToast();
   const [provider, setProvider] = useState(settings.provider || 'chrome');
   const [theme, setTheme] = useState(settings.theme || 'dark');
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '');
@@ -140,10 +142,10 @@ export default function SettingsModal({
     reader.onload = async (event) => {
       try {
         await db.importData(event.target?.result as string);
-        alert('Import successful!');
+        toast('success', 'Import successful!');
         if (reloadChats) reloadChats();
       } catch (err) {
-        alert('Import failed: ' + (err instanceof Error ? err.message : String(err)));
+        toast('error', 'Import failed: ' + (err instanceof Error ? err.message : String(err)));
       }
     };
     reader.readAsText(file);

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { OpenApiParser, type ApiAuditResult, type ApiEndpoint, type HttpMethod, type ApiRiskLevel } from '../../domain/api/OpenApiParser';
 import { eventBus } from '../../core/bus/EventBus';
+import { useToast } from '../../lib/toast';
 import styles from './ApiStudio.module.css';
 
 interface ApiStudioProps {
@@ -172,6 +173,7 @@ const SAMPLE_VULNERABLE_BANK_SPEC = JSON.stringify(
 );
 
 export default function ApiStudio({ onSendToAI }: ApiStudioProps) {
+  const { toast } = useToast();
   const [specInput, setSpecInput] = useState<string>(SAMPLE_VULNERABLE_BANK_SPEC);
   const [showSpecEditor, setShowSpecEditor] = useState<boolean>(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -239,7 +241,7 @@ export default function ApiStudio({ onSendToAI }: ApiStudioProps) {
         status: 'open',
       },
     });
-    alert(`Filed vulnerability finding for ${endpoint.method} ${endpoint.path} into Report Studio!`);
+    toast('success', `Filed vulnerability finding for ${endpoint.method} ${endpoint.path} into Report Studio!`);
   };
 
   const handleSendToAIForEndpoint = (endpoint: ApiEndpoint) => {

@@ -1,21 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Share2,
-  Search,
-  Filter,
   PlusCircle,
-  ExternalLink,
   Sparkles,
-  Layers,
-  Shield,
-  Activity,
   RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from 'lucide-react';
 import { AssetGraph } from '../../domain/graph/AssetGraph';
 import type { GraphNode, GraphEdge, AssetNodeType } from '../../domain/graph/types';
 import { prioritizationEngine } from '../../domain/prioritization/PrioritizationEngine';
 import { storageManager } from '../../core/storage/StorageManager';
 import { eventBus } from '../../core/bus/EventBus';
+import { useToast } from '../../lib/toast';
 import type { ReconAsset, ScopeItem, SecurityTab } from '../../types';
 import styles from './AssetGraphViewer.module.css';
 
@@ -43,7 +41,18 @@ const NODE_COLORS: Record<AssetNodeType, string> = {
   finding: '#ef4444',
 };
 
-export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraphViewerProps) {
+const FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'ALL', label: 'All Node Entities' },
+  { value: 'domain', label: 'Domains' },
+  { value: 'subdomain', label: 'Subdomains' },
+  { value: 'http_endpoint', label: 'HTTP Endpoints' },
+  { value: 'parameter', label: 'Parameters' },
+  { value: 'technology', label: 'Technologies' },
+  { value: 'finding', label: 'Findings' },
+];
+
+export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) {
+  const { toast } = useToast();
   const [graph] = useState<AssetGraph>(() => new AssetGraph('default'));
   const [nodes, setNodes] = useState<SimNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
@@ -51,16 +60,44 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
   const [filterType, setFilterType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const [canvasDimensions, setCanvasDimensions] = useState<{ width: number; height: number }>({
+    width: 800,
+    height: 520,
+  });
+
   const panOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const zoomScale = useRef<number>(1);
   const isDragging = useRef<boolean>(false);
   const dragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const draggedNode = useRef<SimNode | null>(null);
+  const alphaRef = useRef<number>(1.0);
+  const animFrameRef = useRef<number | null>(null);
 
-  // Initialize and populate graph
-  const loadGraphData = async () => {
+  // ResizeObserver for dynamic canvas sizing
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 50 && rect.height > 50) {
+        setCanvasDimensions({
+          width: Math.floor(rect.width),
+          height: Math.floor(rect.height),
+        });
+      }
+    };
+
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Initialize and populate graph data
+  const loadGraphData = useCallback(async () => {
     let assets: ReconAsset[] = [];
     let scopeRules: ScopeItem[] = [];
 
@@ -69,7 +106,7 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
       if (storedAssets && storedAssets.length > 0) {
         assets = storedAssets as unknown as ReconAsset[];
       } else {
-        // Fallback demo surface
+        // Fallback demo surface if storage is empty
         assets = [
           {
             id: 'a1',
@@ -112,141 +149,218 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
     const rawNodes = graph.getAllNodes();
     const rawEdges = graph.getAllEdges();
 
-    // Assign randomized layout initial positions around center
+    const cx = canvasDimensions.width / 2;
+    const cy = canvasDimensions.height / 2;
+
+    // Distribute nodes in concentric rings by entity type
     const simNodes: SimNode[] = rawNodes.map((n, i) => {
-      const angle = (i / rawNodes.length) * 2 * Math.PI;
-      const radius = 120 + Math.random() * 100;
+      let baseRadius = 80;
+      if (n.type === 'domain') baseRadius = 20;
+      else if (n.type === 'subdomain') baseRadius = 110;
+      else if (n.type === 'http_endpoint') baseRadius = 180;
+      else if (n.type === 'parameter') baseRadius = 240;
+      else if (n.type === 'technology') baseRadius = 150;
+      else if (n.type === 'finding') baseRadius = 210;
+
+      const angle = (i / Math.max(1, rawNodes.length)) * 2 * Math.PI + (Math.random() - 0.5) * 0.4;
+      const radius = baseRadius + (Math.random() - 0.5) * 30;
+
       return {
         ...n,
-        x: 350 + Math.cos(angle) * radius,
-        y: 250 + Math.sin(angle) * radius,
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
         vx: 0,
         vy: 0,
       };
     });
 
+    alphaRef.current = 1.0;
     setNodes(simNodes);
     setEdges(rawEdges);
     setSelectedNodeId(simNodes[0]?.id || null);
-  };
+  }, [graph, canvasDimensions.width, canvasDimensions.height]);
 
   useEffect(() => {
     loadGraphData();
-  }, []);
+  }, [loadGraphData]);
 
-  // Simple Force-Directed Simulation Loop
+  // Stable Force-Directed Simulation Loop
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || nodes.length === 0) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     let running = true;
+    const nodeMap = new Map<string, SimNode>(nodes.map((n) => [n.id, n]));
 
     const render = () => {
       if (!running) return;
 
-      // Physics step
-      for (let i = 0; i < nodes.length; i++) {
-        const n1 = nodes[i];
-        if (n1 === draggedNode.current) continue;
+      const width = canvas.width;
+      const height = canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
 
-        // Center gravity
-        n1.vx += (350 - n1.x) * 0.0005;
-        n1.vy += (250 - n1.y) * 0.0005;
-
-        // Node repulsion
-        for (let j = i + 1; j < nodes.length; j++) {
-          const n2 = nodes[j];
-          const dx = n2.x - n1.x;
-          const dy = n2.y - n1.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          if (dist < 180) {
-            const force = (180 - dist) / dist * 0.03;
-            n1.vx -= dx * force;
-            n1.vy -= dy * force;
-            n2.vx += dx * force;
-            n2.vy += dy * force;
-          }
-        }
+      // Cool down alpha
+      const alpha = alphaRef.current;
+      if (alpha > 0.015) {
+        alphaRef.current *= 0.985;
       }
 
-      // Edge spring attraction
+      // 1. Spring attraction along edges (Hooke's Law with unit vector)
       for (const edge of edges) {
-        const src = nodes.find((n) => n.id === edge.sourceId);
-        const tgt = nodes.find((n) => n.id === edge.targetId);
+        const src = nodeMap.get(edge.sourceId);
+        const tgt = nodeMap.get(edge.targetId);
         if (src && tgt) {
-          const dx = tgt.x - src.x;
-          const dy = tgt.y - src.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const force = (dist - 80) * 0.002;
+          let dx = tgt.x - src.x;
+          let dy = tgt.y - src.y;
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 0.1) {
+            dx = 0.1;
+            dist = 0.1;
+          }
+
+          const targetDist = 75;
+          const displacement = dist - targetDist;
+          const force = displacement * 0.04 * alpha;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+
           if (src !== draggedNode.current) {
-            src.vx += dx * force;
-            src.vy += dy * force;
+            src.vx += fx;
+            src.vy += fy;
           }
           if (tgt !== draggedNode.current) {
-            tgt.vx -= dx * force;
-            tgt.vy -= dy * force;
+            tgt.vx -= fx;
+            tgt.vy -= fy;
           }
         }
       }
 
-      // Update velocities & positions with friction damping
-      for (const n of nodes) {
-        if (n !== draggedNode.current) {
-          n.x += n.vx;
-          n.y += n.vy;
-          n.vx *= 0.88;
-          n.vy *= 0.88;
+      // 2. Node Repulsion (Coulomb's Law with soft distance epsilon)
+      for (let i = 0; i < nodes.length; i++) {
+        const n1 = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const n2 = nodes[j];
+          let dx = n2.x - n1.x;
+          let dy = n2.y - n1.y;
+          let distSq = dx * dx + dy * dy;
+          if (distSq < 1) {
+            dx = (Math.random() - 0.5) * 2;
+            dy = (Math.random() - 0.5) * 2;
+            distSq = 1;
+          }
+
+          if (distSq < 40000) {
+            const dist = Math.sqrt(distSq);
+            const force = (700 / (distSq + 80)) * alpha;
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+
+            if (n1 !== draggedNode.current) {
+              n1.vx -= fx;
+              n1.vy -= fy;
+            }
+            if (n2 !== draggedNode.current) {
+              n2.vx += fx;
+              n2.vy += fy;
+            }
+          }
         }
       }
 
-      // Render Canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // 3. Center gravity, velocity clamping, position updates & NaN protection
+      const margin = 20;
+      for (const n of nodes) {
+        if (n !== draggedNode.current) {
+          n.vx += (cx - n.x) * 0.015 * alpha;
+          n.vy += (cy - n.y) * 0.015 * alpha;
+
+          // Clamp velocity to prevent sudden bursts
+          n.vx = Math.max(-8, Math.min(8, n.vx)) * 0.86;
+          n.vy = Math.max(-8, Math.min(8, n.vy)) * 0.86;
+
+          n.x += n.vx;
+          n.y += n.vy;
+
+          // NaN & infinite guard
+          if (isNaN(n.x) || !isFinite(n.x)) n.x = cx + (Math.random() - 0.5) * 40;
+          if (isNaN(n.y) || !isFinite(n.y)) n.y = cy + (Math.random() - 0.5) * 40;
+          if (isNaN(n.vx)) n.vx = 0;
+          if (isNaN(n.vy)) n.vy = 0;
+
+          // Keep within reasonable canvas boundary
+          n.x = Math.max(margin, Math.min(width - margin, n.x));
+          n.y = Math.max(margin, Math.min(height - margin, n.y));
+        }
+      }
+
+      // 4. Render Canvas Frame
+      ctx.clearRect(0, 0, width, height);
       ctx.save();
       ctx.translate(panOffset.current.x, panOffset.current.y);
       ctx.scale(zoomScale.current, zoomScale.current);
 
-      // Draw Edges
+      const q = searchQuery.toLowerCase().trim();
+
+      // Render Edges
       for (const edge of edges) {
-        const src = nodes.find((n) => n.id === edge.sourceId);
-        const tgt = nodes.find((n) => n.id === edge.targetId);
+        const src = nodeMap.get(edge.sourceId);
+        const tgt = nodeMap.get(edge.targetId);
         if (src && tgt) {
+          const isConnectedToSelected =
+            selectedNodeId && (src.id === selectedNodeId || tgt.id === selectedNodeId);
+
           ctx.beginPath();
           ctx.moveTo(src.x, src.y);
           ctx.lineTo(tgt.x, tgt.y);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.lineWidth = 1;
+
+          if (isConnectedToSelected) {
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+            ctx.lineWidth = 1.5;
+          } else {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 1;
+          }
           ctx.stroke();
         }
       }
 
-      // Draw Nodes
+      // Render Nodes
       for (const node of nodes) {
         const isSelected = node.id === selectedNodeId;
         const color = NODE_COLORS[node.type] || '#38bdf8';
 
-        // Outer glow on selected
-        if (isSelected) {
+        const matchesSearch = !q || node.label.toLowerCase().includes(q) || node.type.includes(q);
+        const matchesFilter = filterType === 'ALL' || node.type === filterType;
+        const isDimmed = !matchesSearch || !matchesFilter;
+
+        const radius = node.type === 'domain' ? 9 : node.type === 'subdomain' ? 7 : 5;
+
+        // Outer halo on selected or search match
+        if (isSelected || (q && matchesSearch)) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 14, 0, 2 * Math.PI);
-          ctx.fillStyle = `${color}40`;
+          ctx.arc(node.x, node.y, radius + 6, 0, 2 * Math.PI);
+          ctx.fillStyle = isSelected ? `${color}40` : 'rgba(56, 189, 248, 0.25)';
           ctx.fill();
         }
 
+        // Main node circle
         ctx.beginPath();
-        ctx.arc(node.x, node.y, node.type === 'domain' ? 9 : 6, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
+        ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = isDimmed ? `${color}30` : color;
         ctx.fill();
-        ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(0, 0, 0, 0.6)';
+        ctx.strokeStyle = isSelected ? '#ffffff' : isDimmed ? 'rgba(0,0,0,0.2)' : 'rgba(0, 0, 0, 0.6)';
         ctx.lineWidth = isSelected ? 2 : 1;
         ctx.stroke();
 
-        // Label
-        ctx.font = '10px monospace';
-        ctx.fillStyle = isSelected ? '#ffffff' : '#94a3b8';
-        const truncatedLabel = node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label;
-        ctx.fillText(truncatedLabel, node.x + 9, node.y + 3);
+        // Label text
+        ctx.font = isSelected ? '600 11px monospace' : '10px monospace';
+        ctx.fillStyle = isSelected ? '#ffffff' : isDimmed ? '#475569' : '#94a3b8';
+
+        const labelText = node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label;
+        ctx.fillText(labelText, node.x + radius + 3, node.y + 3);
       }
 
       ctx.restore();
@@ -259,38 +373,56 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
       running = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [nodes, edges, selectedNodeId]);
+  }, [nodes, edges, selectedNodeId, searchQuery, filterType, canvasDimensions.width, canvasDimensions.height]);
 
-  // Pointer interactions
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Pointer interactions with coordinate scaling
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left - panOffset.current.x) / zoomScale.current;
-    const mouseY = (e.clientY - rect.top - panOffset.current.y) / zoomScale.current;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const canvasX = (e.clientX - rect.left) * scaleX;
+    const canvasY = (e.clientY - rect.top) * scaleY;
+
+    return {
+      x: (canvasX - panOffset.current.x) / zoomScale.current,
+      y: (canvasY - panOffset.current.y) / zoomScale.current,
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoords(e);
 
     // Hit test nodes
     for (const n of nodes) {
-      const dx = n.x - mouseX;
-      const dy = n.y - mouseY;
-      if (dx * dx + dy * dy < 144) {
+      const dx = n.x - coords.x;
+      const dy = n.y - coords.y;
+      const hitRadius = n.type === 'domain' ? 12 : 9;
+      if (dx * dx + dy * dy < hitRadius * hitRadius) {
         draggedNode.current = n;
         setSelectedNodeId(n.id);
+        alphaRef.current = 0.3; // Wake simulation for smooth reaction
         return;
       }
     }
 
+    // Otherwise pan canvas
     isDragging.current = true;
-    dragStart.current = { x: e.clientX - panOffset.current.x, y: e.clientY - panOffset.current.y };
+    dragStart.current = {
+      x: e.clientX - panOffset.current.x,
+      y: e.clientY - panOffset.current.y,
+    };
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggedNode.current) {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      draggedNode.current.x = (e.clientX - rect.left - panOffset.current.x) / zoomScale.current;
-      draggedNode.current.y = (e.clientY - rect.top - panOffset.current.y) / zoomScale.current;
+      const coords = getCanvasCoords(e);
+      draggedNode.current.x = coords.x;
+      draggedNode.current.y = coords.y;
+      draggedNode.current.vx = 0;
+      draggedNode.current.vy = 0;
+      alphaRef.current = 0.25;
       return;
     }
 
@@ -305,6 +437,24 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
   const handleMouseUp = () => {
     draggedNode.current = null;
     isDragging.current = false;
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    const newZoom = Math.max(0.3, Math.min(3, zoomScale.current * factor));
+    zoomScale.current = newZoom;
+  };
+
+  const handleZoom = (direction: 'in' | 'out' | 'reset') => {
+    if (direction === 'in') {
+      zoomScale.current = Math.min(3, zoomScale.current * 1.2);
+    } else if (direction === 'out') {
+      zoomScale.current = Math.max(0.3, zoomScale.current / 1.2);
+    } else {
+      zoomScale.current = 1.0;
+      panOffset.current = { x: 0, y: 0 };
+    }
   };
 
   const selectedNode = useMemo(() => {
@@ -350,7 +500,7 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
               className={styles.btn}
               onClick={() => {
                 onSendToAI(
-                  `As an Application Security Architect, evaluate this node in the Attack Surface Graph:\n\nType: ${selectedNode.type}\nLabel: ${selectedNode.label}\nRisk Score: ${prioritizedInfo?.compositeScore || 'N/A'}/100\nPriority: ${prioritizedInfo?.priorityLevel.toUpperCase() || 'N/A'}\n\nRationales:\n${prioritizedInfo?.rationales.map((r) => `- ${r}`).join('\n')}\n\nPlease provide a targeted assessment plan.`
+                  `As an Application Security Architect, evaluate this node in the Attack Surface Graph:\n\nType: ${selectedNode.type}\nLabel: ${selectedNode.label}\nRisk Score: ${prioritizedInfo?.compositeScore || 'N/A'}/100\nPriority: ${prioritizedInfo?.priorityLevel.toUpperCase() || 'N/A'}\n\nRationales:\n${prioritizedInfo?.rationales.map((r) => `- ${r}`).join('\n')}\n\nPlease provide a targeted defensive assessment plan.`
                 );
               }}
             >
@@ -362,12 +512,26 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
-        <input
-          className={styles.searchBox}
-          placeholder="Search graph nodes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            className={styles.searchBox}
+            placeholder="Search graph nodes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <select
+            className={styles.filterSelect}
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+          >
+            {FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.78rem', color: '#94a3b8' }}>
           <span>{nodes.length} Nodes</span>
           <span>•</span>
@@ -377,16 +541,47 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
 
       {/* Graph Canvas & Side Inspector */}
       <div className={styles.graphLayout}>
-        <div className={styles.canvasContainer}>
+        <div ref={containerRef} className={styles.canvasContainer}>
           <canvas
             ref={canvasRef}
-            width={750}
-            height={500}
+            width={canvasDimensions.width}
+            height={canvasDimensions.height}
             className={styles.canvas}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
           />
+
+          {/* Zoom & Pan Overlay Controls */}
+          <div className={styles.zoomControls}>
+            <button
+              type="button"
+              className={styles.zoomBtn}
+              onClick={() => handleZoom('in')}
+              title="Zoom In"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              type="button"
+              className={styles.zoomBtn}
+              onClick={() => handleZoom('out')}
+              title="Zoom Out"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button
+              type="button"
+              className={styles.zoomBtn}
+              onClick={() => handleZoom('reset')}
+              title="Reset View"
+            >
+              <Maximize2 size={13} />
+            </button>
+          </div>
+
+          {/* Legend */}
           <div className={styles.legendBar}>
             {Object.entries(NODE_COLORS).map(([type, color]) => (
               <span key={type}>
@@ -454,14 +649,20 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
                 Connected Relationships ({connectedEdges.length}):
               </span>
               <div className={styles.edgeList}>
-                {connectedEdges.map((e) => (
-                  <div key={e.id} className={styles.edgeItem}>
-                    <span>{e.relationship.replace('_', ' ')}</span>
-                    <code style={{ fontSize: '0.68rem', color: '#38bdf8' }}>
-                      {e.sourceId === selectedNode.id ? e.targetId : e.sourceId}
-                    </code>
+                {connectedEdges.length === 0 ? (
+                  <div style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic', padding: '0.4rem' }}>
+                    No adjacent connections
                   </div>
-                ))}
+                ) : (
+                  connectedEdges.map((e) => (
+                    <div key={e.id} className={styles.edgeItem}>
+                      <span>{e.relationship.replace('_', ' ')}</span>
+                      <code style={{ fontSize: '0.68rem', color: '#38bdf8' }}>
+                        {e.sourceId === selectedNode.id ? e.targetId : e.sourceId}
+                      </code>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -482,7 +683,7 @@ export default function AssetGraphViewer({ onSendToAI, onTabChange }: AssetGraph
                       status: 'open',
                     },
                   });
-                  alert(`Filed finding for '${selectedNode.label}' into Report Studio!`);
+                  toast('success', `Filed finding for '${selectedNode.label}' into Report Studio!`);
                 }}
               >
                 <PlusCircle size={13} /> File Finding

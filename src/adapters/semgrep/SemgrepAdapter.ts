@@ -127,3 +127,4 @@ export class SemgrepAdapter implements ScannerAdapter {
     return { nodes, edges, findings };
   }
 }
+

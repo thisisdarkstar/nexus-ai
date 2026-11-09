@@ -15,6 +15,7 @@ import {
   type KnowledgeBaseEntry,
 } from '../../domain/knowledge/KnowledgeBaseData';
 import { eventBus } from '../../core/bus/EventBus';
+import { useToast } from '../../lib/toast';
 import styles from './KnowledgeBase.module.css';
 
 interface KnowledgeBaseProps {
@@ -22,6 +23,7 @@ interface KnowledgeBaseProps {
 }
 
 export default function KnowledgeBase({ onSendToAI }: KnowledgeBaseProps) {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
@@ -76,7 +78,7 @@ export default function KnowledgeBase({ onSendToAI }: KnowledgeBaseProps) {
         status: 'open',
       },
     });
-    alert(`Added '${entry.name}' vulnerability finding template to Report Studio!`);
+    toast('success', `Added '${entry.name}' vulnerability finding template to Report Studio!`);
   };
 
   const handleSendToAIForReview = (entry: KnowledgeBaseEntry) => {

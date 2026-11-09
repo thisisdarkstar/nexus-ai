@@ -98,3 +98,4 @@ describe('Scanner Adapters (Open-Source Tool Ingestion)', () => {
     expect(detectedSemgrep?.id).toBe('semgrep-adapter');
   });
 });
+

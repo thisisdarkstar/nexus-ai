@@ -45,3 +45,4 @@ describe('RegressionTestGenerator (Automated Test Synthesis)', () => {
     expect(suite.testCode).toContain('curl -s -o /dev/null -w "%{http_code}"');
   });
 });
+

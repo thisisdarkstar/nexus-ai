@@ -170,6 +170,44 @@
   flex-wrap: wrap;
   font-size: 0.68rem;
   color: #94a3b8;
+  user-select: none;
+  pointer-events: none;
+}
+
+.zoomControls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 10;
+}
+
+.zoomBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.zoomBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #38bdf8;
 }
 
 .legendDot {
@@ -245,3 +283,4 @@
   justify-content: space-between;
   align-items: center;
 }
+

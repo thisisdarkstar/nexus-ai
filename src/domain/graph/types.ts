@@ -47,3 +47,4 @@ export interface GraphSerialization {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+

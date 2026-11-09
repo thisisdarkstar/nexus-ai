@@ -98,3 +98,4 @@ describe('AssetGraph (Relational Attack Surface Engine)', () => {
     expect(graph2.findEndpointsForTechnology('Java').length).toBe(1);
   });
 });
+
