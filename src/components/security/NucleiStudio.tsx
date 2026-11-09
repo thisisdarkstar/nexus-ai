@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   FileCode,
   Copy,
@@ -51,6 +51,35 @@ export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
   const [matcherCondition, setMatcherCondition] = useState<'and' | 'or'>('or');
 
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const handleLoadNuclei = (e: Event) => {
+      const custom = e as CustomEvent<{
+        templateId?: string;
+        name?: string;
+        path?: string;
+        severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+        tags?: string;
+        description?: string;
+        method?: string;
+        matcherWords?: string;
+      }>;
+      const d = custom.detail;
+      if (d) {
+        if (d.templateId) setTemplateId(d.templateId);
+        if (d.name) setName(d.name);
+        if (d.path) setPath(d.path);
+        if (d.severity) setSeverity(d.severity);
+        if (d.tags) setTags(d.tags);
+        if (d.description) setDescription(d.description);
+        if (d.method) setMethod(d.method);
+        if (d.matcherWords) setMatcherWords(d.matcherWords);
+      }
+    };
+
+    window.addEventListener('nexus:workbench:load-nuclei', handleLoadNuclei);
+    return () => window.removeEventListener('nexus:workbench:load-nuclei', handleLoadNuclei);
+  }, []);
 
   const yamlContent = useMemo(() => {
     const wordsList = matcherWords

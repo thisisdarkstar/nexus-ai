@@ -223,6 +223,25 @@ export interface ScopeItem {
   status: 'untested' | 'in_progress' | 'vulnerable' | 'verified_clean';
 }
 
+export interface ReconAsset {
+  id: string;
+  url: string;
+  host: string;
+  port?: number;
+  protocol?: 'http' | 'https';
+  statusCode?: number;
+  title?: string;
+  webserver?: string;
+  technologies?: string[];
+  contentLength?: number;
+  contentType?: string;
+  highInterestFlags?: string[];
+  riskScore?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  source?: 'httpx' | 'subdomains' | 'endpoints' | 'nuclei' | 'reconftw' | 'js_extract' | 'manual';
+  rawEntry?: string;
+  createdAt?: number;
+}
+
 export interface SecurityChecklistItem {
   id: string;
   category: string;

@@ -8,6 +8,7 @@ import {
   Globe,
   AlertTriangle,
   CheckCircle,
+  Radar,
 } from 'lucide-react';
 import { parseSecurityArtifact, type ParsedArtifactResult } from '../../lib/security/artifactParsers';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
@@ -61,7 +62,12 @@ export default function ArtifactIngestModal({ isOpen, onClose, onSuccess }: Arti
       parsedResult.findings.forEach((f) => workbenchBridge.addFinding(f));
     }
 
-    // 3. Load first request into HTTP Studio if present
+    // 3. Import Recon Assets
+    if (parsedResult.reconAssets && parsedResult.reconAssets.length > 0) {
+      workbenchBridge.addReconAssets(parsedResult.reconAssets);
+    }
+
+    // 4. Load first request into HTTP Studio if present
     if (parsedResult.rawRequests.length > 0) {
       workbenchBridge.loadHttp(parsedResult.rawRequests[0]);
     }
@@ -114,7 +120,7 @@ export default function ArtifactIngestModal({ isOpen, onClose, onSuccess }: Arti
                 Drop security report, or click to browse
               </div>
               <div className={styles.supportedFormats}>
-                Supported formats: <strong>Burp Suite XML</strong>, <strong>Nmap XML (-oX)</strong>, <strong>Nuclei JSONL</strong>, <strong>SARIF 2.1</strong>, <strong>OpenAPI</strong>
+                Supported formats: <strong>Burp Suite XML</strong>, <strong>Nmap XML (-oX)</strong>, <strong>Nuclei JSONL</strong>, <strong>Httpx (JSON/CLI)</strong>, <strong>Subdomains & Endpoints (.txt)</strong>, <strong>SARIF 2.1</strong>, <strong>OpenAPI</strong>
               </div>
             </div>
           ) : (
@@ -131,6 +137,12 @@ export default function ArtifactIngestModal({ isOpen, onClose, onSuccess }: Arti
               </div>
 
               <div className={styles.statsRow}>
+                {parsedResult.reconAssets && parsedResult.reconAssets.length > 0 && (
+                  <div className={styles.statBadge}>
+                    <Radar size={14} color="#a855f7" />
+                    <span>{parsedResult.reconAssets.length} Recon Assets</span>
+                  </div>
+                )}
                 {parsedResult.scopeItems.length > 0 && (
                   <div className={styles.statBadge}>
                     <Target size={14} color="#38bdf8" />

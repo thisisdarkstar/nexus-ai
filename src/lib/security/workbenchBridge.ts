@@ -1,8 +1,9 @@
-import type { VulnerabilityFinding, ScopeItem, SecurityTab } from '../../types';
+import type { VulnerabilityFinding, ScopeItem, SecurityTab, ReconAsset } from '../../types';
 
 export interface WorkbenchEvents {
   'nexus:workbench:add-finding': VulnerabilityFinding;
   'nexus:workbench:add-scope': ScopeItem[];
+  'nexus:workbench:add-recon-assets': ReconAsset[];
   'nexus:workbench:update-checklist': { testId: string; status: 'pass' | 'fail' | 'untested' | 'na'; evidence?: string };
   'nexus:workbench:load-http': string;
   'nexus:workbench:load-audit-code': { code: string; language?: string };
@@ -23,7 +24,7 @@ class WorkbenchBridge {
   /**
    * Add a vulnerability finding to ReportStudio and persistent storage
    */
-  public addFinding(finding: VulnerabilityFinding): void {
+  public addFinding(finding: Omit<VulnerabilityFinding, 'id'> & { id?: string }): void {
     try {
       const REPORT_STORAGE_KEY = 'nexus_security_report';
       const saved = localStorage.getItem(REPORT_STORAGE_KEY);
@@ -86,6 +87,52 @@ class WorkbenchBridge {
   }
 
   /**
+   * Add recon assets to persistent storage and dispatch event
+   */
+  public addReconAssets(assets: ReconAsset[]): void {
+    try {
+      const RECON_STORAGE_KEY = 'nexus_security_recon_assets';
+      const saved = localStorage.getItem(RECON_STORAGE_KEY);
+      const existing: ReconAsset[] = saved ? JSON.parse(saved) : [];
+
+      const updated = [...existing];
+      assets.forEach((asset) => {
+        const idx = updated.findIndex((a) => a.url.toLowerCase() === asset.url.toLowerCase());
+        if (idx >= 0) {
+          updated[idx] = { ...updated[idx], ...asset };
+        } else {
+          updated.push({
+            ...asset,
+            id: asset.id || `asset-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            createdAt: asset.createdAt || Date.now(),
+          });
+        }
+      });
+
+      localStorage.setItem(RECON_STORAGE_KEY, JSON.stringify(updated));
+
+      window.dispatchEvent(
+        new CustomEvent('nexus:workbench:add-recon-assets', { detail: assets })
+      );
+    } catch (e) {
+      console.error('Failed to save recon assets via workbenchBridge:', e);
+    }
+  }
+
+  /**
+   * Retrieve stored recon assets
+   */
+  public getReconAssets(): ReconAsset[] {
+    try {
+      const RECON_STORAGE_KEY = 'nexus_security_recon_assets';
+      const saved = localStorage.getItem(RECON_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Update an OWASP checklist item status
    */
   public updateChecklistItem(testId: string, status: 'pass' | 'fail' | 'untested' | 'na', evidence?: string): void {
@@ -113,6 +160,30 @@ class WorkbenchBridge {
       );
     } catch (e) {
       console.error('Failed to load HTTP snippet via workbenchBridge:', e);
+    }
+  }
+
+  /**
+   * Load Nuclei template into Nuclei Studio and switch tab
+   */
+  public loadNuclei(template: {
+    templateId?: string;
+    name?: string;
+    path?: string;
+    severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+    tags?: string;
+    description?: string;
+    method?: string;
+    matcherWords?: string;
+  }): void {
+    try {
+      localStorage.setItem('nexus_security_nuclei_preset', JSON.stringify(template));
+      window.dispatchEvent(
+        new CustomEvent('nexus:workbench:load-nuclei', { detail: template })
+      );
+      this.switchTab('nuclei');
+    } catch (e) {
+      console.error('Failed to load nuclei template via workbenchBridge:', e);
     }
   }
 

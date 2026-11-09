@@ -1,16 +1,28 @@
-import type { VulnerabilityFinding, ScopeItem } from '../../types';
+import type { VulnerabilityFinding, ScopeItem, ReconAsset } from '../../types';
 
 export interface ParsedArtifactResult {
-  sourceType: 'burp' | 'nmap' | 'nuclei' | 'sarif' | 'openapi' | 'unknown';
+  sourceType:
+    | 'burp'
+    | 'nmap'
+    | 'nuclei'
+    | 'sarif'
+    | 'openapi'
+    | 'httpx'
+    | 'subdomains'
+    | 'endpoints'
+    | 'reconftw'
+    | 'unknown';
   summary: string;
   findings: VulnerabilityFinding[];
   scopeItems: ScopeItem[];
+  reconAssets?: ReconAsset[];
   rawRequests: string[];
 }
 
 /**
  * Universal Security Artifact Ingestion Parser
- * Parses Burp Suite XML, Nmap XML, Nuclei JSONL, SARIF 2.1, and OpenAPI/Swagger files.
+ * Parses Burp Suite XML, Nmap XML, Nuclei JSONL, SARIF 2.1, OpenAPI/Swagger,
+ * Httpx JSON/Text, Subdomains lists, and Katana/GAU Endpoints.
  */
 export function parseSecurityArtifact(content: string, fileName: string): ParsedArtifactResult {
   const trimmed = content.trim();
@@ -31,7 +43,10 @@ export function parseSecurityArtifact(content: string, fileName: string): Parsed
   }
 
   // 4. Check for SARIF
-  if (trimmed.includes('"$schema"') && trimmed.includes('sarif') || trimmed.includes('"version": "2.1.0"')) {
+  if (
+    (trimmed.includes('"$schema"') && trimmed.includes('sarif')) ||
+    trimmed.includes('"version": "2.1.0"')
+  ) {
     try {
       const parsed = JSON.parse(trimmed);
       if (parsed.runs && Array.isArray(parsed.runs)) {
@@ -43,7 +58,12 @@ export function parseSecurityArtifact(content: string, fileName: string): Parsed
   }
 
   // 5. Check for OpenAPI / Swagger
-  if (trimmed.includes('"openapi"') || trimmed.includes('"swagger"') || trimmed.includes('openapi:') || trimmed.includes('swagger:')) {
+  if (
+    trimmed.includes('"openapi"') ||
+    trimmed.includes('"swagger"') ||
+    trimmed.includes('openapi:') ||
+    trimmed.includes('swagger:')
+  ) {
     try {
       const parsed = JSON.parse(trimmed);
       if (parsed.paths && typeof parsed.paths === 'object') {
@@ -54,11 +74,32 @@ export function parseSecurityArtifact(content: string, fileName: string): Parsed
     }
   }
 
+  // 6. Check for Httpx JSON Lines
+  if (isHttpxJson(trimmed)) {
+    return parseHttpxJson(trimmed, fileName);
+  }
+
+  // 7. Check for Httpx CLI probe output lines (e.g. "https://domain.com [200] [Title] [tech]")
+  if (isHttpxText(trimmed)) {
+    return parseHttpxText(trimmed, fileName);
+  }
+
+  // 8. Check for URLs / Endpoints dump (Katana / GAU / Waybackurls / Paramspider)
+  if (isEndpointsList(trimmed)) {
+    return parseEndpointsList(trimmed, fileName);
+  }
+
+  // 9. Check for Subdomains / Hosts list (Subfinder / Assetfinder / Amass)
+  if (isSubdomainsList(trimmed)) {
+    return parseSubdomainsList(trimmed, fileName);
+  }
+
   return {
     sourceType: 'unknown',
-    summary: `Unrecognized file format for ${fileName}. Expected Burp XML, Nmap XML, Nuclei JSON, SARIF, or OpenAPI.`,
+    summary: `Unrecognized file format for ${fileName}. Expected Burp XML, Nmap XML, Nuclei JSON, SARIF, OpenAPI, Httpx, Subdomains, or Endpoints list.`,
     findings: [],
     scopeItems: [],
+    reconAssets: [],
     rawRequests: [],
   };
 }
@@ -324,6 +365,404 @@ function parseOpenApi(apiObj: any, fileName: string): ParsedArtifactResult {
     summary: `OpenAPI Schema (${apiObj.info?.title || 'API'}): Ingested ${paths.length} endpoints.`,
     findings: [],
     scopeItems,
+    rawRequests: [],
+  };
+}
+
+// -------------------------------------------------------------
+// RECON INTELLIGENCE & ASSET RISK SCORING
+// -------------------------------------------------------------
+const SSRF_PARAMS = new Set(['url', 'dest', 'redirect', 'uri', 'path', 'webhook', 'callback', 'target', 'feed', 'host', 'port', 'to', 'out', 'domain']);
+const IDOR_PARAMS = new Set(['id', 'user_id', 'uid', 'account', 'account_id', 'doc_id', 'order_id', 'transaction_id', 'uuid', 'profile_id', 'customer_id']);
+const LFI_SSTI_PARAMS = new Set(['file', 'filename', 'filepath', 'template', 'view', 'page', 'include', 'layout', 'doc', 'theme']);
+
+export function scoreReconAsset(
+  urlStr: string,
+  title?: string,
+  webserver?: string,
+  technologies: string[] = [],
+  statusCode?: number
+): { riskScore: ReconAsset['riskScore']; flags: string[] } {
+  const flags: string[] = [];
+  const lowerUrl = urlStr.toLowerCase();
+  const lowerTitle = (title || '').toLowerCase();
+  const lowerTech = technologies.map((t) => t.toLowerCase()).join(' ');
+
+  let currentLevel = 0; // 0=info, 1=low, 2=medium, 3=high, 4=critical
+  const elevate = (level: number) => {
+    if (level > currentLevel) currentLevel = level;
+  };
+
+  // 1. Critical Exposure Patterns
+  if (lowerUrl.includes('/actuator') || lowerUrl.includes('/heapdump') || lowerUrl.includes('/env') || lowerUrl.includes('/prometheus')) {
+    flags.push('Spring Actuator Exposure');
+    elevate(4);
+  } else if (lowerUrl.includes('/.env') || lowerUrl.includes('/.git') || lowerUrl.includes('/.aws') || lowerUrl.includes('/web.config') || lowerUrl.includes('/phpinfo')) {
+    flags.push('Exposed Config / Source File');
+    elevate(4);
+  }
+
+  // 2. High Value Bounty Targets
+  if (lowerUrl.includes('swagger') || lowerUrl.includes('api-docs') || lowerUrl.includes('openapi.json') || lowerTitle.includes('swagger')) {
+    flags.push('Exposed Swagger / API Docs');
+    elevate(3);
+  }
+
+  if (lowerUrl.includes('graphql') || lowerUrl.includes('graphiql') || lowerUrl.includes('altair') || lowerTitle.includes('graphql')) {
+    flags.push('GraphQL Endpoint');
+    elevate(3);
+  }
+
+  if (
+    lowerUrl.includes('admin') ||
+    lowerUrl.includes('/dashboard') ||
+    lowerUrl.includes('/portal') ||
+    lowerUrl.includes('/login') ||
+    lowerTitle.includes('admin') ||
+    lowerTitle.includes('login')
+  ) {
+    flags.push('Admin / Auth Portal');
+    elevate(3);
+  }
+
+  if (
+    lowerUrl.includes('dev.') ||
+    lowerUrl.includes('stage.') ||
+    lowerUrl.includes('staging.') ||
+    lowerUrl.includes('test.') ||
+    lowerUrl.includes('uat.') ||
+    lowerUrl.includes('internal.') ||
+    lowerUrl.includes('vpn.')
+  ) {
+    flags.push('Pre-Production / Dev Subdomain');
+    elevate(3);
+  }
+
+  if (lowerUrl.includes('s3.amazonaws.com') || lowerUrl.includes('storage.googleapis.com') || lowerUrl.includes('blob.core.windows.net')) {
+    flags.push('Direct Cloud Storage Bucket');
+    elevate(3);
+  }
+
+  // 3. Parameter Anomaly Analysis (SSRF / IDOR / LFI)
+  try {
+    const parsedUrl = new URL(urlStr.startsWith('http') ? urlStr : `https://${urlStr}`);
+    const paramNames = Array.from(parsedUrl.searchParams.keys()).map((p) => p.toLowerCase());
+
+    const hasSsrf = paramNames.some((p) => SSRF_PARAMS.has(p));
+    if (hasSsrf) {
+      flags.push('SSRF Candidate Param');
+      elevate(3);
+    }
+
+    const hasLfi = paramNames.some((p) => LFI_SSTI_PARAMS.has(p));
+    if (hasLfi) {
+      flags.push('LFI / SSTI Param');
+      elevate(3);
+    }
+
+    const hasIdor = paramNames.some((p) => IDOR_PARAMS.has(p));
+    if (hasIdor) {
+      flags.push('IDOR / BOLA Param');
+      elevate(2);
+    }
+  } catch {
+    // ignore URL parse errors on bare strings
+  }
+
+  // 4. Status Code context
+  if (statusCode === 403 || statusCode === 401) {
+    flags.push(`${statusCode} Auth Protected (Bypass Candidate)`);
+    elevate(1);
+  } else if (statusCode === 500) {
+    flags.push('500 Server Error (Unhandled Exception)');
+    elevate(2);
+  }
+
+  const scoreNames: Array<NonNullable<ReconAsset['riskScore']>> = ['info', 'low', 'medium', 'high', 'critical'];
+  const finalScore = scoreNames[currentLevel] || 'info';
+
+  return { riskScore: finalScore, flags };
+}
+
+// -------------------------------------------------------------
+// HTTPX JSONL PARSER (reconFTW / magicRecon / httpx -json)
+// -------------------------------------------------------------
+function isHttpxJson(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return false;
+  const sample = lines.slice(0, 5);
+  return sample.every((l) => {
+    try {
+      const parsed = JSON.parse(l);
+      return typeof parsed === 'object' && (parsed.url || parsed.input) && (parsed.status_code !== undefined || parsed['status-code'] !== undefined || parsed.webserver || parsed.title);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function parseHttpxJson(text: string, fileName: string): ParsedArtifactResult {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  const reconAssets: ReconAsset[] = [];
+  const scopeItems: ScopeItem[] = [];
+  const rawRequests: string[] = [];
+
+  lines.forEach((line, idx) => {
+    try {
+      const obj = JSON.parse(line);
+      const url = obj.url || (obj.input ? (obj.input.startsWith('http') ? obj.input : `https://${obj.input}`) : '');
+      if (!url) return;
+
+      const statusCode = obj.status_code || obj['status-code'] || 200;
+      const title = obj.title || '';
+      const webserver = obj.webserver || '';
+      const technologies: string[] = Array.isArray(obj.tech) ? obj.tech : (obj.tech ? [obj.tech] : []);
+      const contentLength = obj.content_length || obj['content-length'] || 0;
+      const contentType = obj.content_type || obj['content-type'] || '';
+
+      const urlObj = new URL(url);
+      const host = urlObj.hostname;
+      const port = urlObj.port ? parseInt(urlObj.port, 10) : urlObj.protocol === 'https:' ? 443 : 80;
+
+      const { riskScore, flags } = scoreReconAsset(url, title, webserver, technologies, statusCode);
+
+      const asset: ReconAsset = {
+        id: `httpx-${idx}-${Date.now()}`,
+        url,
+        host,
+        port,
+        protocol: urlObj.protocol.replace(':', '') as 'http' | 'https',
+        statusCode,
+        title,
+        webserver,
+        technologies,
+        contentLength,
+        contentType,
+        highInterestFlags: flags,
+        riskScore,
+        source: 'httpx',
+        createdAt: Date.now(),
+      };
+
+      reconAssets.push(asset);
+
+      // Create scope item
+      scopeItems.push({
+        id: `scope-httpx-${idx}`,
+        target: url,
+        type: 'domain',
+        inScope: true,
+        techStack: technologies.length > 0 ? technologies : [webserver || 'Web'],
+        notes: `Imported from ${fileName}: [${statusCode}] ${title}`,
+        status: 'untested',
+      });
+
+      // Sample request for HTTP studio
+      if (idx < 5) {
+        rawRequests.push(`GET ${urlObj.pathname || '/'}${urlObj.search || ''} HTTP/1.1\nHost: ${host}\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\nAccept: */*\n\n`);
+      }
+    } catch {
+      // skip invalid line
+    }
+  });
+
+  return {
+    sourceType: 'httpx',
+    summary: `Httpx Recon Report: Ingested ${reconAssets.length} probed web endpoints with status codes, page titles, and tech fingerprints.`,
+    findings: [],
+    scopeItems,
+    reconAssets,
+    rawRequests,
+  };
+}
+
+// -------------------------------------------------------------
+// HTTPX CLI PROBE TEXT PARSER (e.g. "https://domain.com [200] [Title] [tech]")
+// -------------------------------------------------------------
+function isHttpxText(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0).slice(0, 5);
+  if (lines.length === 0) return false;
+  return lines.every((l) => /^https?:\/\/\S+\s+\[\d{3}\]/i.test(l.trim()));
+}
+
+function parseHttpxText(text: string, fileName: string): ParsedArtifactResult {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  const reconAssets: ReconAsset[] = [];
+  const scopeItems: ScopeItem[] = [];
+
+  lines.forEach((line, idx) => {
+    // Regex matches: https://target.com [200] [Title] [tech]
+    const match = line.match(/^(https?:\/\/\S+)\s+\[(\d{3})\](?:\s+\[([^\]]*)\])?(?:\s+\[([^\]]*)\])?/);
+    if (!match) return;
+
+    const url = match[1];
+    const statusCode = parseInt(match[2], 10);
+    const title = match[3] || '';
+    const extra = match[4] || '';
+
+    const technologies = extra ? extra.split(',').map((t) => t.trim()) : [];
+    const webserver = extra && !extra.includes(',') ? extra : '';
+
+    try {
+      const urlObj = new URL(url);
+      const { riskScore, flags } = scoreReconAsset(url, title, webserver, technologies, statusCode);
+
+      reconAssets.push({
+        id: `httpx-txt-${idx}-${Date.now()}`,
+        url,
+        host: urlObj.hostname,
+        port: urlObj.port ? parseInt(urlObj.port, 10) : urlObj.protocol === 'https:' ? 443 : 80,
+        protocol: urlObj.protocol.replace(':', '') as 'http' | 'https',
+        statusCode,
+        title,
+        webserver,
+        technologies,
+        highInterestFlags: flags,
+        riskScore,
+        source: 'httpx',
+        createdAt: Date.now(),
+      });
+
+      scopeItems.push({
+        id: `scope-httpx-txt-${idx}`,
+        target: url,
+        type: 'domain',
+        inScope: true,
+        techStack: technologies.length > 0 ? technologies : ['Web'],
+        notes: `Httpx Probe: [${statusCode}] ${title}`,
+        status: 'untested',
+      });
+    } catch {
+      // skip
+    }
+  });
+
+  return {
+    sourceType: 'httpx',
+    summary: `Httpx CLI Output: Ingested ${reconAssets.length} live host probes from ${fileName}.`,
+    findings: [],
+    scopeItems,
+    reconAssets,
+    rawRequests: [],
+  };
+}
+
+// -------------------------------------------------------------
+// ENDPOINTS / URLS LIST PARSER (Katana / GAU / Waybackurls / Paramspider)
+// -------------------------------------------------------------
+function isEndpointsList(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0).slice(0, 10);
+  if (lines.length === 0) return false;
+  const urlCount = lines.filter((l) => /^https?:\/\//i.test(l.trim())).length;
+  return urlCount >= Math.min(3, lines.length) && lines.some((l) => l.includes('/') || l.includes('?'));
+}
+
+function parseEndpointsList(text: string, fileName: string): ParsedArtifactResult {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  const reconAssets: ReconAsset[] = [];
+  const scopeItems: ScopeItem[] = [];
+  const rawRequests: string[] = [];
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('http')) return;
+
+    try {
+      const urlObj = new URL(trimmed);
+      const { riskScore, flags } = scoreReconAsset(trimmed);
+
+      reconAssets.push({
+        id: `ep-${idx}-${Date.now()}`,
+        url: trimmed,
+        host: urlObj.hostname,
+        protocol: urlObj.protocol.replace(':', '') as 'http' | 'https',
+        port: urlObj.port ? parseInt(urlObj.port, 10) : urlObj.protocol === 'https:' ? 443 : 80,
+        highInterestFlags: flags,
+        riskScore,
+        source: 'endpoints',
+        createdAt: Date.now(),
+      });
+
+      if (idx < 50) {
+        scopeItems.push({
+          id: `scope-ep-${idx}`,
+          target: trimmed,
+          type: 'api',
+          inScope: true,
+          techStack: ['Endpoint'],
+          notes: `Endpoint from ${fileName}`,
+          status: 'untested',
+        });
+      }
+
+      if (idx < 3) {
+        rawRequests.push(`GET ${urlObj.pathname || '/'}${urlObj.search || ''} HTTP/1.1\nHost: ${urlObj.hostname}\nUser-Agent: Mozilla/5.0\nAccept: */*\n\n`);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  return {
+    sourceType: 'endpoints',
+    summary: `Endpoints / Crawl List: Ingested ${reconAssets.length} URLs with parameter analysis from ${fileName}.`,
+    findings: [],
+    scopeItems,
+    reconAssets,
+    rawRequests,
+  };
+}
+
+// -------------------------------------------------------------
+// SUBDOMAINS LIST PARSER (Subfinder / Assetfinder / Amass / subdomains.txt)
+// -------------------------------------------------------------
+function isSubdomainsList(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0).slice(0, 10);
+  if (lines.length === 0) return false;
+  // Domain pattern: domain.com, sub.domain.com, etc.
+  return lines.every((l) => /^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}(?::\d+)?$/.test(l.trim()));
+}
+
+function parseSubdomainsList(text: string, fileName: string): ParsedArtifactResult {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  const reconAssets: ReconAsset[] = [];
+  const scopeItems: ScopeItem[] = [];
+
+  lines.forEach((line, idx) => {
+    const host = line.trim();
+    if (!host) return;
+
+    const url = `https://${host}`;
+    const { riskScore, flags } = scoreReconAsset(url);
+
+    reconAssets.push({
+      id: `sub-${idx}-${Date.now()}`,
+      url,
+      host,
+      protocol: 'https',
+      port: 443,
+      highInterestFlags: flags,
+      riskScore,
+      source: 'subdomains',
+      createdAt: Date.now(),
+    });
+
+    scopeItems.push({
+      id: `scope-sub-${idx}`,
+      target: host,
+      type: 'domain',
+      inScope: true,
+      notes: `Subdomain discovered in ${fileName}`,
+      status: 'untested',
+    });
+  });
+
+  return {
+    sourceType: 'subdomains',
+    summary: `Subdomain Enumeration List: Ingested ${reconAssets.length} subdomains from ${fileName}.`,
+    findings: [],
+    scopeItems,
+    reconAssets,
     rawRequests: [],
   };
 }
