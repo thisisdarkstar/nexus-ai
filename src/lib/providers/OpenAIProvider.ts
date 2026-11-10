@@ -183,9 +183,22 @@ export class OpenAIProvider implements AIProvider {
     };
     if (options.temperature !== undefined) body.temperature = options.temperature;
     if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+    // For local Ollama endpoints, default num_ctx to 4096 to prevent 65k VRAM/CPU bloat
+    if (targetBaseUrl.includes('11434') || targetBaseUrl.includes('localhost')) {
+      body.options = { num_ctx: 4096 };
+    }
 
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), 90000);
+    let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(
+      () => timeoutController.abort(),
+      180000
+    ); // 3 minutes initial window for cold model load into VRAM
+
+    const resetInactivityTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => timeoutController.abort(), 60000); // 60s inactivity window
+    };
+
     const combinedSignal =
       signal && AbortSignal.any
         ? AbortSignal.any([signal, timeoutController.signal])
@@ -207,7 +220,7 @@ export class OpenAIProvider implements AIProvider {
     } catch (e) {
       if (e instanceof Error) {
         if (e.name === 'AbortError' && combinedSignal === timeoutController.signal) {
-          throw new Error('Request timed out (90s). The model may be overloaded - try again or use a smaller prompt.');
+          throw new Error('Request timed out. The local model is taking too long to respond - consider using a smaller context or a lighter model.');
         }
         if (e.name === 'AbortError') {
           throw e;
@@ -217,11 +230,10 @@ export class OpenAIProvider implements AIProvider {
         }
       }
       throw e;
-    } finally {
-      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {
+      if (timeoutId) clearTimeout(timeoutId);
       const err = await response.json().catch(() => ({}));
       const msg = err.error?.message || `HTTP ${response.status}`;
       if (response.status === 401) {
@@ -240,33 +252,63 @@ export class OpenAIProvider implements AIProvider {
     }
 
     if (!response.body) {
+      if (timeoutId) clearTimeout(timeoutId);
       throw new Error('Response body is null');
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let inThinkingMode = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        resetInactivityTimer();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data.trim() === '[DONE]') return;
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices[0]?.delta?.content;
-            if (content) yield content;
-          } catch {
-            // ignore unparseable chunks
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data.trim() === '[DONE]') {
+              if (inThinkingMode) {
+                yield '\n\n';
+                inThinkingMode = false;
+              }
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices[0]?.delta;
+              if (!delta) continue;
+
+              const reasoning = delta.reasoning_content ?? delta.reasoning;
+              const content = delta.content;
+
+              if (reasoning) {
+                if (!inThinkingMode) {
+                  inThinkingMode = true;
+                  yield '> *Thinking:*\n> ';
+                }
+                yield reasoning.replace(/\n/g, '\n> ');
+              } else if (content) {
+                if (inThinkingMode) {
+                  yield '\n\n';
+                  inThinkingMode = false;
+                }
+                yield content;
+              }
+            } catch {
+              // ignore unparseable chunks
+            }
           }
         }
       }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 }
