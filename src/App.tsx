@@ -427,10 +427,15 @@ function AppContent() {
                   providerStatus={providerStatus}
                   reloadChats={reloadChats}
                   settings={settings}
-                  onModelChange={(p, m) => {
-                    if (settings.provider !== p || (p === 'openai' && settings.openaiModel !== m)) {
-                      saveSettings({ provider: p as Settings['provider'], openaiModel: m });
+                  onModelChange={(p, m, endpointId) => {
+                    const updates: Partial<Settings> = {
+                      provider: p as Settings['provider'],
+                      openaiModel: m,
+                    };
+                    if (endpointId) {
+                      updates.activeEndpointId = endpointId;
                     }
+                    saveSettings(updates);
                   }}
                   availableModels={availableModels}
                   voice={voice}

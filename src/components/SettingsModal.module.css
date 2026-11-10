@@ -16,7 +16,8 @@
 .modal {
   background: var(--sidebar-glass);
   backdrop-filter: blur(24px);
-  width: 550px;
+  width: 680px;
+  max-width: 95vw;
   border-radius: 24px;
   border: 1px solid var(--sidebar-border);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -321,6 +322,223 @@
 
 .saveBtn:hover {
   transform: translateY(-2px);
+}
+
+/* Multi-Endpoint Styles */
+.endpointsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(2, 6, 23, 0.4);
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.endpointList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.endpointCard {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.endpointCard:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.endpointCardActive {
+  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(56, 189, 248, 0.05);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.12);
+}
+
+.endpointTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.endpointLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.endpointRadio {
+  cursor: pointer;
+  accent-color: #38bdf8;
+  margin: 0;
+}
+
+.endpointNameInput {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #f8fafc;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  outline: none;
+  width: 160px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.endpointNameInput:focus,
+.endpointNameInput:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.statusOnline {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.statusTesting {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.statusError {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.statusIdle {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.endpointActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.testConnectionBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.testConnectionBtn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.endpointDeleteBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.endpointDeleteBtn:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.endpointGrid {
+  display: grid;
+  grid-template-columns: 1.6fr 1.2fr;
+  gap: 8px;
+}
+
+.apiKeyWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.apiKeyToggle {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.apiKeyToggle:hover {
+  color: #cbd5e1;
+}
+
+.addEndpointBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+}
+
+.addEndpointBtn {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.addEndpointBtn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.5);
 }
 
 @media (max-width: 768px) {

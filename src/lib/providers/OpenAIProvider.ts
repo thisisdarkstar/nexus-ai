@@ -1,47 +1,138 @@
 import { RateLimiter } from '../rateLimiter';
-import { DEFAULT_OPENAI_BASE_URL } from '../constants';
-import type { AIProvider, AvailableModel, Message } from '../../types';
+import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_ENDPOINTS } from '../constants';
+import type { AIProvider, AvailableModel, Message, OpenAIEndpoint, Settings } from '../../types';
 
 export class OpenAIProvider implements AIProvider {
   baseUrl: string;
   apiKey: string;
   model: string;
+  endpoints: OpenAIEndpoint[];
+  activeEndpointId: string;
+  private modelEndpointMap: Map<string, string>; // modelId -> endpointId
   private limiter: RateLimiter;
 
   constructor() {
     this.baseUrl = DEFAULT_OPENAI_BASE_URL;
     this.apiKey = 'sk-local';
     this.model = '';
+    this.endpoints = [...DEFAULT_OPENAI_ENDPOINTS];
+    this.activeEndpointId = 'ollama';
+    this.modelEndpointMap = new Map();
     this.limiter = new RateLimiter(300);
   }
 
-  async checkAvailability(): Promise<{ available: boolean; reason?: string }> {
+  updateFromSettings(settings: Settings): void {
+    if (settings.endpoints && settings.endpoints.length > 0) {
+      this.endpoints = settings.endpoints;
+    } else if (settings.openaiBaseUrl) {
+      // Backwards compatibility: wrap single config as an endpoint
+      this.endpoints = [
+        {
+          id: 'primary',
+          name: 'Primary Endpoint',
+          baseUrl: settings.openaiBaseUrl,
+          apiKey: settings.openaiApiKey || 'sk-local',
+          enabled: true,
+        },
+      ];
+    } else {
+      this.endpoints = [...DEFAULT_OPENAI_ENDPOINTS];
+    }
+
+    this.activeEndpointId = settings.activeEndpointId || this.endpoints[0]?.id || 'ollama';
+    const active = this.getActiveEndpoint();
+    this.baseUrl = active?.baseUrl || settings.openaiBaseUrl || DEFAULT_OPENAI_BASE_URL;
+    this.apiKey = active?.apiKey || settings.openaiApiKey || 'sk-local';
+    this.model = settings.openaiModel || '';
+  }
+
+  getActiveEndpoint(): OpenAIEndpoint | undefined {
+    return (
+      this.endpoints.find((e) => e.id === this.activeEndpointId) ||
+      this.endpoints.find((e) => e.enabled !== false) ||
+      this.endpoints[0]
+    );
+  }
+
+  async checkAvailability(targetEndpoint?: OpenAIEndpoint): Promise<{ available: boolean; reason?: string }> {
+    const ep = targetEndpoint || this.getActiveEndpoint();
+    const url = ep?.baseUrl || this.baseUrl;
+    const key = ep?.apiKey || this.apiKey;
+
     try {
-      const response = await fetch(`${this.baseUrl}/models`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+      const response = await fetch(`${url}/models`, {
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
       });
       if (response.ok) {
         return { available: true };
       }
-      return { available: false, reason: `HTTP ${response.status}` };
+      return { available: false, reason: `HTTP ${response.status} from ${ep?.name || url}` };
     } catch {
-      return { available: false, reason: 'Cannot connect to server.' };
+      return { available: false, reason: `Cannot connect to ${ep?.name || url}` };
     }
   }
 
-  async fetchModels(): Promise<AvailableModel[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/models`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return data.data || [];
+  async fetchModels(targetEndpoint?: OpenAIEndpoint): Promise<AvailableModel[]> {
+    // If a specific endpoint is targeted (e.g. from test connection in settings)
+    if (targetEndpoint) {
+      try {
+        const response = await fetch(`${targetEndpoint.baseUrl}/models`, {
+          headers: targetEndpoint.apiKey ? { Authorization: `Bearer ${targetEndpoint.apiKey}` } : {},
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.data || [];
+          return list.map((m: any) => ({
+            id: m.id,
+            endpointId: targetEndpoint.id,
+            endpointName: targetEndpoint.name,
+          }));
+        }
+      } catch {
+        return [];
       }
-    } catch {
       return [];
     }
-    return [];
+
+    // Otherwise, aggregate models across all enabled endpoints in parallel
+    const enabledEndpoints = this.endpoints.filter((e) => e.enabled !== false);
+    if (enabledEndpoints.length === 0) {
+      enabledEndpoints.push(this.endpoints[0] || {
+        id: 'default',
+        name: 'Default',
+        baseUrl: this.baseUrl,
+        apiKey: this.apiKey,
+        enabled: true,
+      });
+    }
+
+    const results = await Promise.allSettled(
+      enabledEndpoints.map(async (ep) => {
+        const res = await fetch(`${ep.baseUrl}/models`, {
+          headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const list = data.data || [];
+        return list.map((m: any) => ({
+          id: m.id,
+          endpointId: ep.id,
+          endpointName: ep.name,
+        }));
+      })
+    );
+
+    const aggregated: AvailableModel[] = [];
+    results.forEach((res, index) => {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        res.value.forEach((m) => {
+          aggregated.push(m);
+          this.modelEndpointMap.set(m.id, m.endpointId || enabledEndpoints[index].id);
+        });
+      }
+    });
+
+    return aggregated;
   }
 
   async *streamPrompt(
@@ -53,6 +144,26 @@ export class OpenAIProvider implements AIProvider {
     if (!this.model) {
       throw new Error('No model selected. Pick a model from the model menu or Settings.');
     }
+
+    // Resolve which endpoint hosts this model
+    let targetBaseUrl = this.baseUrl;
+    let targetApiKey = this.apiKey;
+
+    const matchedEndpointId = this.modelEndpointMap.get(this.model);
+    if (matchedEndpointId) {
+      const ep = this.endpoints.find((e) => e.id === matchedEndpointId);
+      if (ep) {
+        targetBaseUrl = ep.baseUrl;
+        targetApiKey = ep.apiKey;
+      }
+    } else {
+      const activeEp = this.getActiveEndpoint();
+      if (activeEp) {
+        targetBaseUrl = activeEp.baseUrl;
+        targetApiKey = activeEp.apiKey;
+      }
+    }
+
     let formattedMessages: Array<{ role: string; content: string }> = [];
     if (systemPrompt && systemPrompt.trim() !== '') {
       formattedMessages.push({ role: 'system', content: systemPrompt });
@@ -84,11 +195,11 @@ export class OpenAIProvider implements AIProvider {
 
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/chat/completions`, {
+      response = await fetch(`${targetBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          ...(targetApiKey ? { Authorization: `Bearer ${targetApiKey}` } : {}),
         },
         body: JSON.stringify(body),
         signal: combinedSignal,
@@ -102,7 +213,7 @@ export class OpenAIProvider implements AIProvider {
           throw e;
         }
         if (e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed to fetch')) {
-          throw new Error(`Cannot connect to ${this.baseUrl}. Make sure your server is running.`);
+          throw new Error(`Cannot connect to ${targetBaseUrl}. Make sure your endpoint server is running.`);
         }
       }
       throw e;
@@ -114,16 +225,16 @@ export class OpenAIProvider implements AIProvider {
       const err = await response.json().catch(() => ({}));
       const msg = err.error?.message || `HTTP ${response.status}`;
       if (response.status === 401) {
-        throw new Error('Invalid API key. Check your settings.');
+        throw new Error(`Invalid API key for ${targetBaseUrl}. Check your endpoint settings.`);
       }
       if (response.status === 404) {
-        throw new Error(`Model "${this.model}" not found. Check your model settings.`);
+        throw new Error(`Model "${this.model}" not found at ${targetBaseUrl}.`);
       }
       if (response.status === 429) {
-        throw new Error('Rate limited. Wait a moment and try again.');
+        throw new Error('Rate limited by provider. Wait a moment and try again.');
       }
       if (response.status >= 500) {
-        throw new Error(`Server error (${response.status}). Your server may be overloaded.`);
+        throw new Error(`Server error (${response.status}) at ${targetBaseUrl}.`);
       }
       throw new Error(msg);
     }

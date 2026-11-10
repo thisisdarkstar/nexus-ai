@@ -1,7 +1,6 @@
 import { ChromeAIProvider } from './ChromeAIProvider';
 import { OpenAIProvider } from './OpenAIProvider';
-import { DEFAULT_OPENAI_BASE_URL } from '../constants';
-import type { AIProvider, AvailableModel, Settings } from '../../types';
+import type { AIProvider, AvailableModel, OpenAIEndpoint, Settings } from '../../types';
 
 export class ProviderManager {
   providers: Record<string, AIProvider>;
@@ -28,16 +27,26 @@ export class ProviderManager {
   updateOpenAISettings(settings: Settings): void {
     const openai = this.providers['openai'] as OpenAIProvider | undefined;
     if (openai) {
-      openai.baseUrl = settings.openaiBaseUrl || DEFAULT_OPENAI_BASE_URL;
-      openai.apiKey = settings.openaiApiKey || 'sk-local';
-      openai.model = settings.openaiModel || '';
+      openai.updateFromSettings(settings);
     }
   }
 
-  async fetchAvailableModels(): Promise<AvailableModel[]> {
+  getOpenAIProvider(): OpenAIProvider | undefined {
+    return this.providers['openai'] as OpenAIProvider | undefined;
+  }
+
+  async checkEndpointAvailability(endpoint: OpenAIEndpoint): Promise<{ available: boolean; reason?: string }> {
+    const openai = this.getOpenAIProvider();
+    if (openai) {
+      return await openai.checkAvailability(endpoint);
+    }
+    return { available: false, reason: 'Provider not initialized' };
+  }
+
+  async fetchAvailableModels(targetEndpoint?: OpenAIEndpoint): Promise<AvailableModel[]> {
     const openai = this.providers['openai'] as OpenAIProvider | undefined;
     if (openai) {
-      return await openai.fetchModels();
+      return await openai.fetchModels(targetEndpoint);
     }
     return [];
   }

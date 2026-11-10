@@ -1,3 +1,12 @@
+export interface OpenAIEndpoint {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  enabled?: boolean;
+  defaultModel?: string;
+}
+
 export interface Settings {
   provider: 'chrome' | 'openai';
   theme: 'dark' | 'light';
@@ -5,6 +14,8 @@ export interface Settings {
   openaiBaseUrl: string;
   openaiApiKey: string;
   openaiModel: string;
+  endpoints?: OpenAIEndpoint[];
+  activeEndpointId?: string;
   temperature: number;
   maxTokens: number;
   ttsVoice: string;
@@ -49,6 +60,8 @@ export interface Project {
 
 export interface AvailableModel {
   id: string;
+  endpointId?: string;
+  endpointName?: string;
 }
 
 export interface PromptTemplate {

@@ -55,7 +55,7 @@ interface CopilotDrawerProps {
   providerStatus: ProviderStatus;
   reloadChats: () => Promise<void>;
   settings: Settings;
-  onModelChange: (provider: string, model: string) => void;
+  onModelChange: (provider: string, model: string, endpointId?: string) => void;
   availableModels: AvailableModel[];
   voice: VoiceHook;
   setVoiceOverlay: (overlay: VoiceOverlayState) => void;

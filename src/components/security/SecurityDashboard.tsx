@@ -18,6 +18,7 @@ import {
 import { storageManager } from '../../core/storage/StorageManager';
 import { evidenceVault } from '../../domain/evidence/EvidenceVault';
 import { eventBus } from '../../core/bus/EventBus';
+import { useToast } from '../../lib/toast';
 import type { SecurityTab, VulnerabilityFinding, ScopeItem, ReconAsset } from '../../types';
 import styles from './SecurityDashboard.module.css';
 
@@ -27,6 +28,7 @@ interface SecurityDashboardProps {
 }
 
 export default function SecurityDashboard({ onTabChange, onSendToAI }: SecurityDashboardProps) {
+  const { toast } = useToast();
   const [projectId] = useState<string>('default');
   const [assets, setAssets] = useState<ReconAsset[]>([]);
   const [findings, setFindings] = useState<VulnerabilityFinding[]>([]);
@@ -162,9 +164,9 @@ export default function SecurityDashboard({ onTabChange, onSendToAI }: SecurityD
         }
 
         await loadData();
-        alert(`Successfully imported project archive with ${data.findings?.length || 0} findings and ${data.assets?.length || 0} assets!`);
+        toast('success', `Successfully imported project archive with ${data.findings?.length || 0} findings and ${data.assets?.length || 0} assets!`);
       } catch (err: any) {
-        alert(`Failed to import archive: ${err.message}`);
+        toast('error', `Failed to import archive: ${err.message}`);
       }
     };
     input.click();

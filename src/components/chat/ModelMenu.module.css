@@ -99,6 +99,19 @@
   background: var(--sidebar-border);
 }
 
+.endpointGroupHeader {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #38bdf8;
+  padding: 6px 10px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+}
+
 .option {
   width: 100%;
   text-align: left;

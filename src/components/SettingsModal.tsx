@@ -1,15 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Download, Upload, Monitor, Volume2 } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  X,
+  Download,
+  Upload,
+  Monitor,
+  Volume2,
+  Server,
+  Wifi,
+  Trash2,
+  Eye,
+  EyeOff,
+  Plus,
+  RotateCw,
+} from 'lucide-react';
 import CustomSelect from './common/CustomSelect';
 import { db } from '../lib/db';
-import { DEFAULT_OPENAI_BASE_URL } from '../lib/constants';
+import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_ENDPOINTS } from '../lib/constants';
 import { useToast } from '../lib/toast';
-import type { Settings } from '../types';
+import type { Settings, OpenAIEndpoint, AvailableModel } from '../types';
 import styles from './SettingsModal.module.css';
 
 const PROVIDER_OPTIONS: Array<{ value: Settings['provider']; label: string }> = [
-  { value: 'chrome', label: 'Chrome Gemini Nano' },
-  { value: 'openai', label: 'OpenAI Compatible API' },
+  { value: 'chrome', label: 'Chrome Gemini Nano (Local Built-in)' },
+  { value: 'openai', label: 'OpenAI-Compatible Providers (Multi-Endpoint)' },
 ];
 
 const THEME_OPTIONS: Array<{ value: Settings['theme']; label: string }> = [
@@ -24,6 +37,26 @@ const MAX_TOKENS_OPTIONS = [
   { value: '8192', label: '8,192 - Long code / analysis' },
   { value: '16384', label: '16,384 - Very long outputs' },
   { value: '32768', label: '32,768 - Maximum' },
+];
+
+const PRESET_DEFINITIONS: Record<string, { name: string; baseUrl: string; apiKey: string }> = {
+  ollama: { name: 'Ollama (Local)', baseUrl: 'http://localhost:11434/v1', apiKey: 'sk-local' },
+  lmstudio: { name: 'LM Studio (Local)', baseUrl: 'http://localhost:1234/v1', apiKey: 'sk-local' },
+  openrouter: { name: 'OpenRouter (Cloud)', baseUrl: 'https://openrouter.ai/api/v1', apiKey: '' },
+  groq: { name: 'Groq Cloud', baseUrl: 'https://api.groq.com/openai/v1', apiKey: '' },
+  deepseek: { name: 'DeepSeek API', baseUrl: 'https://api.deepseek.com/v1', apiKey: '' },
+  openai: { name: 'OpenAI Official', baseUrl: 'https://api.openai.com/v1', apiKey: '' },
+  custom: { name: 'Custom OpenAI-Compatible', baseUrl: 'http://localhost:8000/v1', apiKey: '' },
+};
+
+const PRESET_SELECT_OPTIONS = [
+  { value: 'ollama', label: 'Preset: Ollama (localhost:11434)' },
+  { value: 'lmstudio', label: 'Preset: LM Studio (localhost:1234)' },
+  { value: 'openrouter', label: 'Preset: OpenRouter (openrouter.ai)' },
+  { value: 'groq', label: 'Preset: Groq Cloud (api.groq.com)' },
+  { value: 'deepseek', label: 'Preset: DeepSeek (api.deepseek.com)' },
+  { value: 'openai', label: 'Preset: OpenAI Official (api.openai.com)' },
+  { value: 'custom', label: 'Custom Endpoint...' },
 ];
 
 interface SettingsModalProps {
@@ -44,18 +77,47 @@ export default function SettingsModal({
   availableVoices = [],
 }: SettingsModalProps) {
   const { toast } = useToast();
-  const [provider, setProvider] = useState(settings.provider || 'chrome');
-  const [theme, setTheme] = useState(settings.theme || 'dark');
+  const [provider, setProvider] = useState<Settings['provider']>(settings.provider || 'chrome');
+  const [theme, setTheme] = useState<Settings['theme']>(settings.theme || 'dark');
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '');
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState(
-    settings.openaiBaseUrl || DEFAULT_OPENAI_BASE_URL
-  );
-  const [openaiApiKey, setOpenaiApiKey] = useState(settings.openaiApiKey || 'sk-local');
-  const [openaiModel, setOpenaiModel] = useState(settings.openaiModel || '');
-  const [availableModels, setAvailableModels] = useState<Array<{ id: string }>>([]);
   const [temperature, setTemperature] = useState(settings.temperature ?? 0.7);
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 4096);
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice || '');
+
+  // Multi-endpoint state
+  const [endpoints, setEndpoints] = useState<OpenAIEndpoint[]>(() => {
+    if (settings.endpoints && settings.endpoints.length > 0) {
+      return settings.endpoints;
+    }
+    if (settings.openaiBaseUrl && settings.openaiBaseUrl !== DEFAULT_OPENAI_BASE_URL) {
+      return [
+        {
+          id: 'primary',
+          name: 'Custom Endpoint',
+          baseUrl: settings.openaiBaseUrl,
+          apiKey: settings.openaiApiKey || 'sk-local',
+          enabled: true,
+        },
+        ...DEFAULT_OPENAI_ENDPOINTS.filter((e) => e.id !== 'ollama'),
+      ];
+    }
+    return DEFAULT_OPENAI_ENDPOINTS;
+  });
+
+  const [activeEndpointId, setActiveEndpointId] = useState<string>(
+    settings.activeEndpointId || endpoints[0]?.id || 'ollama'
+  );
+
+  const [openaiModel, setOpenaiModel] = useState(settings.openaiModel || '');
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [testStatus, setTestStatus] = useState<
+    Record<
+      string,
+      { status: 'idle' | 'testing' | 'online' | 'error'; latency?: number; modelCount?: number; reason?: string }
+    >
+  >({});
+  const [presetToAdd, setPresetToAdd] = useState<string>('ollama');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,41 +146,139 @@ export default function SettingsModal({
     window.speechSynthesis.speak(u);
   };
 
+  // Fetch models across enabled endpoints
   useEffect(() => {
     if (provider === 'openai') {
-      const fetchModels = async () => {
-        try {
-          const res = await fetch(`${openaiBaseUrl}/models`, {
-            headers: { Authorization: `Bearer ${openaiApiKey}` },
-          });
-          if (res.ok) {
+      const fetchAll = async () => {
+        const enabled = endpoints.filter((e) => e.enabled !== false);
+        const results = await Promise.allSettled(
+          enabled.map(async (ep) => {
+            const res = await fetch(`${ep.baseUrl}/models`, {
+              headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            const models = data.data || [];
-            setAvailableModels(models);
-            if (models.length > 0 && !openaiModel) {
-              setOpenaiModel(models[0].id);
-            }
+            const list = data.data || [];
+            return list.map((m: any) => ({
+              id: m.id,
+              endpointId: ep.id,
+              endpointName: ep.name,
+            }));
+          })
+        );
+        const all: AvailableModel[] = [];
+        results.forEach((r) => {
+          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            all.push(...r.value);
           }
-        } catch (e) {
-          console.error('Failed to fetch models', e);
+        });
+        if (all.length > 0) {
+          setAvailableModels(all);
+          if (!openaiModel) {
+            setOpenaiModel(all[0].id);
+          }
         }
       };
-      fetchModels();
+      fetchAll();
     }
-  }, [provider, openaiBaseUrl, openaiApiKey]);
+  }, [provider, endpoints]);
+
+  const handleTestEndpoint = async (ep: OpenAIEndpoint) => {
+    setTestStatus((prev) => ({
+      ...prev,
+      [ep.id]: { status: 'testing' },
+    }));
+    const startTime = performance.now();
+    try {
+      const res = await fetch(`${ep.baseUrl}/models`, {
+        headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
+      });
+      const latency = Math.round(performance.now() - startTime);
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.data || [];
+        const count = list.length;
+        setTestStatus((prev) => ({
+          ...prev,
+          [ep.id]: { status: 'online', latency, modelCount: count },
+        }));
+        toast('success', `${ep.name}: Connected (${latency}ms, ${count} models)`);
+        setAvailableModels((prev) => {
+          const others = prev.filter((m) => m.endpointId !== ep.id);
+          const newModels = list.map((m: any) => ({
+            id: m.id,
+            endpointId: ep.id,
+            endpointName: ep.name,
+          }));
+          return [...others, ...newModels];
+        });
+      } else {
+        setTestStatus((prev) => ({
+          ...prev,
+          [ep.id]: { status: 'error', reason: `HTTP ${res.status}` },
+        }));
+        toast('error', `${ep.name}: HTTP ${res.status}`);
+      }
+    } catch {
+      setTestStatus((prev) => ({
+        ...prev,
+        [ep.id]: { status: 'error', reason: 'Unreachable' },
+      }));
+      toast('error', `${ep.name}: Unreachable. Ensure server is running.`);
+    }
+  };
+
+  const handleAddEndpoint = () => {
+    const preset = PRESET_DEFINITIONS[presetToAdd] || PRESET_DEFINITIONS.custom;
+    const newEp: OpenAIEndpoint = {
+      id: `ep-${Date.now()}`,
+      name: preset.name,
+      baseUrl: preset.baseUrl,
+      apiKey: preset.apiKey,
+      enabled: true,
+    };
+    setEndpoints((prev) => [...prev, newEp]);
+    toast('info', `Added '${newEp.name}' endpoint`);
+  };
+
+  const handleDeleteEndpoint = (id: string) => {
+    if (endpoints.length <= 1) {
+      toast('warning', 'You must keep at least one endpoint');
+      return;
+    }
+    const target = endpoints.find((e) => e.id === id);
+    setEndpoints((prev) => prev.filter((e) => e.id !== id));
+    if (activeEndpointId === id) {
+      const remaining = endpoints.filter((e) => e.id !== id);
+      if (remaining.length > 0) {
+        setActiveEndpointId(remaining[0].id);
+      }
+    }
+    toast('info', `Removed '${target?.name || 'endpoint'}'`);
+  };
+
+  const handleUpdateEndpoint = (id: string, updates: Partial<OpenAIEndpoint>) => {
+    setEndpoints((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
+    );
+  };
 
   const handleSave = () => {
+    const activeEp = endpoints.find((e) => e.id === activeEndpointId) || endpoints[0];
     onSave({
       provider,
       theme,
       systemPrompt,
-      openaiBaseUrl,
-      openaiApiKey,
+      endpoints,
+      activeEndpointId,
+      openaiBaseUrl: activeEp?.baseUrl || DEFAULT_OPENAI_BASE_URL,
+      openaiApiKey: activeEp?.apiKey || 'sk-local',
       openaiModel,
       temperature: parseFloat(String(temperature)),
       maxTokens: parseInt(String(maxTokens), 10),
       ttsVoice,
     });
+    toast('success', 'AI & System settings applied successfully');
     onClose();
   };
 
@@ -151,9 +311,25 @@ export default function SettingsModal({
     reader.readAsText(file);
   };
 
+  const modelSelectOptions = useMemo(() => {
+    if (availableModels.length === 0) {
+      return [{ value: '', label: 'No models found across enabled endpoints' }];
+    }
+    return availableModels.map((m) => ({
+      value: m.id,
+      label: `${m.id} (${m.endpointName || 'Endpoint'})`,
+    }));
+  }, [availableModels]);
+
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="System Configuration" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="System Configuration"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className={styles.header}>
           <div className={styles.headerContent}>
             <Monitor size={20} color="var(--accent-color)" />
@@ -167,7 +343,7 @@ export default function SettingsModal({
         <div className={styles.body}>
           <div className={styles.row}>
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Provider</label>
+              <label className={styles.fieldLabel}>AI Execution Engine</label>
               <CustomSelect<Settings['provider']>
                 value={provider}
                 onChange={setProvider}
@@ -184,39 +360,166 @@ export default function SettingsModal({
             </div>
           </div>
 
+          {/* OpenAI-Compatible Multi-Endpoint Manager */}
           {provider === 'openai' && (
-            <div className={styles.apiSection}>
-              <h4 className={styles.apiSectionTitle}>OpenAI API Settings</h4>
-              <div className={styles.apiRow}>
-                <div className={`${styles.apiField} ${styles.apiFieldWide}`}>
-                  <label className={styles.apiLabel}>Base URL</label>
-                  <input
-                    value={openaiBaseUrl}
-                    onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                    className={styles.apiInput}
-                  />
-                </div>
-                <div className={`${styles.apiField} ${styles.apiFieldNarrow}`}>
-                  <label className={styles.apiLabel}>API Key</label>
-                  <input
-                    type="password"
-                    value={openaiApiKey}
-                    onChange={(e) => setOpenaiApiKey(e.target.value)}
-                    className={styles.apiInput}
-                  />
-                </div>
+            <div className={styles.endpointsContainer}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className={styles.apiSectionTitle} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Server size={14} color="#38bdf8" /> OpenAI-Compatible Endpoints ({endpoints.length})
+                </span>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Select active default &amp; test connectivity
+                </span>
               </div>
-              <div className={styles.apiField}>
-                <label className={styles.apiLabel}>Model</label>
+
+              <div className={styles.endpointList}>
+                {endpoints.map((ep) => {
+                  const isActive = ep.id === activeEndpointId;
+                  const test = testStatus[ep.id];
+                  const showingKey = !!showApiKey[ep.id];
+
+                  return (
+                    <div
+                      key={ep.id}
+                      className={`${styles.endpointCard} ${isActive ? styles.endpointCardActive : ''}`}
+                    >
+                      <div className={styles.endpointTopRow}>
+                        <div className={styles.endpointLeft}>
+                          <input
+                            type="radio"
+                            name="activeEndpoint"
+                            checked={isActive}
+                            onChange={() => setActiveEndpointId(ep.id)}
+                            className={styles.endpointRadio}
+                            title="Set as active default endpoint"
+                          />
+                          <input
+                            type="text"
+                            value={ep.name}
+                            onChange={(e) => handleUpdateEndpoint(ep.id, { name: e.target.value })}
+                            className={styles.endpointNameInput}
+                            placeholder="Endpoint Name"
+                          />
+                          {test?.status === 'online' && (
+                            <span className={`${styles.statusPill} ${styles.statusOnline}`}>
+                              ● Online ({test.latency}ms • {test.modelCount} models)
+                            </span>
+                          )}
+                          {test?.status === 'testing' && (
+                            <span className={`${styles.statusPill} ${styles.statusTesting}`}>
+                              ● Testing ping...
+                            </span>
+                          )}
+                          {test?.status === 'error' && (
+                            <span className={`${styles.statusPill} ${styles.statusError}`}>
+                              ● {test.reason || 'Failed'}
+                            </span>
+                          )}
+                          {(!test || test.status === 'idle') && (
+                            <span className={`${styles.statusPill} ${styles.statusIdle}`}>
+                              {ep.enabled !== false ? 'Enabled' : 'Disabled'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className={styles.endpointActions}>
+                          <button
+                            type="button"
+                            className={styles.testConnectionBtn}
+                            onClick={() => handleTestEndpoint(ep)}
+                            title="Ping /models endpoint to verify connectivity and latency"
+                          >
+                            <Wifi size={12} /> Test
+                          </button>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#94a3b8', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={ep.enabled !== false}
+                              onChange={(e) => handleUpdateEndpoint(ep.id, { enabled: e.target.checked })}
+                            />
+                            On
+                          </label>
+                          {endpoints.length > 1 && (
+                            <button
+                              type="button"
+                              className={styles.endpointDeleteBtn}
+                              onClick={() => handleDeleteEndpoint(ep.id)}
+                              title="Delete endpoint"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={styles.endpointGrid}>
+                        <div className={styles.apiField}>
+                          <label className={styles.apiLabel}>Base URL</label>
+                          <input
+                            value={ep.baseUrl}
+                            onChange={(e) => handleUpdateEndpoint(ep.id, { baseUrl: e.target.value })}
+                            className={styles.apiInput}
+                            placeholder="http://localhost:11434/v1"
+                          />
+                        </div>
+
+                        <div className={styles.apiField}>
+                          <label className={styles.apiLabel}>API Key</label>
+                          <div className={styles.apiKeyWrapper}>
+                            <input
+                              type={showingKey ? 'text' : 'password'}
+                              value={ep.apiKey}
+                              onChange={(e) => handleUpdateEndpoint(ep.id, { apiKey: e.target.value })}
+                              className={styles.apiInput}
+                              placeholder="sk-local or secret key"
+                              style={{ width: '100%', paddingRight: '28px' }}
+                            />
+                            <button
+                              type="button"
+                              className={styles.apiKeyToggle}
+                              onClick={() => setShowApiKey((prev) => ({ ...prev, [ep.id]: !showingKey }))}
+                              title={showingKey ? 'Hide API Key' : 'Reveal API Key'}
+                            >
+                              {showingKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add Endpoint Bar */}
+              <div className={styles.addEndpointBar}>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <CustomSelect
+                    value={presetToAdd}
+                    onChange={(val) => setPresetToAdd(val)}
+                    options={PRESET_SELECT_OPTIONS}
+                    style={{ fontSize: '0.76rem' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={styles.addEndpointBtn}
+                  onClick={handleAddEndpoint}
+                >
+                  <Plus size={14} /> Add Endpoint
+                </button>
+              </div>
+
+              {/* Default Model Selector */}
+              <div className={styles.apiField} style={{ marginTop: '4px' }}>
+                <label className={styles.apiLabel} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Default AI Model</span>
+                  <span style={{ color: '#38bdf8' }}>{availableModels.length} models discovered</span>
+                </label>
                 <CustomSelect
                   value={openaiModel}
                   onChange={setOpenaiModel}
-                  placeholder="Select model..."
-                  options={
-                    availableModels.length === 0
-                      ? [{ value: '', label: 'No models found or server unreachable' }]
-                      : availableModels.map((m) => ({ value: m.id, label: m.id }))
-                  }
+                  placeholder="Select default model..."
+                  options={modelSelectOptions}
                 />
               </div>
             </div>
@@ -227,7 +530,7 @@ export default function SettingsModal({
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="e.g. You are an expert coding assistant..."
+              placeholder="e.g. You are an expert application security engineer..."
               className={styles.textarea}
             />
           </div>
