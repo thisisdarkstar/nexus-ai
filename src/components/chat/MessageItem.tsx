@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import {
   Copy,
   Check,
@@ -16,9 +16,12 @@ import {
   GitBranch,
   Square,
 } from 'lucide-react';
+import { eventBus } from '../../core/bus/EventBus';
 import { renderMarkdown } from '../../lib/markdown';
 import { escapeHtml } from '../../lib/sanitize';
 import ActionCard, { type ActionCardData } from './ActionCard';
+import ThinkingBlock from './ThinkingBlock';
+import { extractThinkingAndContent } from '../../lib/thinkingParser';
 import type { Message, Settings, AvailableModel } from '../../types';
 import styles from './MessageItem.module.css';
 
@@ -103,11 +106,7 @@ function injectActionButtons(el: HTMLElement) {
     sandBtn.title = 'Execute in isolated Pyodide Wasm sandbox';
     sandBtn.onclick = (e) => {
       e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent('nexus:open-security', {
-          detail: { tab: 'sandbox', code: getCode() },
-        })
-      );
+      eventBus.publish('open-security', { tab: 'sandbox', code: getCode() });
     };
     bar.appendChild(sandBtn);
 
@@ -118,11 +117,7 @@ function injectActionButtons(el: HTMLElement) {
     auditBtn.title = 'Inspect in SAST Code Auditor';
     auditBtn.onclick = (e) => {
       e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent('nexus:open-security', {
-          detail: { tab: 'auditor', code: getCode() },
-        })
-      );
+      eventBus.publish('open-security', { tab: 'auditor', code: getCode() });
     };
     bar.appendChild(auditBtn);
 
@@ -133,11 +128,7 @@ function injectActionButtons(el: HTMLElement) {
     decBtn.title = 'Inspect in Decoders & JWT Hub';
     decBtn.onclick = (e) => {
       e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent('nexus:open-security', {
-          detail: { tab: 'decoders', code: getCode() },
-        })
-      );
+      eventBus.publish('open-security', { tab: 'decoders', code: getCode() });
     };
     bar.appendChild(decBtn);
 
@@ -148,11 +139,7 @@ function injectActionButtons(el: HTMLElement) {
     repBtn.title = 'Open in VAPT Report Studio';
     repBtn.onclick = (e) => {
       e.stopPropagation();
-      window.dispatchEvent(
-        new CustomEvent('nexus:open-security', {
-          detail: { tab: 'reports', code: getCode() },
-        })
-      );
+      eventBus.publish('open-security', { tab: 'reports', code: getCode() });
     };
     bar.appendChild(repBtn);
 
@@ -213,14 +200,20 @@ export default memo(function MessageItem({
     return () => observer.disconnect();
   }, [showRaw]);
 
-  const plainText = msg.content
-    ? msg.content
+  const isUser = msg.role === 'user';
+  const parsed = useMemo(() => {
+    return !isUser && msg.content
+      ? extractThinkingAndContent(msg.content)
+      : { thinking: null, content: msg.content || '', isThinkingActive: false };
+  }, [isUser, msg.content]);
+
+  const plainText = (parsed.content || parsed.thinking || '')
+    ? (parsed.content || parsed.thinking || '')
         .replace(/[#*_`[\]()]/g, '')
         .replace(/\n/g, ' ')
         .trim()
     : '';
-  const isUser = msg.role === 'user';
-  const actionCards = !isUser && msg.content ? extractActionCards(msg.content) : [];
+  const actionCards = !isUser && parsed.content ? extractActionCards(parsed.content) : [];
 
   const retryOptions = [
     { label: 'Same model', provider: null, modelId: null },
@@ -300,7 +293,17 @@ export default memo(function MessageItem({
               <span dangerouslySetInnerHTML={{ __html: escapeHtml(msg.content).replace(/\n/g, '<br/>') }} />
             ) : (
               <>
-                <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                {parsed.thinking && (
+                  <ThinkingBlock
+                    thinking={parsed.thinking}
+                    isActive={Boolean(parsed.isThinkingActive && isGenerating && isLatest)}
+                  />
+                )}
+                {parsed.content ? (
+                  <div dangerouslySetInnerHTML={{ __html: renderMarkdown(parsed.content) }} />
+                ) : parsed.isThinkingActive ? null : (
+                  <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                )}
                 {isCancelled && (
                   <div className={styles.cancelledNoticeStrip}>
                     <Square size={10} fill="#f59e0b" color="#f59e0b" />

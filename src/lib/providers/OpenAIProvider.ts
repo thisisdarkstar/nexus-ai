@@ -1,4 +1,5 @@
 import { RateLimiter } from '../rateLimiter';
+import { fetchWithTimeout } from './fetchWithTimeout';
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_ENDPOINTS } from '../constants';
 import type { AIProvider, AvailableModel, Message, OpenAIEndpoint, Settings } from '../../types';
 
@@ -60,7 +61,7 @@ export class OpenAIProvider implements AIProvider {
     const key = ep?.apiKey || this.apiKey;
 
     try {
-      const response = await fetch(`${url}/models`, {
+      const response = await fetchWithTimeout(`${url}/models`, {
         headers: key ? { Authorization: `Bearer ${key}` } : {},
       });
       if (response.ok) {
@@ -76,7 +77,7 @@ export class OpenAIProvider implements AIProvider {
     // If a specific endpoint is targeted (e.g. from test connection in settings)
     if (targetEndpoint) {
       try {
-        const response = await fetch(`${targetEndpoint.baseUrl}/models`, {
+        const response = await fetchWithTimeout(`${targetEndpoint.baseUrl}/models`, {
           headers: targetEndpoint.apiKey ? { Authorization: `Bearer ${targetEndpoint.apiKey}` } : {},
         });
         if (response.ok) {
@@ -108,7 +109,7 @@ export class OpenAIProvider implements AIProvider {
 
     const results = await Promise.allSettled(
       enabledEndpoints.map(async (ep) => {
-        const res = await fetch(`${ep.baseUrl}/models`, {
+        const res = await fetchWithTimeout(`${ep.baseUrl}/models`, {
           headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -275,7 +276,7 @@ export class OpenAIProvider implements AIProvider {
             const data = line.slice(6);
             if (data.trim() === '[DONE]') {
               if (inThinkingMode) {
-                yield '\n\n';
+                yield '\n</think>\n\n';
                 inThinkingMode = false;
               }
               return;
@@ -291,12 +292,12 @@ export class OpenAIProvider implements AIProvider {
               if (reasoning) {
                 if (!inThinkingMode) {
                   inThinkingMode = true;
-                  yield '> *Thinking:*\n> ';
+                  yield '<think>\n';
                 }
-                yield reasoning.replace(/\n/g, '\n> ');
+                yield reasoning;
               } else if (content) {
                 if (inThinkingMode) {
-                  yield '\n\n';
+                  yield '\n</think>\n\n';
                   inThinkingMode = false;
                 }
                 yield content;
@@ -306,6 +307,10 @@ export class OpenAIProvider implements AIProvider {
             }
           }
         }
+      }
+      if (inThinkingMode) {
+        yield '\n</think>\n\n';
+        inThinkingMode = false;
       }
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
