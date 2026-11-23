@@ -1,14 +1,13 @@
-import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   Sparkles,
   X,
   Maximize2,
   Minimize2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Check,
   UploadCloud,
+  Search,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -83,67 +82,17 @@ export default function SecurityCanvas({
   const [sandboxCode, setSandboxCode] = useState<string | undefined>(undefined);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const tabListRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [modalCategory, setModalCategory] = useState<TabCategory>('all');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const checkScrollability = useCallback(() => {
-    const el = tabListRef.current;
-    if (!el) return;
-    const hasOverflow = el.scrollWidth > el.clientWidth + 2;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(hasOverflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
+  const activeTabInfo = SECURITY_TABS.find((t) => t.id === activeTab);
+  const ActiveIcon = activeTabInfo?.icon || SECURITY_TABS[0].icon;
 
-  const handleTabWheel = (e: React.WheelEvent) => {
-    if (tabListRef.current) {
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (delta !== 0) {
-        tabListRef.current.scrollLeft += delta;
-        checkScrollability();
-      }
-    }
-  };
-
-  const scrollTabs = (direction: 'left' | 'right') => {
-    if (!tabListRef.current) return;
-    const amount = direction === 'left' ? -260 : 260;
-    tabListRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-    setTimeout(checkScrollability, 350);
-  };
-
-  useEffect(() => {
-    checkScrollability();
-
-    const el = tabListRef.current;
-    const canvasEl = canvasRef.current;
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => {
-        checkScrollability();
-      });
-      if (el) ro.observe(el);
-      if (canvasEl) ro.observe(canvasEl);
-    }
-
-    const handleResize = () => checkScrollability();
-    window.addEventListener('resize', handleResize);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [checkScrollability]);
-
-  useEffect(() => {
-    if (tabListRef.current) {
-      const activeEl = tabListRef.current.querySelector<HTMLElement>(`.${styles.active}`);
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-      }
-    }
-    const timer = setTimeout(checkScrollability, 60);
-    return () => clearTimeout(timer);
-  }, [activeTab, category, checkScrollability]);
+  const activeCategoryLabel = useMemo(() => {
+    const cat = CATEGORIES.find((c) => c.id === activeTabInfo?.category);
+    return cat ? cat.label.split('&')[0].trim() : 'Tool';
+  }, [activeTabInfo]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -157,150 +106,219 @@ export default function SecurityCanvas({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
+  useEffect(() => {
+    if (dropdownOpen) {
+      setSearchQuery('');
+      setModalCategory('all');
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [dropdownOpen]);
+
+  const filteredTools = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return SECURITY_TABS.filter((t) => {
+      const matchCat = modalCategory === 'all' || t.category === modalCategory;
+      if (!matchCat) return false;
+      if (!q) return true;
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.tooltip.toLowerCase().includes(q) ||
+        t.keywords.some((k) => k.toLowerCase().includes(q))
+      );
+    });
+  }, [modalCategory, searchQuery]);
+
+  const handleCategoryPillClick = (cat: TabCategory) => {
+    setCategory(cat);
+    if (cat === 'all') {
+      setDropdownOpen(true);
+      setModalCategory('all');
+      return;
+    }
+    const firstInCat = SECURITY_TABS.find((t) => t.category === cat);
+    if (firstInCat && activeTabInfo?.category !== cat) {
+      onTabChange(firstInCat.id);
+    }
+  };
+
   const handleSendToSandbox = (code: string) => {
     setSandboxCode(code);
     onTabChange('sandbox');
   };
 
-  const activeTabInfo = SECURITY_TABS.find((t) => t.id === activeTab);
-  const ActiveIcon = activeTabInfo?.icon || SECURITY_TABS[0].icon;
-
   const handleAskAIWithActiveContext = () => {
     onSendToAI(getAskAiContext(activeTab));
   };
 
-  const filteredTabs = SECURITY_TABS.filter(
-    (t) => category === 'all' || t.category === category
-  );
-
   return (
     <div ref={canvasRef} className={styles.canvasContainer}>
-      {/* Canvas Header & Tabs */}
+      {/* Canvas Header & Tools Dropdown Modal */}
       <div className={styles.canvasHeader}>
-        {/* Category Pills */}
-        <div className={styles.categoryGroup}>
-          {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => (
-            <button
-              key={cat}
-              className={`${styles.catBtn} ${category === cat ? styles.active : ''}`}
-              onClick={() => setCategory(cat)}
-            >
-              {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
-            </button>
-          ))}
-        </div>
-
-        {/* Custom Rich Dropdown Selector for Narrow Views */}
-        <div className={styles.dropdownWrapper} ref={dropdownRef}>
+        {/* Left: Tool Dropdown Trigger & Category Quick Filter */}
+        <div className={styles.toolSelectorWrapper} ref={dropdownRef}>
           <button
             type="button"
-            className={`${styles.dropdownTrigger} ${dropdownOpen ? styles.dropdownTriggerActive : ''}`}
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            title="Select Security Tool"
+            className={`${styles.toolDropdownTrigger} ${dropdownOpen ? styles.toolDropdownTriggerOpen : ''}`}
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            title="Open Security Modules Menu"
             aria-label="Select security tool"
             aria-expanded={dropdownOpen}
-            aria-haspopup="menu"
+            aria-haspopup="dialog"
           >
-            <div className={styles.dropdownTriggerContent}>
-              <ActiveIcon size={14} color="#10b981" />
-              <span className={styles.dropdownTriggerLabel}>{activeTabInfo?.name || 'Tools'}</span>
+            <div className={`${styles.toolTriggerIconWrap} ${styles[`tile_${activeTabInfo?.category || 'assess'}`]}`}>
+              <ActiveIcon size={14} />
+            </div>
+            <div className={styles.toolTriggerTextWrap}>
+              <span className={styles.toolTriggerName}>{activeTabInfo?.name || 'Tools'}</span>
+              <span className={styles.toolTriggerCategory}>{activeCategoryLabel}</span>
             </div>
             <ChevronDown
               size={13}
-              className={`${styles.dropdownChevron} ${dropdownOpen ? styles.dropdownChevronOpen : ''}`}
+              className={`${styles.toolTriggerChevron} ${dropdownOpen ? styles.toolTriggerChevronOpen : ''}`}
             />
           </button>
 
-          {dropdownOpen && (
-            <div className={styles.dropdownMenu} role="menu" aria-label="Security tools">
-              {CATEGORIES.map((cat) => {
-                const tabsInCat = SECURITY_TABS.filter((t) => t.category === cat.id);
-                return (
-                  <div key={cat.id} className={styles.dropdownGroup}>
-                    <div className={styles.dropdownGroupHeader}>{cat.label}</div>
-                    <div className={styles.dropdownGroupItems}>
-                      {tabsInCat.map((t) => {
-                        const Icon = t.icon;
-                        const isActive = activeTab === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            className={`${styles.dropdownItem} ${isActive ? styles.dropdownItemActive : ''}`}
-                            onClick={() => {
-                              onTabChange(t.id);
-                              setDropdownOpen(false);
-                            }}
-                            title={t.tooltip}
-                          >
-                            <div className={styles.dropdownItemLeft}>
-                              <Icon size={14} className={styles.dropdownItemIcon} />
-                              <span className={styles.dropdownItemText}>{t.name}</span>
-                            </div>
-                            {isActive && <Check size={12} className={styles.dropdownItemCheck} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Tab Switcher List with Wheel & Arrow Scrolling */}
-        <div className={styles.tabNavWrapper}>
-          {canScrollLeft && (
-            <button
-              type="button"
-              className={`${styles.scrollArrowBtn} ${styles.scrollArrowLeft}`}
-              onClick={() => scrollTabs('left')}
-              title="Scroll tabs left"
-              aria-label="Scroll tabs left"
-            >
-              <ChevronLeft size={13} />
-            </button>
-          )}
-
-          <div
-            className={styles.tabList}
-            ref={tabListRef}
-            onWheel={handleTabWheel}
-            onScroll={checkScrollability}
-            role="tablist"
-            aria-label="Security workbench tools"
-          >
-            {filteredTabs.map((t) => {
-              const Icon = t.icon;
-              const isActive = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  className={`${styles.tabBtn} ${isActive ? styles.active : ''}`}
-                  onClick={() => onTabChange(t.id)}
-                  title={t.tooltip}
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-label={t.name}
-                >
-                  <Icon size={14} />
-                  <span>{t.name}</span>
-                </button>
-              );
-            })}
+          {/* Category Quick Pills */}
+          <div className={styles.categoryPillsGroup}>
+            {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`${styles.catPillBtn} ${
+                  cat === 'all'
+                    ? category === 'all'
+                      ? styles.catPillBtnActive
+                      : ''
+                    : activeTabInfo?.category === cat
+                      ? styles.catPillBtnActive
+                      : ''
+                }`}
+                onClick={() => handleCategoryPillClick(cat)}
+                title={`Switch to ${cat === 'all' ? 'All tools' : cat} category`}
+              >
+                {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
+              </button>
+            ))}
           </div>
 
-          {canScrollRight && (
-            <button
-              type="button"
-              className={`${styles.scrollArrowBtn} ${styles.scrollArrowRight}`}
-              onClick={() => scrollTabs('right')}
-              title="Scroll tabs right"
-              aria-label="Scroll tabs right"
-            >
-              <ChevronRight size={13} />
-            </button>
+          {dropdownOpen && (
+            <>
+              <div className={styles.overlay} onClick={() => setDropdownOpen(false)} />
+              <div className={styles.dropdownModal} role="dialog" aria-label="Security Modules Menu">
+                <div className={styles.modalHeaderRow}>
+                  <span className={styles.modalHeaderTitle}>Security Modules ({SECURITY_TABS.length})</span>
+                  <button
+                    type="button"
+                    className={styles.modalCloseBtn}
+                    onClick={() => setDropdownOpen(false)}
+                    aria-label="Close tools menu"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className={styles.modalSearchBox}>
+                  <Search size={14} className={styles.modalSearchIcon} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className={styles.modalSearchInput}
+                    placeholder="Filter by name, keyword, or tool (e.g. nuclei, jwt, burp)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setDropdownOpen(false);
+                      if (e.key === 'Enter' && filteredTools.length > 0) {
+                        onTabChange(filteredTools[0].id);
+                        setDropdownOpen(false);
+                      }
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className={styles.modalSearchClear}
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Clear search"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Modal Category Filter Chips */}
+                <div className={styles.modalCategoryChips}>
+                  {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => {
+                    const count =
+                      cat === 'all'
+                        ? SECURITY_TABS.length
+                        : SECURITY_TABS.filter((t) => t.category === cat).length;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        className={`${styles.modalCatChip} ${modalCategory === cat ? styles.modalCatChipActive : ''}`}
+                        onClick={() => setModalCategory(cat)}
+                      >
+                        {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
+                        <span className={styles.modalCatCount}>({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tool List */}
+                <div className={styles.modalToolList}>
+                  {filteredTools.length === 0 ? (
+                    <div className={styles.modalNoResults}>
+                      No security tools matched "{searchQuery}".
+                    </div>
+                  ) : (
+                    CATEGORIES.map((cat) => {
+                      const toolsInCat = filteredTools.filter((t) => t.category === cat.id);
+                      if (toolsInCat.length === 0) return null;
+                      return (
+                        <div key={cat.id} className={styles.modalGroup}>
+                          <div className={styles.modalGroupHeader}>{cat.label}</div>
+                          <div className={styles.modalGroupItems}>
+                            {toolsInCat.map((t) => {
+                              const Icon = t.icon;
+                              const isActive = activeTab === t.id;
+                              return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  className={`${styles.modalToolItem} ${isActive ? styles.modalToolItemActive : ''}`}
+                                  onClick={() => {
+                                    onTabChange(t.id);
+                                    setDropdownOpen(false);
+                                  }}
+                                  title={t.tooltip}
+                                >
+                                  <div className={styles.modalToolItemLeft}>
+                                    <div className={`${styles.modalToolIconTile} ${styles[`tile_${t.category}`]}`}>
+                                      <Icon size={14} />
+                                    </div>
+                                    <div className={styles.modalToolInfo}>
+                                      <span className={styles.modalToolName}>{t.name}</span>
+                                      <span className={styles.modalToolDesc}>{t.tooltip}</span>
+                                    </div>
+                                  </div>
+                                  {isActive && <Check size={14} className={styles.modalToolCheck} />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
 
