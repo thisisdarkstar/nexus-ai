@@ -222,12 +222,19 @@ export default function CopilotDrawer({
     });
   };
 
+  const handleSendMessage = (textToSend?: string) => {
+    const text = (textToSend !== undefined ? textToSend : input).trim();
+    if (!text || isGenerating) return;
+    setInput('');
+    handleSend(text);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
       if (!e.shiftKey && !e.ctrlKey) {
         e.preventDefault();
         if (input.trim() && !isGenerating) {
-          handleSend(input);
+          handleSendMessage(input);
         }
       }
     }
@@ -555,7 +562,7 @@ export default function CopilotDrawer({
                   type="button"
                   className={styles.sendBtn}
                   disabled={!input.trim() || providerStatus.state !== 'ready'}
-                  onClick={() => handleSend(input)}
+                  onClick={() => handleSendMessage(input)}
                   title="Send to Copilot (Enter)"
                 >
                   <Send size={13} />

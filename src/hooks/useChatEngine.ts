@@ -313,11 +313,11 @@ export function useChatEngine({
           ? text
           : `${queuedPromptsRef.current[0]} (+${queueLen - 1} queued)`
       );
-      if (textOverride === undefined) setInput('');
+      setInput('');
       return;
     }
 
-    if (textOverride === undefined) setInput('');
+    setInput('');
     undoRedo.pushSnapshot(messagesRef.current);
     setIsGenerating(true);
     stopRef.current = false;
