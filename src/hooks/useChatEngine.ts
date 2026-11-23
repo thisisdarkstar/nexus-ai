@@ -61,6 +61,7 @@ export function useChatEngine({
   const abortRef = useRef<AbortController | null>(null);
   const queuedPromptsRef = useRef<string[]>([]);
   const handleSendRef = useRef<((textOverride?: string) => Promise<void>) | null>(null);
+  const flushPendingRef = useRef<(() => void) | null>(null);
   const skipNextLoadRef = useRef(false);
   const currentChatIdRef = useRef<string | null>(currentChatId);
   const messagesRef = useRef<Message[]>(messages);
@@ -72,6 +73,22 @@ export function useChatEngine({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Streaming is debounced to IndexedDB. Flush the in-flight response when the
+  // tab is hidden or closed so a partial answer is never lost.
+  useEffect(() => {
+    const flush = () => flushPendingRef.current?.();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+      flush();
+    };
+  }, []);
 
   useEffect(() => {
     async function loadChat() {
@@ -156,7 +173,11 @@ export function useChatEngine({
     undoRedo.pushSnapshot(messages);
     const oldMsg = messages[index];
     const effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
-    const providerOptions = { temperature: settings.temperature, maxTokens: settings.maxTokens };
+    const providerOptions = {
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      contextWindow: settings.contextWindow,
+    };
     setIsGenerating(true);
     stopRef.current = false;
     abortRef.current = new AbortController();
@@ -175,6 +196,20 @@ export function useChatEngine({
 
     let accumulated = '';
     let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+    flushPendingRef.current = () => {
+      if (!accumulated || !currentChatId) return;
+      void db.saveChat({
+        id: currentChatId,
+        workspaceId: currentProjectId || 'default',
+        title,
+        messages: [...history, { ...placeholderAi, content: accumulated }],
+        systemPrompt: chatSystemPrompt,
+        provider: settings.provider,
+        model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
+        updatedAt: Date.now(),
+      } as Chat).catch(() => {});
+    };
 
     try {
       const provider = providerManager.getProvider();
@@ -226,6 +261,7 @@ export function useChatEngine({
       }
     } finally {
       clearTimeout(autosaveTimer);
+      flushPendingRef.current = null;
       if (retryProvider) {
         providerManager.setProvider(originalProviderId || '');
         if (openai && originalOpenAIModel) {
@@ -297,7 +333,11 @@ export function useChatEngine({
     }
 
     const effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
-    const providerOptions = { temperature: settings.temperature, maxTokens: settings.maxTokens };
+    const providerOptions = {
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      contextWindow: settings.contextWindow,
+    };
 
     const currentHistory = messagesRef.current;
     const history: Message[] = [
@@ -312,6 +352,20 @@ export function useChatEngine({
 
     let accumulated = '';
     let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+    flushPendingRef.current = () => {
+      if (!accumulated) return;
+      void db.saveChat({
+        id: sessionChatId!,
+        workspaceId: currentProjectId || 'default',
+        title: chatTitle,
+        messages: [...history, { role: 'ai', content: accumulated }],
+        systemPrompt: chatSystemPrompt,
+        provider: settings.provider,
+        model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
+        updatedAt: Date.now(),
+      } as Chat).catch(() => {});
+    };
 
     try {
       const provider = providerManager.getProvider();
@@ -357,6 +411,7 @@ export function useChatEngine({
       }
     } finally {
       clearTimeout(autosaveTimer);
+      flushPendingRef.current = null;
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       const wasCancelled = stopRef.current || !!abortRef.current?.signal.aborted;
       const finalMessages: Message[] = [
@@ -391,7 +446,9 @@ export function useChatEngine({
       } as Chat).then(() => reloadChats()).catch((err) => console.error('Failed to save chat:', err));
 
       if (finalMessages.length === 2) {
-        handleRegenerateTitle(finalMessages);
+        // Pass the freshly-created id: `currentChatId` in this closure is still
+        // null for a brand-new chat, so the generated title was never persisted.
+        handleRegenerateTitle(finalMessages, sessionChatId);
       }
 
       if (queuedPromptsRef.current.length > 0) {
@@ -440,7 +497,10 @@ export function useChatEngine({
     setQueuedPromptDisplay('');
   };
 
-  const handleRegenerateTitle = async (currentMessages: Message[]) => {
+  const handleRegenerateTitle = async (
+    currentMessages: Message[],
+    targetChatId?: string
+  ) => {
     if (currentMessages.length < 2 || isGenerating) return;
     const snippet = currentMessages
       .slice(0, 4)
@@ -466,9 +526,10 @@ export function useChatEngine({
       const newTitle = generated.replace(/["'\n]/g, '').trim();
       if (newTitle && newTitle.length > 2 && newTitle.length < 60) {
         setTitle(newTitle);
-        if (currentChatId) {
+        const chatId = targetChatId ?? currentChatId;
+        if (chatId) {
           const savedChats = await db.getChats();
-          const chat = savedChats.find((c) => c.id === currentChatId);
+          const chat = savedChats.find((c) => c.id === chatId);
           if (chat) {
             await db.saveChat({ ...chat, title: newTitle }).catch(() => {});
             reloadChats();

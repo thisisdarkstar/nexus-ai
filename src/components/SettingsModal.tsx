@@ -12,12 +12,20 @@ import {
   EyeOff,
   Plus,
   RotateCw,
+  ShieldCheck,
 } from 'lucide-react';
 import CustomSelect from './common/CustomSelect';
 import { db } from '../lib/db';
+import { clearApiKeys } from '../lib/apiKeyStore';
+import { fetchWithTimeout } from '../lib/providers/fetchWithTimeout';
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_ENDPOINTS } from '../lib/constants';
+import {
+  DEFAULT_POLICY_CONFIG,
+  executionPolicyGuard,
+  type ExecutionAuditLog,
+} from '../core/policy/ExecutionPolicyGuard';
 import { useToast } from '../lib/toast';
-import type { Settings, OpenAIEndpoint, AvailableModel } from '../types';
+import type { Settings, OpenAIEndpoint, AvailableModel, ExecutionPolicyConfig } from '../types';
 import styles from './SettingsModal.module.css';
 
 const PROVIDER_OPTIONS: Array<{ value: Settings['provider']; label: string }> = [
@@ -37,6 +45,16 @@ const MAX_TOKENS_OPTIONS = [
   { value: '8192', label: '8,192 - Long code / analysis' },
   { value: '16384', label: '16,384 - Very long outputs' },
   { value: '32768', label: '32,768 - Maximum' },
+];
+
+const CONTEXT_WINDOW_OPTIONS = [
+  { value: '2048', label: '2,048 tokens (2K - Ultra Low VRAM)' },
+  { value: '4096', label: '4,096 tokens (4K - Compact)' },
+  { value: '8192', label: '8,192 tokens (8K - Standard)' },
+  { value: '16384', label: '16,384 tokens (16K - Balanced / Default)' },
+  { value: '32768', label: '32,768 tokens (32K - Large / High VRAM)' },
+  { value: '65536', label: '65,536 tokens (64K - Extended)' },
+  { value: '131072', label: '131,072 tokens (128K - Maximum)' },
 ];
 
 const PRESET_DEFINITIONS: Record<string, { name: string; baseUrl: string; apiKey: string }> = {
@@ -82,7 +100,14 @@ export default function SettingsModal({
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '');
   const [temperature, setTemperature] = useState(settings.temperature ?? 0.7);
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 4096);
+  const [contextWindow, setContextWindow] = useState(settings.contextWindow ?? 16384);
   const [ttsVoice, setTtsVoice] = useState(settings.ttsVoice || '');
+  const [policy, setPolicy] = useState<ExecutionPolicyConfig>(() => ({
+    ...DEFAULT_POLICY_CONFIG,
+    ...executionPolicyGuard.getConfig(),
+    ...settings.executionPolicy,
+  }));
+  const [auditLogs, setAuditLogs] = useState<ExecutionAuditLog[]>(() => executionPolicyGuard.getAuditLogs());
 
   // Multi-endpoint state
   const [endpoints, setEndpoints] = useState<OpenAIEndpoint[]>(() => {
@@ -121,6 +146,11 @@ export default function SettingsModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setAuditLogs(executionPolicyGuard.getAuditLogs());
+    return executionPolicyGuard.subscribeAudit(() => setAuditLogs(executionPolicyGuard.getAuditLogs()));
+  }, []);
+
   const enVoices = availableVoices
     .filter((v) => v.lang.startsWith('en'))
     .sort((a, b) => {
@@ -149,13 +179,17 @@ export default function SettingsModal({
   // Fetch models across enabled endpoints
   useEffect(() => {
     if (provider === 'openai') {
+      const controller = new AbortController();
       const fetchAll = async () => {
         const enabled = endpoints.filter((e) => e.enabled !== false);
         const results = await Promise.allSettled(
           enabled.map(async (ep) => {
-            const res = await fetch(`${ep.baseUrl}/models`, {
-              headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
-            });
+            const res = await fetchWithTimeout(
+              `${ep.baseUrl}/models`,
+              { headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {} },
+              8000,
+              controller.signal
+            );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             const list = data.data || [];
@@ -180,6 +214,7 @@ export default function SettingsModal({
         }
       };
       fetchAll();
+      return () => controller.abort();
     }
   }, [provider, endpoints]);
 
@@ -190,7 +225,7 @@ export default function SettingsModal({
     }));
     const startTime = performance.now();
     try {
-      const res = await fetch(`${ep.baseUrl}/models`, {
+      const res = await fetchWithTimeout(`${ep.baseUrl}/models`, {
         headers: ep.apiKey ? { Authorization: `Bearer ${ep.apiKey}` } : {},
       });
       const latency = Math.round(performance.now() - startTime);
@@ -228,6 +263,12 @@ export default function SettingsModal({
     }
   };
 
+  const handleClearKeys = () => {
+    clearApiKeys();
+    setEndpoints((prev) => prev.map((ep) => ({ ...ep, apiKey: '' })));
+    toast('info', 'Saved API keys cleared for this session');
+  };
+
   const handleAddEndpoint = () => {
     const preset = PRESET_DEFINITIONS[presetToAdd] || PRESET_DEFINITIONS.custom;
     const newEp: OpenAIEndpoint = {
@@ -263,6 +304,26 @@ export default function SettingsModal({
     );
   };
 
+  const updatePolicy = (patch: Partial<ExecutionPolicyConfig>) => {
+    setPolicy((prev) => ({ ...prev, ...patch }));
+  };
+
+  const handleApplyPolicy = () => {
+    executionPolicyGuard.updateConfig(policy);
+    toast('success', 'Execution policy applied to this browser session');
+  };
+
+  const handleResetBudget = () => {
+    executionPolicyGuard.resetSessionBudget();
+    toast('success', 'Session request budget and rate window reset');
+  };
+
+  const handleClearAudit = () => {
+    executionPolicyGuard.clearAuditLogs();
+    setAuditLogs([]);
+    toast('info', 'Session audit log cleared');
+  };
+
   const handleSave = () => {
     const activeEp = endpoints.find((e) => e.id === activeEndpointId) || endpoints[0];
     onSave({
@@ -276,7 +337,9 @@ export default function SettingsModal({
       openaiModel,
       temperature: parseFloat(String(temperature)),
       maxTokens: parseInt(String(maxTokens), 10),
+      contextWindow: parseInt(String(contextWindow), 10) || 16384,
       ttsVoice,
+      executionPolicy: policy,
     });
     toast('success', 'AI & System settings applied successfully');
     onClose();
@@ -507,6 +570,17 @@ export default function SettingsModal({
                 >
                   <Plus size={14} /> Add Endpoint
                 </button>
+                <button
+                  type="button"
+                  className={styles.wipeBtn}
+                  onClick={handleClearKeys}
+                  title="Clear API keys kept for this browser session"
+                >
+                  <Trash2 size={13} /> Clear keys
+                </button>
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                API keys are kept for this browser session only and are never written to disk or backups.
               </div>
 
               {/* Default Model Selector */}
@@ -559,12 +633,27 @@ export default function SettingsModal({
               </div>
             </div>
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Max Tokens</label>
+              <label className={styles.fieldLabel}>Max Output Tokens</label>
               <CustomSelect
                 value={String(maxTokens)}
                 onChange={(val) => setMaxTokens(parseInt(val, 10))}
                 options={MAX_TOKENS_OPTIONS}
               />
+              <span className={styles.fieldHint}>Maximum length of generated response</span>
+            </div>
+          </div>
+
+          <div className={styles.row}>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Context Window (Ollama num_ctx)</label>
+              <CustomSelect
+                value={String(contextWindow)}
+                onChange={(val) => setContextWindow(parseInt(val, 10))}
+                options={CONTEXT_WINDOW_OPTIONS}
+              />
+              <span className={styles.fieldHint}>
+                Total context memory (prompt + history). Increase if requests exceed context size.
+              </span>
             </div>
           </div>
 
@@ -596,6 +685,101 @@ export default function SettingsModal({
               <button onClick={testVoice} className={styles.testBtn}>
                 <Volume2 size={14} /> Test
               </button>
+            </div>
+          </div>
+
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>
+                <ShieldCheck size={14} /> Execution Policy &amp; Audit
+              </h3>
+              <span className={styles.voiceCount}>
+                {auditLogs.length} event{auditLogs.length !== 1 ? 's' : ''} this session
+              </span>
+            </div>
+
+            <div className={styles.policyGrid}>
+              <div className={styles.fieldGroup}>
+                <label className={styles.apiLabel}>Requests / second / domain</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={policy.maxRequestsPerSecondPerDomain}
+                  onChange={(e) =>
+                    updatePolicy({
+                      maxRequestsPerSecondPerDomain: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    })
+                  }
+                  className={styles.apiInput}
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.apiLabel}>Session request budget</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  value={policy.maxSessionRequestBudget}
+                  onChange={(e) =>
+                    updatePolicy({
+                      maxSessionRequestBudget: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    })
+                  }
+                  className={styles.apiInput}
+                />
+              </div>
+              <label className={styles.policyToggleRow}>
+                <input
+                  type="checkbox"
+                  checked={policy.allowLocalhostFixtures}
+                  onChange={(e) => updatePolicy({ allowLocalhostFixtures: e.target.checked })}
+                />
+                <span>Allow localhost fixtures (local testing only)</span>
+              </label>
+              <label className={styles.policyToggleRow}>
+                <input
+                  type="checkbox"
+                  checked={policy.enforceApprovalForMutating}
+                  onChange={(e) => updatePolicy({ enforceApprovalForMutating: e.target.checked })}
+                />
+                <span>Require explicit approval for mutating HTTP methods</span>
+              </label>
+            </div>
+
+            <p className={styles.policyHelp}>
+              These limits apply to Workflow Studio replay and HTTP Studio dispatch. Audit events are kept in memory
+              for this browser session only and are never included in backups.
+            </p>
+
+            <div className={styles.policyActions}>
+              <button type="button" onClick={handleApplyPolicy} className={styles.dataBtn}>
+                <ShieldCheck size={14} /> Apply now
+              </button>
+              <button type="button" onClick={handleResetBudget} className={styles.dataBtn}>
+                <RotateCw size={14} /> Reset budget
+              </button>
+              <button type="button" onClick={handleClearAudit} className={styles.wipeBtn}>
+                Clear audit log
+              </button>
+            </div>
+
+            <div className={styles.auditTable}>
+              {auditLogs.length === 0 ? (
+                <div className={styles.auditEmpty}>No execution policy decisions recorded yet.</div>
+              ) : (
+                auditLogs.slice(0, 50).map((log) => (
+                  <div key={log.id} className={styles.auditRow}>
+                    <span className={styles.auditTime}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    <span className={styles.auditMethod}>{log.method}</span>
+                    <span className={styles.auditUrl} title={log.url}>{log.url}</span>
+                    <span className={`${styles.auditBadge} ${log.allowed ? '' : styles.auditBadgeBlocked}`}>
+                      {log.allowed ? 'ALLOWED' : log.rejectionCode || 'BLOCKED'}
+                    </span>
+                    <span className={styles.auditReason} title={log.reason}>{log.initiator}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

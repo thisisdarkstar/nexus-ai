@@ -23,7 +23,7 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  max-height: 90dvh;
 }
 
 .header {
@@ -57,7 +57,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: color 0.2s;
 }
 
@@ -98,6 +98,13 @@
   font-weight: 700;
 }
 
+.fieldHint {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
 .select {
   padding: 12px;
   border-radius: 12px;
@@ -106,7 +113,7 @@
   color: var(--text-primary);
   outline: none;
   font-size: 1rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
 }
 
 .apiSection {
@@ -157,7 +164,7 @@
   background: var(--input-bg);
   color: var(--text-primary);
   outline: none;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
 }
 
 .textarea {
@@ -171,7 +178,7 @@
   min-height: 100px;
   font-size: 1rem;
   line-height: 1.5;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
 }
 
 .sliderContainer {
@@ -231,7 +238,7 @@
   color: var(--text-primary);
   outline: none;
   font-size: 0.9rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
 }
 
 .testBtn {
@@ -247,7 +254,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -273,12 +280,12 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dataBtn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--wa-5);
 }
 
 .wipeBtn {
@@ -290,7 +297,7 @@
   cursor: pointer;
   font-weight: 500;
   margin-top: 8px;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -298,12 +305,117 @@
   background: rgba(239, 68, 68, 0.2);
 }
 
+.policyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.policyToggleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.policyToggleRow input {
+  accent-color: #10b981;
+  width: 15px;
+  height: 15px;
+}
+
+.policyHelp {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-muted, #94a3b8);
+}
+
+.policyActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.policyActions .dataBtn,
+.policyActions .wipeBtn {
+  padding: 8px 10px;
+  margin-top: 0;
+  font-size: 0.75rem;
+  flex: 1;
+}
+
+.auditTable {
+  margin-top: 12px;
+  max-height: 156px;
+  overflow-y: auto;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--inset-20);
+}
+
+.auditRow {
+  display: grid;
+  grid-template-columns: 62px 42px minmax(0, 1fr) 92px 72px;
+  gap: 6px;
+  align-items: center;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+.auditRow:last-child {
+  border-bottom: none;
+}
+
+.auditTime,
+.auditMethod,
+.auditUrl,
+.auditReason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auditMethod {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.auditBadge {
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auditBadgeBlocked {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+.auditEmpty {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--text-muted, #94a3b8);
+}
+
 .footer {
   padding: 24px 30px;
   border-top: 1px solid var(--sidebar-border);
   display: flex;
   justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--inset-20);
   border-radius: 0 0 24px 24px;
 }
 
@@ -316,7 +428,7 @@
   cursor: pointer;
   font-weight: 500;
   box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -329,10 +441,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: rgba(2, 6, 23, 0.4);
+  background: var(--sd-40);
   padding: 16px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--wa-8);
 }
 
 .endpointList {
@@ -345,8 +457,8 @@
 }
 
 .endpointCard {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--sd-70);
+  border: 1px solid var(--wa-10);
   border-radius: 10px;
   padding: 12px;
   display: flex;
@@ -356,7 +468,7 @@
 }
 
 .endpointCard:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--wa-20);
 }
 
 .endpointCardActive {
@@ -390,7 +502,7 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: #f8fafc;
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 0.85rem;
   padding: 2px 6px;
@@ -402,8 +514,8 @@
 
 .endpointNameInput:focus,
 .endpointNameInput:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--wa-6);
+  border-color: var(--wa-15);
 }
 
 .statusPill {
@@ -435,9 +547,9 @@
 }
 
 .statusIdle {
-  background: rgba(255, 255, 255, 0.05);
-  color: #94a3b8;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--wa-5);
+  color: var(--text-secondary);
+  border: 1px solid var(--wa-10);
 }
 
 .endpointActions {
@@ -447,9 +559,9 @@
 }
 
 .testConnectionBtn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
+  background: var(--wa-6);
+  border: 1px solid var(--wa-12);
+  color: var(--text-primary);
   border-radius: 6px;
   padding: 4px 8px;
   font-size: 0.72rem;
@@ -469,7 +581,7 @@
 .endpointDeleteBtn {
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
@@ -501,7 +613,7 @@
   right: 8px;
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -509,7 +621,7 @@
 }
 
 .apiKeyToggle:hover {
-  color: #cbd5e1;
+  color: var(--text-primary);
 }
 
 .addEndpointBar {
@@ -517,7 +629,7 @@
   align-items: center;
   gap: 8px;
   padding-top: 6px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  border-top: 1px dashed var(--wa-10);
   flex-wrap: wrap;
 }
 
@@ -582,6 +694,23 @@
 
   .dataActions {
     flex-direction: column;
+  }
+
+  .endpointGrid,
+  .policyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .policyActions {
+    flex-wrap: wrap;
+  }
+
+  .auditRow {
+    grid-template-columns: 54px 36px minmax(0, 1fr) 78px;
+  }
+
+  .auditReason {
+    display: none;
   }
 
   .footer {

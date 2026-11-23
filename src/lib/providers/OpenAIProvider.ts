@@ -1,12 +1,14 @@
 import { RateLimiter } from '../rateLimiter';
 import { fetchWithTimeout } from './fetchWithTimeout';
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_ENDPOINTS } from '../constants';
+import { estimateTokens } from '../tokens';
 import type { AIProvider, AvailableModel, Message, OpenAIEndpoint, Settings } from '../../types';
 
 export class OpenAIProvider implements AIProvider {
   baseUrl: string;
   apiKey: string;
   model: string;
+  contextWindow: number;
   endpoints: OpenAIEndpoint[];
   activeEndpointId: string;
   private modelEndpointMap: Map<string, string>; // modelId -> endpointId
@@ -16,6 +18,7 @@ export class OpenAIProvider implements AIProvider {
     this.baseUrl = DEFAULT_OPENAI_BASE_URL;
     this.apiKey = 'sk-local';
     this.model = '';
+    this.contextWindow = 16384;
     this.endpoints = [...DEFAULT_OPENAI_ENDPOINTS];
     this.activeEndpointId = 'ollama';
     this.modelEndpointMap = new Map();
@@ -45,6 +48,7 @@ export class OpenAIProvider implements AIProvider {
     this.baseUrl = active?.baseUrl || settings.openaiBaseUrl || DEFAULT_OPENAI_BASE_URL;
     this.apiKey = active?.apiKey || settings.openaiApiKey || 'sk-local';
     this.model = settings.openaiModel || '';
+    this.contextWindow = settings.contextWindow || 16384;
   }
 
   getActiveEndpoint(): OpenAIEndpoint | undefined {
@@ -140,7 +144,7 @@ export class OpenAIProvider implements AIProvider {
     messages: Message[],
     systemPrompt: string | null = null,
     signal: AbortSignal | null = null,
-    options: { temperature?: number; maxTokens?: number } = {}
+    options: { temperature?: number; maxTokens?: number; contextWindow?: number } = {}
   ): AsyncGenerator<string> {
     if (!this.model) {
       throw new Error('No model selected. Pick a model from the model menu or Settings.');
@@ -165,28 +169,58 @@ export class OpenAIProvider implements AIProvider {
       }
     }
 
+    const effectiveContextWindow = options.contextWindow || this.contextWindow || 16384;
+    const maxOutputTokens = options.maxTokens || 4096;
+
     let formattedMessages: Array<{ role: string; content: string }> = [];
     if (systemPrompt && systemPrompt.trim() !== '') {
       formattedMessages.push({ role: 'system', content: systemPrompt });
     }
 
-    formattedMessages = formattedMessages.concat(
-      messages.map((m) => ({
-        role: m.role === 'ai' ? 'assistant' : 'user',
-        content: m.content,
-      }))
-    );
+    // Budget tokens for input messages (reserve buffer for output generation + overhead)
+    const promptTokenBudget = Math.max(1024, effectiveContextWindow - Math.min(maxOutputTokens, Math.floor(effectiveContextWindow / 2)));
+    const systemTokens = systemPrompt ? estimateTokens(systemPrompt) : 0;
+    let remainingBudget = promptTokenBudget - systemTokens;
+
+    // Work backwards from newest message to oldest to include maximum recent context
+    const selectedHistory: Array<{ role: string; content: string }> = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      const mTokens = estimateTokens(m.content);
+      // Always include at least the latest user prompt, even if long
+      if (selectedHistory.length === 0 || remainingBudget >= mTokens) {
+        selectedHistory.unshift({
+          role: m.role === 'ai' ? 'assistant' : 'user',
+          content: m.content,
+        });
+        remainingBudget -= mTokens;
+      } else {
+        // Earlier messages exceed context budget - prune them smoothly
+        break;
+      }
+    }
+
+    const finalMessages = formattedMessages.concat(selectedHistory);
 
     const body: Record<string, unknown> = {
       model: this.model,
-      messages: formattedMessages,
+      messages: finalMessages,
       stream: true,
     };
     if (options.temperature !== undefined) body.temperature = options.temperature;
     if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
-    // For local Ollama endpoints, default num_ctx to 4096 to prevent 65k VRAM/CPU bloat
-    if (targetBaseUrl.includes('11434') || targetBaseUrl.includes('localhost')) {
-      body.options = { num_ctx: 4096 };
+
+    // For local / Ollama endpoints, pass num_ctx so Ollama expands context window
+    const isLocalOrOllama =
+      targetBaseUrl.includes('11434') ||
+      targetBaseUrl.includes('localhost') ||
+      targetBaseUrl.includes('127.0.0.1') ||
+      targetBaseUrl.toLowerCase().includes('ollama');
+
+    if (isLocalOrOllama) {
+      body.options = {
+        num_ctx: effectiveContextWindow,
+      };
     }
 
     const timeoutController = new AbortController();
@@ -236,7 +270,7 @@ export class OpenAIProvider implements AIProvider {
     if (!response.ok) {
       if (timeoutId) clearTimeout(timeoutId);
       const err = await response.json().catch(() => ({}));
-      const msg = err.error?.message || `HTTP ${response.status}`;
+      const msg = err.error?.message || err.message || `HTTP ${response.status}`;
       if (response.status === 401) {
         throw new Error(`Invalid API key for ${targetBaseUrl}. Check your endpoint settings.`);
       }
@@ -245,6 +279,11 @@ export class OpenAIProvider implements AIProvider {
       }
       if (response.status === 429) {
         throw new Error('Rate limited by provider. Wait a moment and try again.');
+      }
+      if (typeof msg === 'string' && (msg.includes('exceeds the available context size') || msg.includes('context size'))) {
+        throw new Error(
+          `${msg}. You can increase the Context Window in Settings -> AI Configuration.`
+        );
       }
       if (response.status >= 500) {
         throw new Error(`Server error (${response.status}) at ${targetBaseUrl}.`);

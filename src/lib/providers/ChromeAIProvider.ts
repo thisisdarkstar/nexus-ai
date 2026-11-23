@@ -43,7 +43,7 @@ export class ChromeAIProvider implements AIProvider {
     messages: Message[],
     systemPrompt: string | null = null,
     signal: AbortSignal | null = null,
-    options: { temperature?: number } = {}
+    options: { temperature?: number; maxTokens?: number; contextWindow?: number } = {}
   ): AsyncGenerator<string> {
     await this.initialize(options.temperature);
 

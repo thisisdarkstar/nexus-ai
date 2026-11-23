@@ -7,6 +7,13 @@ export interface OpenAIEndpoint {
   defaultModel?: string;
 }
 
+export interface ExecutionPolicyConfig {
+  maxRequestsPerSecondPerDomain: number;
+  maxSessionRequestBudget: number;
+  allowLocalhostFixtures: boolean;
+  enforceApprovalForMutating: boolean;
+}
+
 export interface Settings {
   provider: 'chrome' | 'openai';
   theme: 'dark' | 'light';
@@ -18,7 +25,9 @@ export interface Settings {
   activeEndpointId?: string;
   temperature: number;
   maxTokens: number;
+  contextWindow?: number;
   ttsVoice: string;
+  executionPolicy?: ExecutionPolicyConfig;
 }
 
 export interface ProviderStatus {
@@ -90,7 +99,7 @@ export interface AIProvider {
     messages: Message[],
     systemPrompt: string | null,
     signal: AbortSignal | null,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; contextWindow?: number }
   ): AsyncGenerator<string, void, unknown>;
 }
 
@@ -138,7 +147,7 @@ export interface ChatEngineReturn {
   handleExportChat: () => void;
   handleSttToggle: () => void;
   handleSpeakMessage: (text: string, index: number) => void;
-  handleRegenerateTitle: (messages: Message[]) => void;
+  handleRegenerateTitle: (messages: Message[], targetChatId?: string) => void;
   handleSwitchBranch: (messageIndex: number, direction: 'prev' | 'next') => void;
   handleUndo: () => void;
   handleRedo: () => void;
@@ -165,6 +174,31 @@ export type SecurityTab =
   | 'dashboard'
   | 'knowledge_base'
   | 'graph';
+
+/** Single source of truth used to validate persisted tab selections. */
+export const SECURITY_TAB_IDS: readonly SecurityTab[] = [
+  'dashboard',
+  'reports',
+  'scope',
+  'checklists',
+  'http_studio',
+  'api_studio',
+  'payloads',
+  'decoders',
+  'graph',
+  'recon',
+  'workflow',
+  'nuclei',
+  'sandbox',
+  'auditor',
+  'remediation',
+  'knowledge_base',
+  'threat_studio',
+];
+
+export function isSecurityTab(value: unknown): value is SecurityTab {
+  return typeof value === 'string' && SECURITY_TAB_IDS.includes(value as SecurityTab);
+}
 
 export type VulnerabilitySeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
