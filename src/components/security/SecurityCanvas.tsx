@@ -1,16 +1,5 @@
-import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import {
-  ShieldAlert,
-  Terminal,
-  Binary,
-  Layers,
-  FileText,
-  Target,
-  CheckSquare,
-  Globe,
-  Radio,
-  Search,
-  FileCode,
   Sparkles,
   X,
   Maximize2,
@@ -20,12 +9,6 @@ import {
   ChevronRight,
   Check,
   UploadCloud,
-  Wrench,
-  Workflow,
-  Network,
-  Activity,
-  BookOpen,
-  Share2,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -46,6 +29,9 @@ const WorkflowStudio = lazy(() => import('./WorkflowStudio'));
 const SecurityDashboard = lazy(() => import('./SecurityDashboard'));
 const KnowledgeBase = lazy(() => import('./KnowledgeBase'));
 import type { SecurityTab } from '../../types';
+import { eventBus } from '../../core/bus/EventBus';
+import { SECURITY_TABS, type TabCategory } from '../../lib/security/tabRegistry';
+import { getAskAiContext } from '../../lib/security/aiContextRegistry';
 import styles from './SecurityCanvas.module.css';
 
 interface SecurityCanvasProps {
@@ -57,48 +43,11 @@ interface SecurityCanvasProps {
   initialDecoderInput?: string;
 }
 
-type TabCategory = 'all' | 'assess' | 'web' | 'recon' | 'defense';
-
-interface TabItem {
-  id: SecurityTab;
-  name: string;
-  category: TabCategory;
-  icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
-  tooltip: string;
-}
-
-const CATEGORIES: Array<{ id: TabCategory; label: string }> = [
+const CATEGORIES: Array<{ id: Exclude<TabCategory, 'all'>; label: string }> = [
   { id: 'assess', label: 'Assessment & Scope' },
   { id: 'web', label: 'Web & Exploits' },
   { id: 'recon', label: 'Recon & Automation' },
   { id: 'defense', label: 'Code & Defense' },
-];
-
-const SECURITY_TABS: TabItem[] = [
-  // Assess
-  { id: 'dashboard', name: 'Dashboard', category: 'assess', icon: Activity, tooltip: 'Security Posture & Engagement Executive Dashboard' },
-  { id: 'reports', name: 'Reports', category: 'assess', icon: FileText, tooltip: 'VAPT & Bug Bounty Report Studio (CVSS Calculator)' },
-  { id: 'scope', name: 'Scope', category: 'assess', icon: Target, tooltip: 'Target Scope & Asset Matrix' },
-  { id: 'checklists', name: 'Checklists', category: 'assess', icon: CheckSquare, tooltip: 'OWASP WSTG v4.2 & API Checklist' },
-
-  // Web & Exploits
-  { id: 'http_studio', name: 'HTTP Studio', category: 'web', icon: Globe, tooltip: 'Burp Request Parser, cURL/Python Converter & Fuzzing' },
-  { id: 'api_studio', name: 'API Studio', category: 'web', icon: Network, tooltip: 'OpenAPI 3.0 / Swagger Contract Reviewer & Auth Gap Matrix' },
-  { id: 'payloads', name: 'Payloads', category: 'web', icon: Radio, tooltip: 'Reverse Shell Generator, SSRF Cloud & SSTI Matrix' },
-  { id: 'decoders', name: 'Decoders', category: 'web', icon: Binary, tooltip: 'JWT Inspector, Encoders & Hashes' },
-
-  // Recon & Automation
-  { id: 'graph', name: 'Asset Graph', category: 'recon', icon: Share2, tooltip: 'Relational Attack Surface Entity-Relationship Graph' },
-  { id: 'recon', name: 'Recon Hub', category: 'recon', icon: Search, tooltip: 'Recon CLI Tool Chains & Google/GitHub Dorks' },
-  { id: 'workflow', name: 'Workflows', category: 'recon', icon: Workflow, tooltip: 'Visual Assessment Orchestration & Pipeline Runner' },
-  { id: 'nuclei', name: 'Nuclei Studio', category: 'recon', icon: FileCode, tooltip: 'Nuclei v3 YAML Template Builder' },
-  { id: 'sandbox', name: 'Sandbox', category: 'recon', icon: Terminal, tooltip: 'In-Browser Python Wasm Runtime' },
-
-  // Code & Defense
-  { id: 'auditor', name: 'SAST Audit', category: 'defense', icon: ShieldAlert, tooltip: 'Static Vulnerability Code Auditor' },
-  { id: 'remediation', name: 'Remediation', category: 'defense', icon: Wrench, tooltip: 'Patch Diff Viewer, Root-Cause & Fix Verification' },
-  { id: 'knowledge_base', name: 'Knowledge Base', category: 'defense', icon: BookOpen, tooltip: 'CWE & OWASP Technical Weakness Encyclopedia' },
-  { id: 'threat_studio', name: 'Threat Studio', category: 'defense', icon: Layers, tooltip: 'Sigma Rules & STRIDE Threat Modeler' },
 ];
 
 export default function SecurityCanvas({
@@ -110,6 +59,26 @@ export default function SecurityCanvas({
   initialDecoderInput,
 }: SecurityCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await canvasRef.current?.requestFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen request failed:', err);
+    }
+  };
+
   const [category, setCategory] = useState<TabCategory>('all');
   const [sandboxCode, setSandboxCode] = useState<string | undefined>(undefined);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -118,33 +87,52 @@ export default function SecurityCanvas({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const checkScrollability = () => {
+  const checkScrollability = useCallback(() => {
     const el = tabListRef.current;
     if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth + 2;
     setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  };
+    setCanScrollRight(hasOverflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }, []);
 
   const handleTabWheel = (e: React.WheelEvent) => {
-    if (tabListRef.current && e.deltaY !== 0) {
-      tabListRef.current.scrollLeft += e.deltaY;
-      checkScrollability();
+    if (tabListRef.current) {
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta !== 0) {
+        tabListRef.current.scrollLeft += delta;
+        checkScrollability();
+      }
     }
   };
 
   const scrollTabs = (direction: 'left' | 'right') => {
     if (!tabListRef.current) return;
-    const amount = direction === 'left' ? -220 : 220;
+    const amount = direction === 'left' ? -260 : 260;
     tabListRef.current.scrollBy({ left: amount, behavior: 'smooth' });
-    setTimeout(checkScrollability, 300);
+    setTimeout(checkScrollability, 350);
   };
 
   useEffect(() => {
     checkScrollability();
+
+    const el = tabListRef.current;
+    const canvasEl = canvasRef.current;
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        checkScrollability();
+      });
+      if (el) ro.observe(el);
+      if (canvasEl) ro.observe(canvasEl);
+    }
+
     const handleResize = () => checkScrollability();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [checkScrollability]);
 
   useEffect(() => {
     if (tabListRef.current) {
@@ -153,8 +141,9 @@ export default function SecurityCanvas({
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     }
-    checkScrollability();
-  }, [activeTab, category]);
+    const timer = setTimeout(checkScrollability, 60);
+    return () => clearTimeout(timer);
+  }, [activeTab, category, checkScrollability]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -174,38 +163,10 @@ export default function SecurityCanvas({
   };
 
   const activeTabInfo = SECURITY_TABS.find((t) => t.id === activeTab);
-  const ActiveIcon = activeTabInfo?.icon || ShieldAlert;
+  const ActiveIcon = activeTabInfo?.icon || SECURITY_TABS[0].icon;
 
   const handleAskAIWithActiveContext = () => {
-    const tabName = activeTabInfo ? activeTabInfo.name : activeTab;
-    
-    let prompt = `I am currently using the **${tabName}** module in the Nexus Security Workbench.\n\n`;
-
-    if (activeTab === 'decoders') {
-      prompt += `I am analyzing security artifacts, encoding schemes, hashes, and JWT tokens in the Decoders & JWT Hub. Please help me deobfuscate unknown payloads, analyze token signatures/claims, or identify hash types.`;
-    } else if (activeTab === 'http_studio') {
-      prompt += `I am inspecting and transforming HTTP requests in the HTTP Studio. Please guide me on identifying API vulnerabilities (BOLA/IDOR, injections, missing headers) and generating test payloads.`;
-    } else if (activeTab === 'payloads') {
-      prompt += `I am crafting exploit payloads, reverse shells, SSRF cloud metadata bypasses, and SSTI matrices. Help me tailor and troubleshoot payloads for this target.`;
-    } else if (activeTab === 'recon') {
-      prompt += `I am conducting reconnaissance and OSINT in the Recon Hub. Suggest advanced search queries, automation tool pipelines, and asset enumeration strategies.`;
-    } else if (activeTab === 'nuclei') {
-      prompt += `I am building and debugging ProjectDiscovery Nuclei v3 YAML vulnerability templates. Guide me on writing accurate matchers, extractors, and syntax rules.`;
-    } else if (activeTab === 'reports') {
-      prompt += `I am drafting a VAPT / Bug Bounty pentest report in Report Studio. Help me calculate accurate CVSS v3.1 base scores, write executive summaries, and format remediation steps.`;
-    } else if (activeTab === 'scope') {
-      prompt += `I am mapping target scope and technologies in Scope Manager. Provide a tailored penetration testing methodology for these assets.`;
-    } else if (activeTab === 'checklists') {
-      prompt += `I am tracking vulnerability testing against OWASP WSTG v4.2 and API Security Top 10. Help guide testing procedures for my active checklist items.`;
-    } else if (activeTab === 'auditor') {
-      prompt += `I am performing static application security testing (SAST) in Code Auditor. Analyze the code for CWE vulnerabilities, business logic bugs, and provide secure diff patches.`;
-    } else if (activeTab === 'sandbox') {
-      prompt += `I am executing and debugging Python security scripts in the Pyodide WebAssembly Sandbox. Help me write and troubleshoot security tooling code.`;
-    } else if (activeTab === 'threat_studio') {
-      prompt += `I am creating Sigma detection rules and STRIDE threat models. Assist with detection logic, MITRE ATT&CK mapping, and mitigation strategies.`;
-    }
-
-    onSendToAI(prompt);
+    onSendToAI(getAskAiContext(activeTab));
   };
 
   const filteredTabs = SECURITY_TABS.filter(
@@ -213,23 +174,7 @@ export default function SecurityCanvas({
   );
 
   return (
-    <div
-      className={styles.canvasContainer}
-      style={
-        isFullscreen
-          ? {
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 9999,
-              width: '100vw',
-              height: '100vh',
-            }
-          : undefined
-      }
-    >
+    <div ref={canvasRef} className={styles.canvasContainer}>
       {/* Canvas Header & Tabs */}
       <div className={styles.canvasHeader}>
         {/* Category Pills */}
@@ -252,6 +197,9 @@ export default function SecurityCanvas({
             className={`${styles.dropdownTrigger} ${dropdownOpen ? styles.dropdownTriggerActive : ''}`}
             onClick={() => setDropdownOpen(!dropdownOpen)}
             title="Select Security Tool"
+            aria-label="Select security tool"
+            aria-expanded={dropdownOpen}
+            aria-haspopup="menu"
           >
             <div className={styles.dropdownTriggerContent}>
               <ActiveIcon size={14} color="#10b981" />
@@ -264,7 +212,7 @@ export default function SecurityCanvas({
           </button>
 
           {dropdownOpen && (
-            <div className={styles.dropdownMenu}>
+            <div className={styles.dropdownMenu} role="menu" aria-label="Security tools">
               {CATEGORIES.map((cat) => {
                 const tabsInCat = SECURITY_TABS.filter((t) => t.category === cat.id);
                 return (
@@ -309,6 +257,7 @@ export default function SecurityCanvas({
               className={`${styles.scrollArrowBtn} ${styles.scrollArrowLeft}`}
               onClick={() => scrollTabs('left')}
               title="Scroll tabs left"
+              aria-label="Scroll tabs left"
             >
               <ChevronLeft size={13} />
             </button>
@@ -319,6 +268,8 @@ export default function SecurityCanvas({
             ref={tabListRef}
             onWheel={handleTabWheel}
             onScroll={checkScrollability}
+            role="tablist"
+            aria-label="Security workbench tools"
           >
             {filteredTabs.map((t) => {
               const Icon = t.icon;
@@ -329,6 +280,9 @@ export default function SecurityCanvas({
                   className={`${styles.tabBtn} ${isActive ? styles.active : ''}`}
                   onClick={() => onTabChange(t.id)}
                   title={t.tooltip}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={t.name}
                 >
                   <Icon size={14} />
                   <span>{t.name}</span>
@@ -343,6 +297,7 @@ export default function SecurityCanvas({
               className={`${styles.scrollArrowBtn} ${styles.scrollArrowRight}`}
               onClick={() => scrollTabs('right')}
               title="Scroll tabs right"
+              aria-label="Scroll tabs right"
             >
               <ChevronRight size={13} />
             </button>
@@ -353,8 +308,9 @@ export default function SecurityCanvas({
         <div className={styles.controlsGroup}>
           <button
             className={styles.iconBtn}
-            onClick={() => window.dispatchEvent(new CustomEvent('nexus:open-ingest'))}
+            onClick={() => eventBus.publish('open-ingest', undefined)}
             title="Ingest Scan Artifact (Burp, Nmap, Nuclei, SARIF)"
+            aria-label="Ingest scan artifact"
           >
             <UploadCloud size={14} color="#38bdf8" />
           </button>
@@ -370,14 +326,20 @@ export default function SecurityCanvas({
 
           <button
             className={styles.iconBtn}
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={() => void toggleFullscreen()}
             title={isFullscreen ? 'Exit Fullscreen' : 'Maximize Canvas'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Maximize canvas'}
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
 
           {onClose && (
-            <button className={styles.iconBtn} onClick={onClose} title="Close Security Workbench">
+            <button
+              className={styles.iconBtn}
+              onClick={onClose}
+              title="Close Security Workbench"
+              aria-label="Close security workbench"
+            >
               <X size={14} />
             </button>
           )}

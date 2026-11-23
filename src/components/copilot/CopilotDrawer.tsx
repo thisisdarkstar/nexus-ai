@@ -6,22 +6,6 @@ import {
   Plus,
   Search,
   Trash2,
-  Share2,
-  Globe,
-  Network,
-  Radio,
-  Binary,
-  Layers,
-  FileText,
-  Target,
-  CheckSquare,
-  ShieldAlert,
-  Terminal,
-  Workflow,
-  Wrench,
-  BookOpen,
-  Activity,
-  FileCode,
   Download,
   Paperclip,
   Mic,
@@ -45,6 +29,8 @@ import type {
   VoiceOverlayState,
   SecurityTab,
 } from '../../types';
+import { SECURITY_TAB_META } from '../../lib/security/tabRegistry';
+import { getQuickPromptContext } from '../../lib/security/aiContextRegistry';
 import styles from './CopilotDrawer.module.css';
 
 interface CopilotDrawerProps {
@@ -62,157 +48,30 @@ interface CopilotDrawerProps {
   activeSecurityTab: SecurityTab;
   onClose: () => void;
   onDeleteChat?: (id: string) => void;
+  pendingPrompt?: string | null;
+  onPendingPromptConsumed?: () => void;
 }
 
-const TAB_META: Record<
-  SecurityTab,
-  { name: string; icon: React.ComponentType<{ size?: number; color?: string }>; suggestions: string[] }
-> = {
-  dashboard: {
-    name: 'Executive Dashboard',
-    icon: Activity,
-    suggestions: [
-      'Summarize overall engagement risk posture',
-      'Identify highest priority remediation items',
-    ],
-  },
-  graph: {
-    name: 'Attack Surface Graph',
-    icon: Share2,
-    suggestions: [
-      'Suggest realistic multi-stage attack paths',
-      'Identify choke point nodes with highest degree',
-      'Correlate assets with out-of-scope exclusions',
-    ],
-  },
-  http_studio: {
-    name: 'HTTP Studio',
-    icon: Globe,
-    suggestions: [
-      'Analyze headers for CSP, HSTS, or CORS flaws',
-      'Detect parameter injection vectors (SQLi, SSRF, XSS)',
-      'Convert request to Python Requests with auth headers',
-    ],
-  },
-  api_studio: {
-    name: 'API Contract Studio',
-    icon: Network,
-    suggestions: [
-      'Find endpoints lacking declared authorization schemes',
-      'Flag potential BOLA/IDOR object reference risks',
-      'Detect excessive data exposure schemas',
-    ],
-  },
-  payloads: {
-    name: 'Payload Crafter',
-    icon: Radio,
-    suggestions: [
-      'Generate cloud metadata SSRF bypass for AWS IMDSv2',
-      'Tailor SSTI payload for Jinja2 / Mako template engine',
-      'Format reverse shell command with URL encoding',
-    ],
-  },
-  decoders: {
-    name: 'Decoders & JWT Hub',
-    icon: Binary,
-    suggestions: [
-      'Analyze JWT claims and check for None-alg vulnerability',
-      'Identify unknown hash format and suggest cracking tools',
-      'Deobfuscate nested base64 / URL encoded string',
-    ],
-  },
-  recon: {
-    name: 'Reconnaissance Hub',
-    icon: Search,
-    suggestions: [
-      'Draft passive OSINT toolchain for this domain',
-      'Suggest targeted Google Dorks for exposed configs',
-      'Formulate subdomain brute-forcing strategy',
-    ],
-  },
-  workflow: {
-    name: 'Assessment Workflows',
-    icon: Workflow,
-    suggestions: [
-      'Review pipeline steps for authorized scope compliance',
-      'Optimize automated scan steps to minimize noise',
-    ],
-  },
-  nuclei: {
-    name: 'Nuclei Template Studio',
-    icon: FileCode,
-    suggestions: [
-      'Validate YAML matcher syntax and extractor logic',
-      'Add DSL helper matchers to avoid false positives',
-    ],
-  },
-  sandbox: {
-    name: 'Wasm Python Sandbox',
-    icon: Terminal,
-    suggestions: [
-      'Write a Python script to parse HTTP responses',
-      'Debug Pyodide script execution error',
-    ],
-  },
-  auditor: {
-    name: 'SAST Code Auditor',
-    icon: ShieldAlert,
-    suggestions: [
-      'Perform taint-analysis review on this code snippet',
-      'Identify CWE vulnerability class and severity',
-      'Generate secure drop-in code fix diff',
-    ],
-  },
-  remediation: {
-    name: 'Remediation Hub',
-    icon: Wrench,
-    suggestions: [
-      'Generate unit regression test for this patch',
-      'Draft developer guidance advisory for remediation',
-    ],
-  },
-  knowledge_base: {
-    name: 'CWE / OWASP Knowledge Base',
-    icon: BookOpen,
-    suggestions: [
-      'Explain difference between ASVS Level 2 and Level 3',
-      'Provide real-world breach examples for this weakness',
-    ],
-  },
-  reports: {
-    name: 'Report Studio',
-    icon: FileText,
-    suggestions: [
-      'Draft executive vulnerability summary with business impact',
-      'Calculate precise CVSS v3.1 vector string and score',
-      'Format reproducible step-by-step PoC steps',
-    ],
-  },
-  scope: {
-    name: 'Scope Manager',
-    icon: Target,
-    suggestions: [
-      'Review wildcards and identify scope ambiguity',
-      'Prioritize testing order based on asset criticality',
-    ],
-  },
-  checklists: {
-    name: 'Testing Checklists',
-    icon: CheckSquare,
-    suggestions: [
-      'Explain verification steps for OWASP WSTG-INPV-01',
-      'Generate test cases for API authentication checks',
-    ],
-  },
-  threat_studio: {
-    name: 'Threat Modeling Studio',
-    icon: Layers,
-    suggestions: [
-      'Draft Sigma detection rule for web exploit attempts',
-      'Model STRIDE threats for payment gateway interaction',
-    ],
-  },
+const TAB_SUGGESTIONS: Record<SecurityTab, string[]> = {
+  dashboard: ['Summarize overall engagement risk posture', 'Identify highest priority remediation items'],
+  reports: ['Draft an executive summary for this engagement', 'Review CVSS scoring for the top finding'],
+  scope: ['Suggest a test plan for in-scope assets', 'Find scope gaps and blind spots'],
+  checklists: ['Explain verification steps for OWASP WSTG-INPV-01', 'Generate test cases for API authentication checks'],
+  http_studio: ['Review this request for BOLA and injection risks', 'Propose security header improvements'],
+  api_studio: ['Find broken authorization in this API contract', 'Map endpoints to OWASP API Top 10 risks'],
+  payloads: ['Suggest safe payload variations for this target', 'Explain when each reverse shell technique works'],
+  decoders: ['Identify the encoding on this artifact', 'Analyze JWT claims and signature weaknesses'],
+  graph: ['Suggest realistic multi-stage attack paths', 'Prioritize nodes by blast radius'],
+  recon: ['Generate advanced dork queries for this domain', 'Recommend an enumeration pipeline'],
+  workflow: ['Review this pipeline for missing verification steps', 'Suggest a safer execution order'],
+  nuclei: ['Improve matchers in this Nuclei template', 'Suggest extractors for this response pattern'],
+  sandbox: ['Debug this Python security script', 'Add error handling to this PoC'],
+  auditor: ['Find CWE vulnerabilities in this code', 'Propose a secure diff patch'],
+  remediation: ['Check this patch for completeness', 'Suggest regression tests for this fix'],
+  knowledge_base: ['Explain attack vectors for this weakness', 'List defensive controls for my stack'],
+  threat_studio: ['Draft a Sigma detection rule for web exploit attempts', 'Model STRIDE threats for a payment gateway'],
 };
+
 
 export default function CopilotDrawer({
   currentChatId,
@@ -229,6 +88,8 @@ export default function CopilotDrawer({
   activeSecurityTab,
   onClose,
   onDeleteChat,
+  pendingPrompt,
+  onPendingPromptConsumed,
 }: CopilotDrawerProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -281,17 +142,28 @@ export default function CopilotDrawer({
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [input]);
 
-  // Listen to cross-workbench AI dispatch
+  // Consume a prompt handed over by the workbench. State-based handoff avoids
+  // the old timed CustomEvent, which could be lost while this drawer mounted.
+  // Instead of directly sending the message, load it into the input textarea and focus it
+  // so the researcher can inspect, add details, or customize the prompt before sending.
+  const consumedPromptRef = useRef<string | null>(null);
   useEffect(() => {
-    const handleAIRequest = (e: Event) => {
-      const customEvent = e as CustomEvent<{ prompt: string }>;
-      if (customEvent.detail?.prompt) {
-        handleSend(customEvent.detail.prompt);
+    if (!pendingPrompt) {
+      consumedPromptRef.current = null;
+      return;
+    }
+    if (consumedPromptRef.current === pendingPrompt) return;
+    consumedPromptRef.current = pendingPrompt;
+    onPendingPromptConsumed?.();
+    setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${pendingPrompt}` : pendingPrompt));
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = textareaRef.current.value.length;
+        textareaRef.current.selectionEnd = textareaRef.current.value.length;
       }
-    };
-    window.addEventListener('nexus:send-ai-prompt', handleAIRequest);
-    return () => window.removeEventListener('nexus:send-ai-prompt', handleAIRequest);
-  }, [handleSend]);
+    });
+  }, [pendingPrompt, onPendingPromptConsumed, setInput]);
 
   // Project chats
   const projectChats = useMemo(
@@ -330,16 +202,24 @@ export default function CopilotDrawer({
     );
   }, [projectChats, historySearch]);
 
-  const activeMeta = TAB_META[activeSecurityTab] || {
-    name: 'Security Workbench',
-    icon: Sparkles,
-    suggestions: ['How can I help with your security assessment?'],
+  const meta = SECURITY_TAB_META[activeSecurityTab];
+  const activeMeta = {
+    name: meta.name,
+    icon: meta.icon,
+    suggestions: TAB_SUGGESTIONS[activeSecurityTab],
   };
   const ActiveTabIcon = activeMeta.icon;
 
   const handleQuickChipClick = (suggestion: string) => {
-    const prompt = `[Context: ${activeMeta.name}]\n${suggestion}`;
-    handleSend(prompt);
+    const prompt = getQuickPromptContext(activeSecurityTab, suggestion);
+    setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = textareaRef.current.value.length;
+        textareaRef.current.selectionEnd = textareaRef.current.value.length;
+      }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -402,7 +282,7 @@ export default function CopilotDrawer({
               value={currentChatId || '__new_chat__'}
               onChange={handleThreadSelect}
               options={threadOptions}
-              style={{ fontSize: '0.74rem', padding: '0.2rem 0.45rem' }}
+              style={{ fontSize: '0.74rem', padding: '0.2rem 0.45rem', minWidth: 0, width: '100%' }}
               ariaLabel="Select Thread"
             />
           </div>
@@ -568,7 +448,11 @@ export default function CopilotDrawer({
             </div>
           </div>
         ) : (
-          <Virtuoso
+          <>
+            <div className={styles.srOnly} role="status" aria-live="polite">
+              {isGenerating ? 'AI is generating a response' : ''}
+            </div>
+            <Virtuoso
             style={{ height: '100%' }}
             data={messages}
             initialTopMostItemIndex={messages.length - 1}
@@ -594,7 +478,8 @@ export default function CopilotDrawer({
             components={{
               Footer: () => (isGenerating ? <SkeletonBubble /> : null),
             }}
-          />
+            />
+          </>
         )}
       </div>
 
