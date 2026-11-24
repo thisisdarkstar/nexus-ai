@@ -88,6 +88,18 @@ export default function SecurityCanvas({
   const [modalCategory, setModalCategory] = useState<TabCategory>('all');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Lazy-mount each security module on first visit and keep it mounted so
+  // background scans, drafts, Wasm runtime state, and scroll positions persist.
+  const [visitedTabs, setVisitedTabs] = useState<Set<SecurityTab>>(() => new Set([activeTab]));
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
   const activeTabInfo = SECURITY_TABS.find((t) => t.id === activeTab);
   const ActiveIcon = activeTabInfo?.icon || SECURITY_TABS[0].icon;
 
@@ -158,6 +170,53 @@ export default function SecurityCanvas({
 
   const handleAskAIWithActiveContext = () => {
     onSendToAI(getAskAiContext(activeTab));
+  };
+
+  const renderSecurityModule = (tabId: SecurityTab) => {
+    switch (tabId) {
+      case 'dashboard':
+        return <SecurityDashboard onTabChange={onTabChange} onSendToAI={onSendToAI} />;
+      case 'auditor':
+        return <CodeAuditor initialCode={initialCode} onSendToAI={onSendToAI} />;
+      case 'remediation':
+        return <RemediationHub onSendToAI={onSendToAI} />;
+      case 'knowledge_base':
+        return <KnowledgeBase onSendToAI={onSendToAI} />;
+      case 'sandbox':
+        return <SandboxTerminal initialCode={sandboxCode} onSendToAI={onSendToAI} />;
+      case 'decoders':
+        return (
+          <DecoderHub
+            initialInput={initialDecoderInput}
+            onSendToSandbox={handleSendToSandbox}
+            onSendToAI={onSendToAI}
+          />
+        );
+      case 'threat_studio':
+        return <DetectionStudio onSendToAI={onSendToAI} />;
+      case 'reports':
+        return <ReportStudio onSendToAI={onSendToAI} />;
+      case 'scope':
+        return <ScopeManager onSendToAI={onSendToAI} />;
+      case 'checklists':
+        return <ChecklistTracker onSendToAI={onSendToAI} />;
+      case 'http_studio':
+        return <HttpStudio onSendToAI={onSendToAI} />;
+      case 'api_studio':
+        return <ApiStudio onSendToAI={onSendToAI} />;
+      case 'payloads':
+        return <PayloadCrafter onSendToAI={onSendToAI} />;
+      case 'recon':
+        return <ReconHub onSendToAI={onSendToAI} />;
+      case 'graph':
+        return <AssetGraphViewer onSendToAI={onSendToAI} onTabChange={onTabChange} />;
+      case 'workflow':
+        return <WorkflowStudio onSendToAI={onSendToAI} />;
+      case 'nuclei':
+        return <NucleiStudio onSendToAI={onSendToAI} />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -448,113 +507,20 @@ export default function SecurityCanvas({
             </div>
           }
         >
-          {activeTab === 'dashboard' && (
-            <SecurityDashboard
-              onTabChange={onTabChange}
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'auditor' && (
-            <CodeAuditor
-              initialCode={initialCode}
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'remediation' && (
-            <RemediationHub
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'knowledge_base' && (
-            <KnowledgeBase
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'sandbox' && (
-            <SandboxTerminal
-              initialCode={sandboxCode}
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'decoders' && (
-            <DecoderHub
-              initialInput={initialDecoderInput}
-              onSendToSandbox={handleSendToSandbox}
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'threat_studio' && (
-            <DetectionStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'reports' && (
-            <ReportStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'scope' && (
-            <ScopeManager
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'checklists' && (
-            <ChecklistTracker
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'http_studio' && (
-            <HttpStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'api_studio' && (
-            <ApiStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'payloads' && (
-            <PayloadCrafter
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'recon' && (
-            <ReconHub
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'graph' && (
-            <AssetGraphViewer
-              onSendToAI={onSendToAI}
-              onTabChange={onTabChange}
-            />
-          )}
-
-          {activeTab === 'workflow' && (
-            <WorkflowStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
-
-          {activeTab === 'nuclei' && (
-            <NucleiStudio
-              onSendToAI={onSendToAI}
-            />
-          )}
+          {SECURITY_TABS.map((t) => {
+            if (!visitedTabs.has(t.id)) return null;
+            const isActive = activeTab === t.id;
+            return (
+              <div
+                key={t.id}
+                className={styles.modulePanel}
+                style={{ display: isActive ? 'flex' : 'none' }}
+                aria-hidden={!isActive}
+              >
+                {renderSecurityModule(t.id)}
+              </div>
+            );
+          })}
         </Suspense>
       </div>
     </div>

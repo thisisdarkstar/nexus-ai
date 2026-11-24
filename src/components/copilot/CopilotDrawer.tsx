@@ -193,7 +193,17 @@ export default function CopilotDrawer({
   onToggleMaximize,
 }: CopilotDrawerProps) {
   const [activeCopilotTab, setActiveCopilotTab] = useState<CopilotTab>('chat');
+  const [visitedTabs, setVisitedTabs] = useState<Set<CopilotTab>>(() => new Set(['chat']));
   const [focusSidebarOpen, setFocusSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeCopilotTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeCopilotTab);
+      return next;
+    });
+  }, [activeCopilotTab]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -815,9 +825,12 @@ export default function CopilotDrawer({
           </>
         )}
 
-      {activeCopilotTab === 'chat' && (
-        <>
-          {/* Compact Security Context Bar (Split Drawer View only — Focus Mode keeps this clean in FocusBar + bottom chips) */}
+      <div
+        className={styles.tabPane}
+        style={{ display: activeCopilotTab === 'chat' ? 'flex' : 'none' }}
+        aria-hidden={activeCopilotTab !== 'chat'}
+      >
+        {/* Compact Security Context Bar (Split Drawer View only — Focus Mode keeps this clean in FocusBar + bottom chips) */}
           {!isMaximized && (
             <div className={styles.contextBar}>
               <div className={styles.contextBarInner}>
@@ -1026,34 +1039,44 @@ export default function CopilotDrawer({
           </div>
         </div>
       </div>
-        </>
-      )}
+      </div>
 
-      {/* Dual-Model Comparison Arena */}
-      {activeCopilotTab === 'arena' && (
-        <div className={`${styles.subTabContent} ${styles.subTabContentWide}`}>
-          <ModelArena
-            availableModels={availableModels}
-            currentModel={settings.openaiModel || ''}
-            settings={settings}
-            onAdoptResponse={(content, modelName) => {
-              setActiveCopilotTab('chat');
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: 'ai',
-                  content: `*(Adopted from ${modelName} in Model Arena)*\n\n${content}`,
-                  createdAt: Date.now(),
-                },
-              ]);
-            }}
-          />
+      {/* Dual-Model Comparison Arena (kept alive once visited so running comparisons survive tab switches) */}
+      {visitedTabs.has('arena') && (
+        <div
+          className={styles.tabPane}
+          style={{ display: activeCopilotTab === 'arena' ? 'flex' : 'none' }}
+          aria-hidden={activeCopilotTab !== 'arena'}
+        >
+          <div className={`${styles.subTabContent} ${styles.subTabContentWide}`}>
+            <ModelArena
+              availableModels={availableModels}
+              currentModel={settings.openaiModel || ''}
+              settings={settings}
+              onAdoptResponse={(content, modelName) => {
+                setActiveCopilotTab('chat');
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: 'ai',
+                    content: `*(Adopted from ${modelName} in Model Arena)*\n\n${content}`,
+                    createdAt: Date.now(),
+                  },
+                ]);
+              }}
+            />
+          </div>
         </div>
       )}
 
       {/* Engagement Document & Evidence Vault */}
-      {activeCopilotTab === 'vault' && (
-        <div className={styles.subTabContent}>
+      {visitedTabs.has('vault') && (
+        <div
+          className={styles.tabPane}
+          style={{ display: activeCopilotTab === 'vault' ? 'flex' : 'none' }}
+          aria-hidden={activeCopilotTab !== 'vault'}
+        >
+          <div className={styles.subTabContent}>
           <input
             type="file"
             ref={vaultFileInputRef}
@@ -1236,6 +1259,7 @@ export default function CopilotDrawer({
               </div>
             </div>
           </div>
+          </div>
         </div>
       )}
 
@@ -1295,8 +1319,13 @@ export default function CopilotDrawer({
       )}
 
       {/* Security Personas & Presets */}
-      {activeCopilotTab === 'presets' && (
-        <div className={styles.subTabContent}>
+      {visitedTabs.has('presets') && (
+        <div
+          className={styles.tabPane}
+          style={{ display: activeCopilotTab === 'presets' ? 'flex' : 'none' }}
+          aria-hidden={activeCopilotTab !== 'presets'}
+        >
+          <div className={styles.subTabContent}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Security Personas & Prompts</div>
@@ -1335,12 +1364,18 @@ export default function CopilotDrawer({
               );
             })}
           </div>
+          </div>
         </div>
       )}
 
       {/* Model & Hardware Telemetry */}
-      {activeCopilotTab === 'telemetry' && (
-        <div className={styles.subTabContent}>
+      {visitedTabs.has('telemetry') && (
+        <div
+          className={styles.tabPane}
+          style={{ display: activeCopilotTab === 'telemetry' ? 'flex' : 'none' }}
+          aria-hidden={activeCopilotTab !== 'telemetry'}
+        >
+          <div className={styles.subTabContent}>
           <div className={styles.telemetryCard}>
             <div className={styles.telemetryCardTitle}>
               <Activity size={15} color="#38bdf8" />
@@ -1514,6 +1549,7 @@ export default function CopilotDrawer({
               <Info size={12} /> Local VRAM & GPU Offload Tip
             </div>
             To offload 100% of layers into GPU VRAM (reducing CPU and RAM usage), ensure your Ollama model fits in VRAM. For 8GB VRAM GPUs, 7B/8B Q4_K_M or Q5_K_M models fit completely into VRAM for lightning-fast inference.
+          </div>
           </div>
         </div>
       )}

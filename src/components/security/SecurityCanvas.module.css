@@ -666,12 +666,24 @@
 .tabContent {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
+}
+
+.modulePanel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
   box-sizing: border-box;
 }
 

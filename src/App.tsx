@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { eventBus } from './core/bus/EventBus';
 import { deleteEngagement } from './core/storage/ProjectCleanup';
 import {
@@ -135,6 +134,56 @@ function AppContent() {
       return false;
     }
   });
+
+  // Mount Copilot lazily on first open and keep it mounted across close/reopen & split/fullscreen switches.
+  const [hasMountedCopilot, setHasMountedCopilot] = useState<boolean>(copilotOpen);
+  useEffect(() => {
+    if (copilotOpen) setHasMountedCopilot(true);
+  }, [copilotOpen]);
+
+  const [copilotWidthPct, setCopilotWidthPct] = useState<number>(() => {
+    try {
+      const saved = parseFloat(localStorage.getItem('nexus_copilot_width_pct') || '');
+      if (Number.isFinite(saved) && saved >= 20 && saved <= 50) return saved;
+    } catch {
+      // ignore
+    }
+    return 30;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_copilot_width_pct', String(copilotWidthPct));
+    } catch {
+      // ignore
+    }
+  }, [copilotWidthPct]);
+
+  const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
+  const startSplitResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = desktopWorkspaceRef.current;
+    if (!container) return;
+
+    const handleMove = (moveEvent: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const rightPct = ((rect.right - moveEvent.clientX) / rect.width) * 100;
+      setCopilotWidthPct(Math.min(50, Math.max(20, rightPct)));
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, []);
 
   const [quickHudOpen, setQuickHudOpen] = useState(false);
   const [quickHudInitialQuery, setQuickHudInitialQuery] = useState('');
@@ -562,57 +611,47 @@ function AppContent() {
             )}
           </>
         ) : (
-          <>
+          <div ref={desktopWorkspaceRef} className={styles.desktopWorkspace}>
             <div
+              className={styles.workbenchPane}
               style={{
-                width: '100%',
-                height: '100%',
-                display: copilotOpen && copilotMaximized ? 'none' : 'block',
+                display: copilotOpen && copilotMaximized ? 'none' : 'flex',
               }}
             >
-              <Group
-                key={copilotOpen ? 'workbench-split' : 'workbench-full'}
-                orientation="horizontal"
-                style={{ width: '100%', height: '100%' }}
-              >
-                <Panel
-                  defaultSize={copilotOpen ? '70%' : '100%'}
-                  minSize="40%"
-                  style={{ height: '100%', overflow: 'hidden' }}
-                >
-                  {canvas}
-                </Panel>
-
-                {copilotOpen && !copilotMaximized && (
-                  <>
-                    <Separator
-                      style={{
-                        width: '5px',
-                        background: 'var(--wa-8)',
-                        cursor: 'col-resize',
-                        transition: 'background 0.2s',
-                        zIndex: 20,
-                      }}
-                    />
-                    <Panel
-                      defaultSize="30%"
-                      minSize="20%"
-                      maxSize="50%"
-                      style={{ height: '100%', overflow: 'hidden' }}
-                    >
-                      {copilotDrawer}
-                    </Panel>
-                  </>
-                )}
-              </Group>
+              {canvas}
             </div>
 
-            {copilotOpen && copilotMaximized && (
-              <div className={styles.focusStudioWrapper}>
+            {copilotOpen && !copilotMaximized && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize Copilot drawer"
+                aria-valuenow={Math.round(copilotWidthPct)}
+                aria-valuemin={20}
+                aria-valuemax={50}
+                tabIndex={0}
+                className={styles.splitDivider}
+                onMouseDown={startSplitResize}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowLeft') setCopilotWidthPct((w) => Math.min(50, w + 2));
+                  if (e.key === 'ArrowRight') setCopilotWidthPct((w) => Math.max(20, w - 2));
+                }}
+              />
+            )}
+
+            {hasMountedCopilot && (
+              <div
+                className={copilotMaximized ? styles.focusStudioWrapper : styles.splitCopilotPane}
+                style={{
+                  display: copilotOpen ? 'flex' : 'none',
+                  width: copilotMaximized ? '100%' : `${copilotWidthPct}%`,
+                }}
+                aria-hidden={!copilotOpen}
+              >
                 {copilotDrawer}
               </div>
             )}
-          </>
+          </div>
         )}
       </main>
 
