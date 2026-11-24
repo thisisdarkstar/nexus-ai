@@ -38,6 +38,16 @@ export interface ProviderStatus {
   reason: string | null;
 }
 
+export interface CitationSource {
+  id: string;
+  docId: string;
+  docName: string;
+  chunkIndex: number;
+  totalChunks?: number;
+  score?: number;
+  excerpt: string;
+}
+
 export interface Message {
   role: 'user' | 'ai';
   content: string;
@@ -48,6 +58,7 @@ export interface Message {
   createdAt?: number;
   branches?: Message[];
   branchIndex?: number;
+  citations?: CitationSource[];
 }
 
 export interface Chat {

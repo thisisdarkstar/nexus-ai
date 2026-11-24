@@ -16,6 +16,9 @@ import {
   GitBranch,
   Square,
   Zap,
+  BookOpen,
+  FileText,
+  X,
 } from 'lucide-react';
 import { eventBus } from '../../core/bus/EventBus';
 import { renderMarkdown } from '../../lib/markdown';
@@ -23,7 +26,7 @@ import { escapeHtml } from '../../lib/sanitize';
 import ActionCard, { type ActionCardData } from './ActionCard';
 import ThinkingBlock from './ThinkingBlock';
 import { extractThinkingAndContent } from '../../lib/thinkingParser';
-import type { Message, Settings, AvailableModel } from '../../types';
+import type { Message, Settings, AvailableModel, CitationSource } from '../../types';
 import styles from './MessageItem.module.css';
 
 function extractActionCards(content: string): ActionCardData[] {
@@ -182,6 +185,8 @@ export default memo(function MessageItem({
   const [showRaw, setShowRaw] = useState(false);
   const [showRetryMenu, setShowRetryMenu] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
+  const [selectedCitation, setSelectedCitation] = useState<CitationSource | null>(null);
+  const [copiedExcerpt, setCopiedExcerpt] = useState(false);
 
   useEffect(() => {
     if (showRaw || !bodyRef.current) return;
@@ -316,6 +321,34 @@ export default memo(function MessageItem({
           </div>
         )}
       </div>
+
+      {/* Knowledge Vault Grounded Citations Bar */}
+      {!isUser && msg.citations && msg.citations.length > 0 && (
+        <div className={styles.citationsContainer}>
+          <div className={styles.citationsHeader}>
+            <BookOpen size={12} color="#38bdf8" />
+            <span>{msg.citations.length} Verified Source{msg.citations.length > 1 ? 's' : ''} Referenced</span>
+          </div>
+          <div className={styles.citationPillsList}>
+            {msg.citations.map((c, ci) => (
+              <button
+                key={ci}
+                type="button"
+                className={styles.citationPill}
+                onClick={() => setSelectedCitation(c)}
+                title={`Click to inspect excerpt from ${c.docName}`}
+              >
+                <FileText size={11} />
+                <span className={styles.citationDocName}>{c.docName}</span>
+                <span className={styles.citationChunkBadge}>§{c.chunkIndex + 1}</span>
+                {c.score !== undefined && (
+                  <span className={styles.citationScoreBadge}>{(c.score).toFixed(1)}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!isUser && actionCards.length > 0 && (
         <div style={{ width: '100%', marginTop: '0.25rem' }}>
@@ -474,6 +507,71 @@ export default memo(function MessageItem({
           >
             <ChevronRight size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Citation Source Inspection Modal */}
+      {selectedCitation && (
+        <div className={styles.citationModalOverlay} onClick={() => setSelectedCitation(null)}>
+          <div
+            className={styles.citationModal}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Citation Details"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.citationModalHeader}>
+              <div className={styles.citationModalTitleGroup}>
+                <FileText size={16} color="#38bdf8" />
+                <span className={styles.citationModalTitle}>
+                  {selectedCitation.docName}
+                </span>
+                <span className={styles.citationChunkBadge}>
+                  Section §{selectedCitation.chunkIndex + 1}
+                  {selectedCitation.totalChunks ? ` of ${selectedCitation.totalChunks}` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                onClick={() => setSelectedCitation(null)}
+                aria-label="Close citation modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className={styles.citationModalBody}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Relevance Score:{' '}
+                  <strong style={{ color: '#10b981' }}>
+                    {selectedCitation.score !== undefined ? selectedCitation.score.toFixed(2) : 'N/A'}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedCitation.excerpt);
+                    setCopiedExcerpt(true);
+                    setTimeout(() => setCopiedExcerpt(false), 2000);
+                  }}
+                  title="Copy excerpt text"
+                >
+                  {copiedExcerpt ? (
+                    <>
+                      <Check size={13} color="#10b981" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} /> Copy Excerpt
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className={styles.citationExcerptText}>{selectedCitation.excerpt}</pre>
+            </div>
+          </div>
         </div>
       )}
     </div>

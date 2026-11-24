@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Paperclip, X as LucideX } from 'lucide-react';
+import { Paperclip, X as LucideX, Database, FileText } from 'lucide-react';
+import { vaultStore } from '../../lib/rag/vaultStore';
 import styles from './AttachModal.module.css';
 
 interface AttachModalProps {
@@ -16,6 +17,7 @@ interface AttachedFile {
 export default function AttachModal({ onAttach, onClose }: AttachModalProps) {
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [indexInVault, setIndexInVault] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -39,13 +41,21 @@ export default function AttachModal({ onAttach, onClose }: AttachModalProps) {
     });
   };
 
-  const handleAttach = () => {
-    let text = '';
-    for (const f of files) {
-      const ext = f.name.split('.').pop();
-      text += `\n\n\`\`\`${ext}\n// ${f.name}\n${f.content}\n\`\`\``;
+  const handleAttach = async () => {
+    if (indexInVault) {
+      for (const f of files) {
+        await vaultStore.addDocument(f.name, f.content);
+      }
+      const names = files.map((f) => f.name).join(', ');
+      onAttach(`Please review the security document(s) [${names}] now indexed in my Knowledge Vault.`);
+    } else {
+      let text = '';
+      for (const f of files) {
+        const ext = f.name.split('.').pop();
+        text += `\n\n\`\`\`${ext}\n// ${f.name}\n${f.content}\n\`\`\``;
+      }
+      onAttach(text);
     }
-    onAttach(text);
     onClose();
   };
 
@@ -112,6 +122,20 @@ export default function AttachModal({ onAttach, onClose }: AttachModalProps) {
             ))}
           </div>
         )}
+
+        <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: 'rgba(56, 189, 248, 0.08)', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <input
+            type="checkbox"
+            id="indexVaultCheckbox"
+            checked={indexInVault}
+            onChange={(e) => setIndexInVault(e.target.checked)}
+            style={{ cursor: 'pointer', accentColor: '#38bdf8' }}
+          />
+          <label htmlFor="indexVaultCheckbox" style={{ fontSize: '0.74rem', color: '#e2e8f0', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 600, color: '#38bdf8' }}>Index into Knowledge Vault (Semantic RAG)</span>
+            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Prevents context overflow by retrieving only relevant chunks with citations.</span>
+          </label>
+        </div>
 
         <div className={styles.footer}>
           <button onClick={onClose} className={styles.cancelBtn}>

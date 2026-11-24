@@ -3,6 +3,7 @@ import { db } from '../lib/db';
 import { providerManager } from '../lib/providers/ProviderManager';
 import { estimateTokens } from '../lib/tokens';
 import { useUndoRedo } from '../lib/useUndoRedo';
+import { vaultStore } from '../lib/rag/vaultStore';
 import type {
   Message,
   Chat,
@@ -10,6 +11,7 @@ import type {
   VoiceHook,
   VoiceOverlayState,
   ChatEngineReturn,
+  CitationSource,
 } from '../types';
 
 interface UseChatEngineParams {
@@ -172,7 +174,33 @@ export function useChatEngine({
     const history = messages.slice(0, index);
     undoRedo.pushSnapshot(messages);
     const oldMsg = messages[index];
-    const effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
+
+    // Check for Knowledge Vault RAG matches for the prompt being regenerated
+    const lastUserPrompt = history[history.length - 1]?.content || '';
+    const ragMatches = lastUserPrompt ? vaultStore.search(lastUserPrompt, 4) : [];
+    const retrievedCitations: CitationSource[] = ragMatches.map((m) => ({
+      id: m.id,
+      docId: m.docId,
+      docName: m.docName,
+      chunkIndex: m.chunkIndex,
+      totalChunks: m.totalChunks,
+      score: m.score,
+      excerpt: m.text,
+    }));
+
+    let effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
+    if (ragMatches.length > 0) {
+      effectiveSystemPrompt +=
+        `\n\n=== KNOWLEDGE VAULT GROUND TRUTH (${ragMatches.length} Relevant Local Document Excerpts) ===\n` +
+        ragMatches
+          .map(
+            (m, idx) =>
+              `[Source ${idx + 1}: ${m.docName} (Section §${m.chunkIndex + 1})]\n${m.text}`
+          )
+          .join('\n\n') +
+        `\n=== END KNOWLEDGE VAULT GROUND TRUTH ===\nInstructions: Ground your response in the local documents provided above. When citing findings, use reference citations like [Source: ${ragMatches.map((m) => m.docName).join(', ')}].`;
+    }
+
     const providerOptions = {
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
@@ -194,6 +222,7 @@ export function useChatEngine({
       content: '',
       branches: [...existingBranches, newBranch],
       branchIndex: branchIndex + 1,
+      citations: retrievedCitations.length > 0 ? retrievedCitations : undefined,
     };
     setMessages([...history, placeholderAi]);
 
@@ -335,7 +364,31 @@ export function useChatEngine({
       isNewChat = true;
     }
 
-    const effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
+    // Query Knowledge Vault for relevant context snippets
+    const ragMatches = vaultStore.search(text, 4);
+    const retrievedCitations: CitationSource[] = ragMatches.map((m) => ({
+      id: m.id,
+      docId: m.docId,
+      docName: m.docName,
+      chunkIndex: m.chunkIndex,
+      totalChunks: m.totalChunks,
+      score: m.score,
+      excerpt: m.text,
+    }));
+
+    let effectiveSystemPrompt = chatSystemPrompt.trim() || settings.systemPrompt;
+    if (ragMatches.length > 0) {
+      effectiveSystemPrompt +=
+        `\n\n=== KNOWLEDGE VAULT GROUND TRUTH (${ragMatches.length} Relevant Local Document Excerpts) ===\n` +
+        ragMatches
+          .map(
+            (m, idx) =>
+              `[Source ${idx + 1}: ${m.docName} (Section §${m.chunkIndex + 1})]\n${m.text}`
+          )
+          .join('\n\n') +
+        `\n=== END KNOWLEDGE VAULT GROUND TRUTH ===\nInstructions: Ground your response in the local documents provided above. When citing findings, use reference citations like [Source: ${ragMatches.map((m) => m.docName).join(', ')}].`;
+    }
+
     const providerOptions = {
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
@@ -354,7 +407,7 @@ export function useChatEngine({
       history.length === 1 ? text.substring(0, 30) + (text.length > 30 ? '...' : '') : title;
     if (history.length === 1) setTitle(chatTitle);
 
-    setMessages([...history, { role: 'ai', content: '' }]);
+    setMessages([...history, { role: 'ai', content: '', citations: retrievedCitations.length > 0 ? retrievedCitations : undefined }]);
 
     let accumulated = '';
     let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -365,7 +418,7 @@ export function useChatEngine({
         id: sessionChatId!,
         workspaceId: currentProjectId || 'default',
         title: chatTitle,
-        messages: [...history, { role: 'ai', content: accumulated }],
+        messages: [...history, { role: 'ai', content: accumulated, citations: retrievedCitations.length > 0 ? retrievedCitations : undefined }],
         systemPrompt: chatSystemPrompt,
         provider: settings.provider,
         model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
@@ -430,6 +483,7 @@ export function useChatEngine({
           generationTime: duration,
           tokens: estimateTokens(accumulated),
           createdAt: Date.now(),
+          citations: retrievedCitations.length > 0 ? retrievedCitations : undefined,
         },
       ];
       messagesRef.current = finalMessages;
