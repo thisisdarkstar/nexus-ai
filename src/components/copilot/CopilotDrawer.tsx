@@ -658,95 +658,106 @@ export default function CopilotDrawer({
         <>
           {/* Security Context Bar */}
           <div className={styles.contextBar}>
-        <div className={styles.contextHeader}>
-          <span className={styles.contextPill}>
-            <ActiveTabIcon size={12} />
-            <span>Active: {activeMeta.name}</span>
-          </span>
-          <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            {settings.provider === 'openai' ? settings.openaiModel || 'OpenAI' : 'Gemini Nano'}
-          </span>
-        </div>
+            <div className={styles.contextBarInner}>
+              <div className={styles.contextHeader}>
+                <span className={styles.contextPill}>
+                  <ActiveTabIcon size={12} />
+                  <span>Active: {activeMeta.name}</span>
+                </span>
+                <span className={styles.contextModelLabel}>
+                  {settings.provider === 'openai' ? settings.openaiModel || 'OpenAI' : 'Gemini Nano'}
+                </span>
+              </div>
 
-        <div className={styles.quickChips}>
-          {activeMeta.suggestions.map((sug, idx) => (
-            <button
-              key={idx}
-              type="button"
-              className={styles.chip}
-              onClick={() => handleQuickChipClick(sug)}
-              title={sug}
-            >
-              <Sparkles size={10} color="#38bdf8" />
-              <span>{sug}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Messages Stream */}
-      <div className={styles.messagesContainer}>
-        {messages.length === 0 ? (
-          <div className={styles.welcomeState}>
-            <div className={styles.welcomeIconWrapper}>
-              <Sparkles size={22} />
-            </div>
-            <div>
-              <h3 className={styles.welcomeTitle}>Nexus Security Copilot</h3>
-              <p className={styles.welcomeDesc}>
-                Pair with an AI security specialist for vulnerability triage, scope verification, PoC crafting, and safe remediation.
-              </p>
-            </div>
-
-            <div className={styles.welcomeSuggestions}>
-              {activeMeta.suggestions.slice(0, 3).map((sug, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={styles.suggestionCard}
-                  onClick={() => handleQuickChipClick(sug)}
-                >
-                  <Sparkles size={12} color="#10b981" />
-                  <span>{sug}</span>
-                </button>
-              ))}
+              {messages.length > 0 && (
+                <div className={styles.quickChips}>
+                  {activeMeta.suggestions.map((sug, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={styles.chip}
+                      onClick={() => handleQuickChipClick(sug)}
+                      title={sug}
+                    >
+                      <Sparkles size={10} color="#38bdf8" />
+                      <span>{sug}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        ) : (
-          <>
-            <div className={styles.srOnly} role="status" aria-live="polite">
-              {isGenerating ? 'AI is generating a response' : ''}
-            </div>
-            <Virtuoso
-            style={{ height: '100%' }}
-            data={messages}
-            initialTopMostItemIndex={messages.length - 1}
-            followOutput="smooth"
-            itemContent={(index, msg) => (
-              <MessageItem
-                key={index}
-                msg={msg}
-                i={index}
-                isLatest={index === messages.length - 1}
-                copiedIndex={copiedIndex}
-                isSpeaking={speakingMessageIndex === index}
-                isGenerating={isGenerating}
-                onCopy={handleCopy}
-                onSpeak={handleSpeakMessage}
-                onRegenerate={handleRegenerate}
-                onEdit={handleEditMessage}
-                onSwitchBranch={handleSwitchBranch}
-                availableModels={availableModels}
-                settings={settings}
-              />
+
+          {/* Messages Stream */}
+          <div className={styles.messagesContainer}>
+            {messages.length === 0 ? (
+              <div className={styles.welcomeState}>
+                <div className={styles.welcomeIconWrapper}>
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h3 className={styles.welcomeTitle}>Nexus Security Copilot</h3>
+                  <p className={styles.welcomeDesc}>
+                    Pair with an AI security specialist for vulnerability triage, scope verification, PoC crafting, and safe remediation.
+                  </p>
+                </div>
+
+                <div className={styles.welcomeSuggestions}>
+                  {activeMeta.suggestions.slice(0, 3).map((sug, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={styles.suggestionCard}
+                      onClick={() => handleQuickChipClick(sug)}
+                    >
+                      <Sparkles size={12} color="#10b981" />
+                      <span>{sug}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={styles.srOnly} role="status" aria-live="polite">
+                  {isGenerating ? 'AI is generating a response' : ''}
+                </div>
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={messages}
+                  initialTopMostItemIndex={messages.length - 1}
+                  followOutput="smooth"
+                  itemContent={(index, msg) => (
+                    <div className={styles.messageRowInner}>
+                      <MessageItem
+                        key={index}
+                        msg={msg}
+                        i={index}
+                        isLatest={index === messages.length - 1}
+                        copiedIndex={copiedIndex}
+                        isSpeaking={speakingMessageIndex === index}
+                        isGenerating={isGenerating}
+                        onCopy={handleCopy}
+                        onSpeak={handleSpeakMessage}
+                        onRegenerate={handleRegenerate}
+                        onEdit={handleEditMessage}
+                        onSwitchBranch={handleSwitchBranch}
+                        availableModels={availableModels}
+                        settings={settings}
+                      />
+                    </div>
+                  )}
+                  components={{
+                    Header: () => <div className={styles.streamHeaderSpacer} />,
+                    Footer: () => (
+                      <div className={styles.streamFooterWrap}>
+                        {isGenerating ? <SkeletonBubble /> : null}
+                      </div>
+                    ),
+                  }}
+                />
+              </>
             )}
-            components={{
-              Footer: () => (isGenerating ? <SkeletonBubble /> : null),
-            }}
-            />
-          </>
-        )}
-      </div>
+          </div>
 
       {/* Dedicated Integrated Bottom Input Dock */}
       <div className={styles.inputDock}>
@@ -802,6 +813,7 @@ export default function CopilotDrawer({
                 availableModels={availableModels}
                 isGenerating={isGenerating}
                 onModelChange={onModelChange}
+                triggerClassName={isMaximized ? styles.modelTriggerMaximized : ''}
               />
             </div>
 
@@ -835,7 +847,7 @@ export default function CopilotDrawer({
 
       {/* Dual-Model Comparison Arena */}
       {activeCopilotTab === 'arena' && (
-        <div className={styles.subTabContent}>
+        <div className={`${styles.subTabContent} ${styles.subTabContentWide}`}>
           <ModelArena
             availableModels={availableModels}
             currentModel={settings.openaiModel || ''}

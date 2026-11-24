@@ -8,6 +8,7 @@ interface ModelMenuProps {
   availableModels: AvailableModel[];
   isGenerating: boolean;
   onModelChange: (provider: string, model: string, endpointId?: string) => void;
+  triggerClassName?: string;
 }
 
 export default function ModelMenu({
@@ -15,6 +16,7 @@ export default function ModelMenu({
   availableModels,
   isGenerating,
   onModelChange,
+  triggerClassName = '',
 }: ModelMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -37,7 +39,7 @@ export default function ModelMenu({
       <button
         onClick={() => setIsOpen((o) => !o)}
         disabled={isGenerating}
-        className={`${styles.trigger} ${isGenerating ? styles.triggerDisabled : ''}`}
+        className={`${styles.trigger} ${isGenerating ? styles.triggerDisabled : ''} ${triggerClassName}`}
         title={`Active Model: ${currentLabel}`}
       >
         <Sparkles size={13} />
