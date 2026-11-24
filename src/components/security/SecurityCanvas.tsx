@@ -220,25 +220,19 @@ export default function SecurityCanvas({
           <div className={styles.categoryPillsGroup}>
             {(['assess', 'web', 'recon', 'defense'] as const).map((cat) => {
               const isCurrentCat = activeTabInfo?.category === cat;
+              const toolsInCat = SECURITY_TABS.filter((t) => t.category === cat);
+              const currentIdx = toolsInCat.findIndex((t) => t.id === activeTab);
+              const nextTool = toolsInCat[(currentIdx + 1) % toolsInCat.length];
               return (
                 <button
                   key={cat}
                   type="button"
                   className={`${styles.catPillBtn} ${isCurrentCat ? styles.catPillBtnActive : ''}`}
-                  onClick={() => {
-                    if (!isCurrentCat) {
-                      const firstTool = SECURITY_TABS.find((t) => t.category === cat);
-                      if (firstTool) onTabChange(firstTool.id);
-                    } else {
-                      // Click active category -> open palette pre-filtered to this category
-                      setModalCategory(cat);
-                      setDropdownOpen(true);
-                    }
-                  }}
+                  onClick={() => handleCategoryPillClick(cat)}
                   title={
                     isCurrentCat
-                      ? `${cat.toUpperCase()} category is active. Click to view all ${cat} modules in launcher`
-                      : `Switch to ${cat.toUpperCase()} category`
+                      ? `${cat.toUpperCase()} active (click to cycle to ${nextTool?.name || 'next module'})`
+                      : `Switch to ${cat.toUpperCase()} category (${toolsInCat[0]?.name || ''})`
                   }
                 >
                   {cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
@@ -248,10 +242,7 @@ export default function SecurityCanvas({
             <button
               type="button"
               className={styles.catPillBtn}
-              onClick={() => {
-                setModalCategory('all');
-                setDropdownOpen(true);
-              }}
+              onClick={() => handleCategoryPillClick('all')}
               title="Launch Security Modules Palette (All 17 tools)"
             >
               All (17)

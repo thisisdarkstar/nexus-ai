@@ -49,6 +49,13 @@
   gap: 8px;
   position: relative;
   min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.toolSelectorWrapper::-webkit-scrollbar {
+  display: none;
 }
 
 .toolDropdownTrigger {
