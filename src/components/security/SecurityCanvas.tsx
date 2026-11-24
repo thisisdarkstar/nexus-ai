@@ -96,11 +96,6 @@ export default function SecurityCanvas({
     return cat ? cat.label.split('&')[0].trim() : 'Tool';
   }, [activeTabInfo]);
 
-  const categoryTools = useMemo(() => {
-    const currentCat = activeTabInfo?.category || 'assess';
-    return SECURITY_TABS.filter((t) => t.category === currentCat);
-  }, [activeTabInfo]);
-
   useEffect(() => {
     if (!dropdownOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -192,28 +187,6 @@ export default function SecurityCanvas({
               className={`${styles.toolTriggerChevron} ${dropdownOpen ? styles.toolTriggerChevronOpen : ''}`}
             />
           </button>
-
-          {/* Direct Module Tabs for Current Category */}
-          <div className={styles.moduleTabsGroup} role="tablist" aria-label="Current category security modules">
-            {categoryTools.map((t) => {
-              const Icon = t.icon;
-              const isActive = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`${styles.moduleTabBtn} ${isActive ? styles.moduleTabBtnActive : ''}`}
-                  onClick={() => onTabChange(t.id)}
-                  title={t.tooltip}
-                >
-                  <Icon size={12} className={styles.moduleTabIcon} />
-                  <span>{t.name}</span>
-                </button>
-              );
-            })}
-          </div>
 
           {/* Category Quick Pills */}
           <div className={styles.categoryPillsGroup}>
