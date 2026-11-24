@@ -38,6 +38,7 @@ import type {
 } from './types';
 
 const SettingsModal = lazy(() => import('./components/SettingsModal'));
+const QuickAiHud = lazy(() => import('./components/copilot/QuickAiHud'));
 
 const DEFAULT_SETTINGS: Settings = {
   provider: 'openai',
@@ -135,6 +136,9 @@ function AppContent() {
     }
   });
 
+  const [quickHudOpen, setQuickHudOpen] = useState(false);
+  const [quickHudInitialQuery, setQuickHudInitialQuery] = useState('');
+
   useEffect(() => {
     try {
       localStorage.setItem('nexus_copilot_maximized', String(copilotMaximized));
@@ -142,6 +146,14 @@ function AppContent() {
       // ignore
     }
   }, [copilotMaximized]);
+
+  useEffect(() => {
+    const unsubQuick = eventBus.subscribe('open-quick-hud', (detail) => {
+      setQuickHudInitialQuery(detail?.query || '');
+      setQuickHudOpen(true);
+    });
+    return () => unsubQuick();
+  }, []);
 
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [artifactIngestOpen, setArtifactIngestOpen] = useState(false);
@@ -363,6 +375,9 @@ function AppContent() {
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         setArtifactIngestOpen(true);
+      } else if (isCmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setQuickHudOpen((prev) => !prev);
       } else if (isCmdOrCtrl && e.key.toLowerCase() === 'j') {
         e.preventDefault();
         setCopilotOpen((prev) => !prev);
@@ -370,6 +385,10 @@ function AppContent() {
         e.preventDefault();
         handleNewChat();
       } else if (e.key === 'Escape') {
+        if (quickHudOpen) {
+          setQuickHudOpen(false);
+          return;
+        }
         if (copilotMaximized) {
           setCopilotMaximized(false);
           return;
@@ -382,7 +401,7 @@ function AppContent() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen, copilotMaximized]);
+  }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen, copilotMaximized, quickHudOpen]);
 
   const confirmAction = (
     title: string,
@@ -659,6 +678,22 @@ function AppContent() {
           toast('success', `Artifact Ingested: ${summary}`);
         }}
       />
+
+      {quickHudOpen && (
+        <Suspense fallback={null}>
+          <QuickAiHud
+            isOpen={quickHudOpen}
+            onClose={() => setQuickHudOpen(false)}
+            settings={settings}
+            initialQuery={quickHudInitialQuery}
+            onOpenFullCopilotWithPrompt={(prompt) => {
+              setQuickHudOpen(false);
+              setPendingCopilotPrompt(prompt);
+              setCopilotOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

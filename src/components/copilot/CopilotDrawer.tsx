@@ -29,6 +29,7 @@ import {
   Info,
   Eye,
   BookOpen,
+  Swords,
 } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useChatEngine } from '../../hooks/useChatEngine';
@@ -38,6 +39,7 @@ import AttachModal from '../chat/AttachModal';
 import SkeletonBubble from '../chat/SkeletonBubble';
 import CustomSelect, { SelectOption } from '../common/CustomSelect';
 import { vaultStore, type VaultDocument } from '../../lib/rag/vaultStore';
+import ModelArena from './ModelArena';
 import type {
   Chat,
   Settings,
@@ -51,7 +53,7 @@ import { SECURITY_TAB_META } from '../../lib/security/tabRegistry';
 import { getQuickPromptContext } from '../../lib/security/aiContextRegistry';
 import styles from './CopilotDrawer.module.css';
 
-export type CopilotTab = 'chat' | 'vault' | 'presets' | 'telemetry';
+export type CopilotTab = 'chat' | 'arena' | 'vault' | 'presets' | 'telemetry';
 
 export interface SecurityPersonaPreset {
   id: string;
@@ -257,6 +259,7 @@ export default function CopilotDrawer({
 
   const {
     messages,
+    setMessages,
     input,
     setInput,
     isGenerating,
@@ -615,6 +618,15 @@ export default function CopilotDrawer({
         </button>
         <button
           type="button"
+          className={`${styles.subTabBtn} ${activeCopilotTab === 'arena' ? styles.subTabActive : ''}`}
+          onClick={() => setActiveCopilotTab('arena')}
+          title="Dual-Model Comparison Arena"
+        >
+          <Swords size={13} />
+          <span>Arena</span>
+        </button>
+        <button
+          type="button"
           className={`${styles.subTabBtn} ${activeCopilotTab === 'vault' ? styles.subTabActive : ''}`}
           onClick={() => setActiveCopilotTab('vault')}
         >
@@ -834,6 +846,28 @@ export default function CopilotDrawer({
         </div>
       </div>
         </>
+      )}
+
+      {/* Dual-Model Comparison Arena */}
+      {activeCopilotTab === 'arena' && (
+        <div className={styles.subTabContent}>
+          <ModelArena
+            availableModels={availableModels}
+            currentModel={settings.openaiModel || ''}
+            settings={settings}
+            onAdoptResponse={(content, modelName) => {
+              setActiveCopilotTab('chat');
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: 'ai',
+                  content: `*(Adopted from ${modelName} in Model Arena)*\n\n${content}`,
+                  createdAt: Date.now(),
+                },
+              ]);
+            }}
+          />
+        </div>
       )}
 
       {/* Engagement Document & Evidence Vault */}

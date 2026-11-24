@@ -659,6 +659,7 @@ export function useChatEngine({
 
   return {
     messages,
+    setMessages,
     input,
     setInput,
     isGenerating,

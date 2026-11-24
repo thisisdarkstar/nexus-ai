@@ -151,9 +151,11 @@ export class OpenAIProvider implements AIProvider {
       topP?: number;
       topK?: number;
       repeatPenalty?: number;
+      model?: string;
     } = {}
   ): AsyncGenerator<string> {
-    if (!this.model) {
+    const effectiveModel = options.model || this.model;
+    if (!effectiveModel) {
       throw new Error('No model selected. Pick a model from the model menu or Settings.');
     }
 
@@ -161,7 +163,7 @@ export class OpenAIProvider implements AIProvider {
     let targetBaseUrl = this.baseUrl;
     let targetApiKey = this.apiKey;
 
-    const matchedEndpointId = this.modelEndpointMap.get(this.model);
+    const matchedEndpointId = this.modelEndpointMap.get(effectiveModel);
     if (matchedEndpointId) {
       const ep = this.endpoints.find((e) => e.id === matchedEndpointId);
       if (ep) {
@@ -210,7 +212,7 @@ export class OpenAIProvider implements AIProvider {
     const finalMessages = formattedMessages.concat(selectedHistory);
 
     const body: Record<string, unknown> = {
-      model: this.model,
+      model: effectiveModel,
       messages: finalMessages,
       stream: true,
     };

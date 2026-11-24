@@ -63,6 +63,7 @@ export interface SecurityEventMap {
   // Shell-level routing (formerly raw window CustomEvents)
   'open-security': { tab?: SecurityTab; code?: string; input?: string };
   'open-ingest': void;
+  'open-quick-hud': { query?: string } | void;
 
   // WorkbenchBridge domain events
   'workbench:add-finding': VulnerabilityFinding;

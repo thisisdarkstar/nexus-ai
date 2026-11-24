@@ -8,7 +8,9 @@ import {
   Sparkles,
   Download,
   FolderArchive,
+  Swords,
 } from 'lucide-react';
+import { eventBus } from '../core/bus/EventBus';
 import { workbenchBridge } from '../lib/security/workbenchBridge';
 import { exportEngagementBundle, importEngagementBundle } from '../lib/security/engagementBundle';
 import { SECURITY_TABS } from '../lib/security/tabRegistry';
@@ -128,6 +130,29 @@ export default function CommandPalette({
         onNewChat();
       },
       shortcut: 'Ctrl+N',
+    },
+    {
+      id: 'action-quick-ai',
+      title: 'Quick AI Spotlight HUD',
+      category: 'Actions',
+      icon: Sparkles,
+      action: () => {
+        onClose();
+        eventBus.publish('open-quick-hud', {});
+      },
+      shortcut: 'Ctrl+Shift+J',
+      keywords: ['spotlight', 'quick', 'ai', 'ask', 'prompt', 'mini'],
+    },
+    {
+      id: 'action-model-arena',
+      title: 'Dual-Model Comparison Arena',
+      category: 'Actions',
+      icon: Swords,
+      action: () => {
+        onClose();
+        eventBus.publish('open-quick-hud', { query: 'Compare models in Arena' });
+      },
+      keywords: ['arena', 'compare', 'dual', 'lmsys', 'benchmark', 'models'],
     },
 
     // System

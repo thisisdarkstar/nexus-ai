@@ -1,0 +1,271 @@
+.arenaContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.arenaControlsBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--sd-70, rgba(15, 23, 42, 0.7));
+  border: 1px solid var(--wa-10, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+}
+
+.arenaModelSelectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.modelSelectGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.modelSelectLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.labelA {
+  color: #38bdf8;
+}
+
+.labelB {
+  color: #a855f7;
+}
+
+.arenaInputRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.arenaTextarea {
+  flex: 1;
+  background: var(--sd-90, rgba(0, 0, 0, 0.4));
+  border: 1px solid var(--wa-12, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  color: var(--text-primary, #f8fafc);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 60px;
+  max-height: 140px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.arenaTextarea:focus {
+  border-color: #38bdf8;
+}
+
+.arenaBroadcastBtn {
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.65rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  height: 40px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.arenaBroadcastBtn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.arenaBroadcastBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.arenaStopBtn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  color: #f87171;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.65rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  height: 40px;
+  transition: all 0.15s ease;
+}
+
+.arenaStopBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Side by Side Grid */
+.arenaColumnsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  .arenaModelSelectors {
+    grid-template-columns: 1fr;
+  }
+  .arenaColumnsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.arenaColumnCard {
+  background: var(--sd-80, rgba(15, 23, 42, 0.6));
+  border: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.arenaColumnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  background: var(--sd-90, rgba(0, 0, 0, 0.3));
+  border-bottom: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+  gap: 0.5rem;
+}
+
+.columnHeaderA {
+  border-top: 3px solid #38bdf8;
+}
+
+.columnHeaderB {
+  border-top: 3px solid #a855f7;
+}
+
+.columnModelTitle {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.columnMetricsRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.columnMetricPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--sd-100, rgba(0, 0, 0, 0.5));
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+}
+
+.speedPill {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.arenaColumnBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.arenaPlaceholderPrompt {
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.78rem;
+}
+
+.arenaColumnFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  background: var(--sd-90, rgba(0, 0, 0, 0.25));
+  border-top: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+  gap: 0.5rem;
+}
+
+.adoptBtn {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.adoptBtn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.arenaActionBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.arenaActionBtn:hover {
+  background: var(--wa-8, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #f8fafc);
+}

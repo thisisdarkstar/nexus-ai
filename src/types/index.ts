@@ -114,7 +114,15 @@ export interface AIProvider {
     messages: Message[],
     systemPrompt: string | null,
     signal: AbortSignal | null,
-    options?: { temperature?: number; maxTokens?: number; contextWindow?: number }
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      contextWindow?: number;
+      topP?: number;
+      topK?: number;
+      repeatPenalty?: number;
+      model?: string;
+    }
   ): AsyncGenerator<string, void, unknown>;
 }
 
@@ -136,6 +144,7 @@ export interface VoiceHook {
 
 export interface ChatEngineReturn {
   messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   isGenerating: boolean;
