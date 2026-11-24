@@ -123,6 +123,23 @@ function AppContent() {
     return window.innerWidth > 1024;
   });
 
+  const [copilotMaximized, setCopilotMaximized] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_copilot_maximized');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexus_copilot_maximized', String(copilotMaximized));
+    } catch {
+      // ignore
+    }
+  }, [copilotMaximized]);
+
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [artifactIngestOpen, setArtifactIngestOpen] = useState(false);
   const [pendingCopilotPrompt, setPendingCopilotPrompt] = useState<string | null>(null);
@@ -350,6 +367,10 @@ function AppContent() {
         e.preventDefault();
         handleNewChat();
       } else if (e.key === 'Escape') {
+        if (copilotMaximized) {
+          setCopilotMaximized(false);
+          return;
+        }
         if (commandPaletteOpen) setCommandPaletteOpen(false);
         if (artifactIngestOpen) setArtifactIngestOpen(false);
         if (settingsOpen) setSettingsOpen(false);
@@ -358,7 +379,7 @@ function AppContent() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen]);
+  }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen, copilotMaximized]);
 
   const confirmAction = (
     title: string,
@@ -467,6 +488,9 @@ function AppContent() {
       onDeleteChat={requestDeleteChat}
       pendingPrompt={pendingCopilotPrompt}
       onPendingPromptConsumed={() => setPendingCopilotPrompt(null)}
+      isMaximized={copilotMaximized}
+      onToggleMaximize={() => setCopilotMaximized((prev) => !prev)}
+      onSettingsChange={saveSettings}
     />
   );
 
@@ -516,41 +540,57 @@ function AppContent() {
             )}
           </>
         ) : (
-          <Group
-            key={copilotOpen ? 'workbench-split' : 'workbench-full'}
-            orientation="horizontal"
-            style={{ width: '100%', height: '100%' }}
-          >
-            <Panel
-              defaultSize={copilotOpen ? '70%' : '100%'}
-              minSize="40%"
-              style={{ height: '100%', overflow: 'hidden' }}
+          <>
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: copilotOpen && copilotMaximized ? 'none' : 'block',
+              }}
             >
-              {canvas}
-            </Panel>
-
-            {copilotOpen && (
-              <>
-                <Separator
-                  style={{
-                    width: '5px',
-                    background: 'var(--wa-8)',
-                    cursor: 'col-resize',
-                    transition: 'background 0.2s',
-                    zIndex: 20,
-                  }}
-                />
+              <Group
+                key={copilotOpen ? 'workbench-split' : 'workbench-full'}
+                orientation="horizontal"
+                style={{ width: '100%', height: '100%' }}
+              >
                 <Panel
-                  defaultSize="30%"
-                  minSize="20%"
-                  maxSize="50%"
+                  defaultSize={copilotOpen ? '70%' : '100%'}
+                  minSize="40%"
                   style={{ height: '100%', overflow: 'hidden' }}
                 >
-                  {copilotDrawer}
+                  {canvas}
                 </Panel>
-              </>
+
+                {copilotOpen && !copilotMaximized && (
+                  <>
+                    <Separator
+                      style={{
+                        width: '5px',
+                        background: 'var(--wa-8)',
+                        cursor: 'col-resize',
+                        transition: 'background 0.2s',
+                        zIndex: 20,
+                      }}
+                    />
+                    <Panel
+                      defaultSize="30%"
+                      minSize="20%"
+                      maxSize="50%"
+                      style={{ height: '100%', overflow: 'hidden' }}
+                    >
+                      {copilotDrawer}
+                    </Panel>
+                  </>
+                )}
+              </Group>
+            </div>
+
+            {copilotOpen && copilotMaximized && (
+              <div className={styles.focusStudioWrapper}>
+                {copilotDrawer}
+              </div>
             )}
-          </Group>
+          </>
         )}
       </main>
 

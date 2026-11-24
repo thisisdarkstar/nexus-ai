@@ -12,6 +12,21 @@ import {
   MicOff,
   Send,
   Square,
+  Maximize2,
+  Minimize2,
+  MessageSquare,
+  FolderArchive,
+  Zap,
+  Activity,
+  ShieldAlert,
+  Terminal,
+  FileCheck,
+  FileText,
+  SlidersHorizontal,
+  CheckCircle2,
+  UploadCloud,
+  Cpu,
+  Info,
 } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useChatEngine } from '../../hooks/useChatEngine';
@@ -33,6 +48,66 @@ import { SECURITY_TAB_META } from '../../lib/security/tabRegistry';
 import { getQuickPromptContext } from '../../lib/security/aiContextRegistry';
 import styles from './CopilotDrawer.module.css';
 
+export type CopilotTab = 'chat' | 'vault' | 'presets' | 'telemetry';
+
+export interface SecurityPersonaPreset {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
+  color: string;
+  description: string;
+  systemPrompt: string;
+  samplePrompt: string;
+}
+
+export const SECURITY_PERSONA_PRESETS: SecurityPersonaPreset[] = [
+  {
+    id: 'web_appsec',
+    name: 'Web AppSec Specialist',
+    icon: ShieldAlert,
+    color: '#38bdf8',
+    description: 'Expert in OWASP Top 10, IDOR, SSRF, injection vectors, and broken access controls.',
+    systemPrompt: 'You are an elite application security engineer. Analyze HTTP requests, API schemas, and vulnerabilities with deep rigor. Provide realistic attack vectors, curl PoCs, and actionable remediation guidance adhering to OWASP WSTG.',
+    samplePrompt: 'Review my target scope and suggest a methodical testing checklist for broken object level authorization (BOLA) and injection vectors.',
+  },
+  {
+    id: 'exploit_dev',
+    name: 'Exploit & PoC Crafter',
+    icon: Terminal,
+    color: '#f59e0b',
+    description: 'Specializes in crafting weaponized Nuclei templates, Python exploit scripts, and filter bypasses.',
+    systemPrompt: 'You are a senior red-team exploit developer and vulnerability researcher. Help debug and craft robust, accurate exploit PoCs, Nuclei v3 YAML templates, and custom payloads with safe verification safeguards.',
+    samplePrompt: 'I need a custom Nuclei v3 template with precise DSL matchers and extractors for detecting an unauthenticated administrative endpoint.',
+  },
+  {
+    id: 'soc_detection',
+    name: 'SOC & Detection Engineer',
+    icon: Activity,
+    color: '#10b981',
+    description: 'Generates high-fidelity Sigma, YARA, Snort, and SIEM correlation rules for threat telemetry.',
+    systemPrompt: 'You are a principal threat detection engineer. Translate threat intelligence, CVEs, and adversary attack paths into robust Sigma, YARA, and SIEM detection rules with zero false positives.',
+    samplePrompt: 'Draft a production-grade Sigma detection rule for detecting web exploit command injection attempts in web access logs.',
+  },
+  {
+    id: 'compliance_audit',
+    name: 'Compliance & Audit Reviewer',
+    icon: FileCheck,
+    color: '#818cf8',
+    description: 'Evaluates CVSS v3.1 vector scores, risk ratings, and maps findings to NIST SP 800-53 & ISO 27001.',
+    systemPrompt: 'You are an accredited cybersecurity auditor and compliance assessor. Guide CVSS v3.1 base scoring, calculate temporal metrics, and map findings to security control frameworks (NIST SP 800-53, ISO 27001, SOC 2).',
+    samplePrompt: 'Help me calculate an accurate CVSS v3.1 vector string and score for an unauthenticated server-side request forgery (SSRF).',
+  },
+  {
+    id: 'executive_report',
+    name: 'Executive Report Writer',
+    icon: FileText,
+    color: '#ec4899',
+    description: 'Translates technical vulnerabilities into polished executive risk summaries for leadership.',
+    systemPrompt: 'You are an executive security advisor and technical writer. Translate complex technical vulnerabilities, exploit chains, and findings into clear, impactful executive summaries and remediation roadmaps for CISOs and board members.',
+    samplePrompt: 'Draft an executive briefing summarizing critical engagement risks, potential business impact, and a 30-day prioritized remediation roadmap.',
+  },
+];
+
 interface CopilotDrawerProps {
   currentChatId: string | null;
   setCurrentChatId: (id: string | null) => void;
@@ -42,6 +117,7 @@ interface CopilotDrawerProps {
   reloadChats: () => Promise<void>;
   settings: Settings;
   onModelChange: (provider: string, model: string, endpointId?: string) => void;
+  onSettingsChange?: (newSettings: Partial<Settings>) => void;
   availableModels: AvailableModel[];
   voice: VoiceHook;
   setVoiceOverlay: (overlay: VoiceOverlayState) => void;
@@ -50,6 +126,8 @@ interface CopilotDrawerProps {
   onDeleteChat?: (id: string) => void;
   pendingPrompt?: string | null;
   onPendingPromptConsumed?: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 const TAB_SUGGESTIONS: Record<SecurityTab, string[]> = {
@@ -82,6 +160,7 @@ export default function CopilotDrawer({
   reloadChats,
   settings,
   onModelChange,
+  onSettingsChange,
   availableModels,
   voice,
   setVoiceOverlay,
@@ -90,7 +169,10 @@ export default function CopilotDrawer({
   onDeleteChat,
   pendingPrompt,
   onPendingPromptConsumed,
+  isMaximized = false,
+  onToggleMaximize,
 }: CopilotDrawerProps) {
+  const [activeCopilotTab, setActiveCopilotTab] = useState<CopilotTab>('chat');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -265,9 +347,30 @@ export default function CopilotDrawer({
     reader.readAsText(file);
   };
 
+  const estimatedTokens = useMemo(() => {
+    let chars = (chatSystemPrompt || settings.systemPrompt || '').length;
+    for (const m of messages) {
+      chars += (m.content || '').length;
+    }
+    chars += input.length;
+    return Math.max(1, Math.round(chars / 3.8));
+  }, [messages, chatSystemPrompt, settings.systemPrompt, input]);
+
+  const contextLimit = settings.contextWindow || 16384;
+  const contextPercent = Math.min(100, Math.round((estimatedTokens / contextLimit) * 100));
+
+  const handleActivatePreset = (preset: SecurityPersonaPreset) => {
+    setChatSystemPrompt(preset.systemPrompt);
+    setInput(preset.samplePrompt);
+    setActiveCopilotTab('chat');
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  };
+
   return (
     <div
-      className={styles.copilotContainer}
+      className={`${styles.copilotContainer} ${isMaximized ? styles.maximized : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -336,6 +439,18 @@ export default function CopilotDrawer({
               aria-label="Delete Conversation Thread"
             >
               <Trash2 size={14} />
+            </button>
+          )}
+
+          {onToggleMaximize && (
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${isMaximized ? styles.iconBtnActive : ''}`}
+              onClick={onToggleMaximize}
+              title={isMaximized ? 'Restore Split View (Esc)' : 'Expand to Focus Studio (Full Screen)'}
+              aria-label={isMaximized ? 'Restore Split View' : 'Expand to Focus Studio'}
+            >
+              {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
           )}
 
@@ -412,8 +527,46 @@ export default function CopilotDrawer({
         </div>
       )}
 
-      {/* Security Context Bar */}
-      <div className={styles.contextBar}>
+      {/* Sub-Tab Navigation Bar */}
+      <div className={styles.subTabBar}>
+        <button
+          type="button"
+          className={`${styles.subTabBtn} ${activeCopilotTab === 'chat' ? styles.subTabActive : ''}`}
+          onClick={() => setActiveCopilotTab('chat')}
+        >
+          <MessageSquare size={13} />
+          <span>Chat</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.subTabBtn} ${activeCopilotTab === 'vault' ? styles.subTabActive : ''}`}
+          onClick={() => setActiveCopilotTab('vault')}
+        >
+          <FolderArchive size={13} />
+          <span>Vault</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.subTabBtn} ${activeCopilotTab === 'presets' ? styles.subTabActive : ''}`}
+          onClick={() => setActiveCopilotTab('presets')}
+        >
+          <Zap size={13} />
+          <span>Presets</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.subTabBtn} ${activeCopilotTab === 'telemetry' ? styles.subTabActive : ''}`}
+          onClick={() => setActiveCopilotTab('telemetry')}
+        >
+          <Activity size={13} />
+          <span>Telemetry</span>
+        </button>
+      </div>
+
+      {activeCopilotTab === 'chat' && (
+        <>
+          {/* Security Context Bar */}
+          <div className={styles.contextBar}>
         <div className={styles.contextHeader}>
           <span className={styles.contextPill}>
             <ActiveTabIcon size={12} />
@@ -559,6 +712,24 @@ export default function CopilotDrawer({
                 isGenerating={isGenerating}
                 onModelChange={onModelChange}
               />
+
+              <div
+                className={styles.contextMeterBadge}
+                title={`Estimated conversation context: ~${estimatedTokens.toLocaleString()} / ${contextLimit.toLocaleString()} tokens (${contextPercent}%)`}
+              >
+                <span className={styles.contextMeterText}>
+                  {estimatedTokens > 999 ? `${(estimatedTokens / 1000).toFixed(1)}k` : estimatedTokens} / {contextLimit > 999 ? `${Math.round(contextLimit / 1000)}k` : contextLimit}
+                </span>
+                <div className={styles.contextMeterTrack}>
+                  <div
+                    className={styles.contextMeterFill}
+                    style={{
+                      width: `${contextPercent}%`,
+                      backgroundColor: contextPercent > 85 ? '#ef4444' : contextPercent > 65 ? '#f59e0b' : '#10b981',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className={styles.toolbarRight}>
@@ -586,6 +757,197 @@ export default function CopilotDrawer({
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Engagement Document & Evidence Vault */}
+      {activeCopilotTab === 'vault' && (
+        <div className={styles.subTabContent}>
+          <div className={styles.vaultCard}>
+            <div className={styles.telemetryCardTitle}>
+              <FolderArchive size={15} color="#38bdf8" />
+              <span>Engagement Evidence & Document Vault</span>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+              Ingest scan logs, vulnerability reports, or security artifacts to reference during Copilot research.
+            </p>
+            <div className={styles.vaultDropzone} onClick={() => setAttachModalOpen(true)}>
+              <UploadCloud size={24} color="#38bdf8" />
+              <div>
+                <strong>Click or drop files to attach</strong>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
+                  Burp Suite XML, Nuclei YAML, Nmap XML, SARIF, JSON logs, or source code
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.vaultCard}>
+            <div className={styles.telemetryCardTitle}>
+              <CheckCircle2 size={15} color="#10b981" />
+              <span>Active Engagement Telemetry</span>
+            </div>
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div className={styles.telemetryStatsRow}>
+                <span>Active Workbench Module:</span>
+                <strong style={{ color: '#38bdf8' }}>{activeMeta.name}</strong>
+              </div>
+              <div className={styles.telemetryStatsRow}>
+                <span>Current Chat System Prompt:</span>
+                <span>{chatSystemPrompt ? 'Customized' : 'Default Global'}</span>
+              </div>
+              <div className={styles.telemetryStatsRow}>
+                <span>Messages in Thread:</span>
+                <strong>{messages.length}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Security Personas & Presets */}
+      {activeCopilotTab === 'presets' && (
+        <div className={styles.subTabContent}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Security Personas & Prompts</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                Switch specialist instructions and starter workflows in 1 click.
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.presetsGrid}>
+            {SECURITY_PERSONA_PRESETS.map((preset) => {
+              const PresetIcon = preset.icon;
+              const isCurrent = chatSystemPrompt === preset.systemPrompt;
+              return (
+                <div
+                  key={preset.id}
+                  className={styles.presetCard}
+                  onClick={() => handleActivatePreset(preset)}
+                >
+                  <div className={styles.presetHeader}>
+                    <div className={styles.presetTitleGroup}>
+                      <PresetIcon size={16} color={preset.color} />
+                      <span style={{ color: preset.color }}>{preset.name}</span>
+                    </div>
+                    {isCurrent && (
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className={styles.presetDesc}>{preset.description}</p>
+                  <div className={styles.presetSample}>
+                    "{preset.samplePrompt}"
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Model & Hardware Telemetry */}
+      {activeCopilotTab === 'telemetry' && (
+        <div className={styles.subTabContent}>
+          <div className={styles.telemetryCard}>
+            <div className={styles.telemetryCardTitle}>
+              <Activity size={15} color="#38bdf8" />
+              <span>Active Inference Engine</span>
+            </div>
+            <div className={styles.telemetryStatsRow}>
+              <span>Provider:</span>
+              <strong style={{ textTransform: 'capitalize', color: 'var(--text-primary)' }}>{settings.provider}</strong>
+            </div>
+            <div className={styles.telemetryStatsRow}>
+              <span>Model:</span>
+              <strong style={{ color: '#38bdf8' }}>{settings.provider === 'openai' ? settings.openaiModel || 'Default Model' : 'Gemini Nano'}</strong>
+            </div>
+            <div className={styles.telemetryStatsRow}>
+              <span>Base URL:</span>
+              <span style={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{settings.openaiBaseUrl}</span>
+            </div>
+          </div>
+
+          <div className={styles.telemetryCard}>
+            <div className={styles.telemetryCardTitle}>
+              <Cpu size={15} color="#10b981" />
+              <span>Context Window Gauge</span>
+            </div>
+            <div className={styles.telemetryMeterTrack}>
+              <div
+                className={styles.telemetryMeterFill}
+                style={{
+                  width: `${contextPercent}%`,
+                  backgroundColor: contextPercent > 85 ? '#ef4444' : contextPercent > 65 ? '#f59e0b' : '#10b981',
+                }}
+              />
+            </div>
+            <div className={styles.telemetryStatsRow}>
+              <span>Estimated Tokens Used:</span>
+              <strong>~{estimatedTokens.toLocaleString()} / {contextLimit.toLocaleString()} ({contextPercent}%)</strong>
+            </div>
+          </div>
+
+          <div className={styles.telemetryCard}>
+            <div className={styles.telemetryCardTitle}>
+              <SlidersHorizontal size={15} color="#f59e0b" />
+              <span>Interactive Hyperparameters</span>
+            </div>
+            <div className={styles.telemetryControlRow}>
+              <div className={styles.telemetryControlLabel}>
+                <span>Temperature</span>
+                <strong>{settings.temperature}</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.05"
+                value={settings.temperature}
+                onChange={(e) => onSettingsChange?.({ temperature: parseFloat(e.target.value) })}
+                className={styles.telemetrySlider}
+              />
+            </div>
+
+            <div className={styles.telemetryControlRow} style={{ marginTop: '0.5rem' }}>
+              <div className={styles.telemetryControlLabel}>
+                <span>Context Size (num_ctx)</span>
+                <strong>{((settings.contextWindow || 16384) / 1024).toFixed(0)}K tokens</strong>
+              </div>
+              <select
+                value={settings.contextWindow || 16384}
+                onChange={(e) => onSettingsChange?.({ contextWindow: parseInt(e.target.value, 10) })}
+                style={{
+                  background: 'var(--sd-90)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--wa-12)',
+                  padding: '0.35rem 0.5rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                }}
+              >
+                <option value="2048">2,048 tokens (2K)</option>
+                <option value="4096">4,096 tokens (4K)</option>
+                <option value="8192">8,192 tokens (8K)</option>
+                <option value="16384">16,384 tokens (16K - Recommended)</option>
+                <option value="32768">32,768 tokens (32K)</option>
+                <option value="65536">65,536 tokens (64K)</option>
+                <option value="131072">131,072 tokens (128K)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={styles.telemetryNote}>
+            <div style={{ fontWeight: 600, marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Info size={12} /> Local VRAM & GPU Offload Tip
+            </div>
+            To offload 100% of layers into GPU VRAM (reducing CPU and RAM usage), ensure your Ollama model fits in VRAM. For 8GB VRAM GPUs, 7B/8B Q4_K_M or Q5_K_M models fit completely into VRAM for lightning-fast inference.
+          </div>
+        </div>
+      )}
 
       {/* Attach Modal */}
       {attachModalOpen && (

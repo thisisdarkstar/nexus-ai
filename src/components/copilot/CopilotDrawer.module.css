@@ -585,6 +585,273 @@
   border: 0;
 }
 
+/* Focus Studio / Fullscreen Container Mode */
+.copilotContainer.maximized {
+  border-left: none;
+}
+
+.copilotContainer.maximized .messagesContainer,
+.copilotContainer.maximized .inputContainer,
+.copilotContainer.maximized .contextBar,
+.copilotContainer.maximized .subTabContent {
+  max-width: 920px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Sub-Tab Bar */
+.subTabBar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--sd-90);
+  border-bottom: 1px solid var(--wa-7);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.subTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.subTabBtn:hover {
+  color: var(--text-primary);
+  background: var(--wa-6);
+}
+
+.subTabActive {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.25);
+  font-weight: 600;
+}
+
+/* Sub-Tab Views Content */
+.subTabContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.15rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Presets Gallery */
+.presetsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.presetCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: var(--sd-60);
+  border: 1px solid var(--wa-8);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.presetCard:hover {
+  border-color: var(--wa-20);
+  background: var(--sd-80);
+  transform: translateY(-1px);
+}
+
+.presetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.presetTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.presetDesc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.presetSample {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  background: var(--sd-90);
+  padding: 0.4rem 0.6rem;
+  border-radius: 5px;
+  border-left: 2px solid #38bdf8;
+  font-family: inherit;
+  font-style: italic;
+}
+
+/* Telemetry View */
+.telemetryGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.telemetryCard {
+  padding: 0.9rem 1.1rem;
+  border-radius: 8px;
+  background: var(--sd-60);
+  border: 1px solid var(--wa-8);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.telemetryCardTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.telemetryMeterTrack {
+  height: 8px;
+  width: 100%;
+  background: var(--sd-90);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid var(--wa-8);
+}
+
+.telemetryMeterFill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.telemetryStatsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.telemetryControlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.telemetryControlLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.telemetrySlider {
+  width: 100%;
+  accent-color: #38bdf8;
+}
+
+.telemetryNote {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.45;
+  background: rgba(56, 189, 248, 0.05);
+  border-left: 2px solid #38bdf8;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+}
+
+/* Vault View */
+.vaultCard {
+  padding: 0.9rem 1.1rem;
+  border-radius: 8px;
+  background: var(--sd-60);
+  border: 1px solid var(--wa-8);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.vaultDropzone {
+  border: 1px dashed var(--wa-20);
+  border-radius: 6px;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--sd-80);
+}
+
+.vaultDropzone:hover {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+  color: var(--text-primary);
+}
+
+/* Context Meter Badge in Input Toolbar */
+.contextMeterBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--sd-80);
+  border: 1px solid var(--wa-8);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-family: 'Consolas', monospace;
+  cursor: help;
+  user-select: none;
+}
+
+.contextMeterTrack {
+  width: 32px;
+  height: 4px;
+  background: var(--sd-100);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.contextMeterFill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.2s ease;
+}
+
+.contextMeterText {
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .copilotContainer {
     border-left: 0;
