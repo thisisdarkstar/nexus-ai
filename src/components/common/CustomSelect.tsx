@@ -80,6 +80,17 @@ export default function CustomSelect<T extends string = string>({
     }
   }, [isOpen]);
 
+  // Keep focused option visible in scroll container
+  useEffect(() => {
+    if (isOpen && menuRef.current && focusedIndex >= 0) {
+      const items = menuRef.current.querySelectorAll('[role="option"]');
+      const target = items[focusedIndex] as HTMLElement | undefined;
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [focusedIndex, isOpen]);
+
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;

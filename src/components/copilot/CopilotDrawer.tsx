@@ -387,8 +387,11 @@ export default function CopilotDrawer({
 
   const handleSendMessage = (textToSend?: string) => {
     const text = (textToSend !== undefined ? textToSend : input).trim();
-    if (!text || isGenerating) return;
+    if (!text) return;
     setInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     handleSend(text);
   };
 
@@ -396,7 +399,7 @@ export default function CopilotDrawer({
     if (e.key === 'Enter') {
       if (!e.shiftKey && !e.ctrlKey) {
         e.preventDefault();
-        if (input.trim() && !isGenerating) {
+        if (input.trim()) {
           handleSendMessage(input);
         }
       }

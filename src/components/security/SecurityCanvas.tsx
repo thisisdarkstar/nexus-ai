@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Sparkles,
   X,
@@ -8,6 +9,7 @@ import {
   Check,
   UploadCloud,
   Search,
+  ShieldAlert,
 } from 'lucide-react';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
@@ -203,123 +205,160 @@ export default function SecurityCanvas({
             ))}
           </div>
 
-          {dropdownOpen && (
-            <>
-              <div className={styles.overlay} onClick={() => setDropdownOpen(false)} />
-              <div className={styles.dropdownModal} role="dialog" aria-label="Security Modules Menu">
-                <div className={styles.modalHeaderRow}>
-                  <span className={styles.modalHeaderTitle}>Security Modules ({SECURITY_TABS.length})</span>
-                  <button
-                    type="button"
-                    className={styles.modalCloseBtn}
-                    onClick={() => setDropdownOpen(false)}
-                    aria-label="Close tools menu"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-
-                {/* Search Bar */}
-                <div className={styles.modalSearchBox}>
-                  <Search size={14} className={styles.modalSearchIcon} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    className={styles.modalSearchInput}
-                    placeholder="Filter by name, keyword, or tool (e.g. nuclei, jwt, burp)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setDropdownOpen(false);
-                      if (e.key === 'Enter' && filteredTools.length > 0) {
-                        onTabChange(filteredTools[0].id);
-                        setDropdownOpen(false);
-                      }
-                    }}
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      className={styles.modalSearchClear}
-                      onClick={() => setSearchQuery('')}
-                      aria-label="Clear search"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Modal Category Filter Chips */}
-                <div className={styles.modalCategoryChips}>
-                  {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => {
-                    const count =
-                      cat === 'all'
-                        ? SECURITY_TABS.length
-                        : SECURITY_TABS.filter((t) => t.category === cat).length;
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        className={`${styles.modalCatChip} ${modalCategory === cat ? styles.modalCatChipActive : ''}`}
-                        onClick={() => setModalCategory(cat)}
-                      >
-                        {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
-                        <span className={styles.modalCatCount}>({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Tool List */}
-                <div className={styles.modalToolList}>
-                  {filteredTools.length === 0 ? (
-                    <div className={styles.modalNoResults}>
-                      No security tools matched "{searchQuery}".
+          {dropdownOpen &&
+            createPortal(
+              <div
+                className={styles.modalPortalOverlay}
+                onClick={() => setDropdownOpen(false)}
+                role="presentation"
+              >
+                <div
+                  className={styles.modalPortalDialog}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Security Modules Launcher"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className={styles.modalHeaderRow}>
+                    <div className={styles.modalTitleBadge}>
+                      <ShieldAlert size={15} color="#10b981" />
+                      <span className={styles.modalHeaderTitle}>Security Modules Launcher</span>
+                      <span className={styles.modalCountBadge}>{SECURITY_TABS.length} Tools</span>
                     </div>
-                  ) : (
-                    CATEGORIES.map((cat) => {
-                      const toolsInCat = filteredTools.filter((t) => t.category === cat.id);
-                      if (toolsInCat.length === 0) return null;
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={styles.modalEscBadge}>ESC</span>
+                      <button
+                        type="button"
+                        className={styles.modalCloseBtn}
+                        onClick={() => setDropdownOpen(false)}
+                        aria-label="Close tools menu"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className={styles.modalSearchBox}>
+                    <Search size={15} className={styles.modalSearchIcon} />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className={styles.modalSearchInput}
+                      placeholder="Filter by module, capability, or tool (e.g. nuclei, jwt, burp, owasp, cwe)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setDropdownOpen(false);
+                        if (e.key === 'Enter' && filteredTools.length > 0) {
+                          onTabChange(filteredTools[0].id);
+                          setDropdownOpen(false);
+                        }
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className={styles.modalSearchClear}
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Modal Category Filter Chips */}
+                  <div className={styles.modalCategoryChips}>
+                    {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => {
+                      const count =
+                        cat === 'all'
+                          ? SECURITY_TABS.length
+                          : SECURITY_TABS.filter((t) => t.category === cat).length;
                       return (
-                        <div key={cat.id} className={styles.modalGroup}>
-                          <div className={styles.modalGroupHeader}>{cat.label}</div>
-                          <div className={styles.modalGroupItems}>
-                            {toolsInCat.map((t) => {
-                              const Icon = t.icon;
-                              const isActive = activeTab === t.id;
-                              return (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  className={`${styles.modalToolItem} ${isActive ? styles.modalToolItemActive : ''}`}
-                                  onClick={() => {
-                                    onTabChange(t.id);
-                                    setDropdownOpen(false);
-                                  }}
-                                  title={t.tooltip}
-                                >
-                                  <div className={styles.modalToolItemLeft}>
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`${styles.modalCatChip} ${modalCategory === cat ? styles.modalCatChipActive : ''}`}
+                          onClick={() => setModalCategory(cat)}
+                        >
+                          {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
+                          <span className={styles.modalCatCount}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tool List */}
+                  <div className={styles.modalToolList}>
+                    {filteredTools.length === 0 ? (
+                      <div className={styles.modalNoResults}>
+                        No security tools matched "{searchQuery}". Try searching for another keyword.
+                      </div>
+                    ) : (
+                      CATEGORIES.map((cat) => {
+                        const toolsInCat = filteredTools.filter((t) => t.category === cat.id);
+                        if (toolsInCat.length === 0) return null;
+                        return (
+                          <div key={cat.id} className={styles.modalGroup}>
+                            <div className={styles.modalGroupHeader}>
+                              <span>{cat.label}</span>
+                              <span className={styles.groupCount}>{toolsInCat.length} modules</span>
+                            </div>
+                            <div className={styles.modalGroupGrid}>
+                              {toolsInCat.map((t) => {
+                                const Icon = t.icon;
+                                const isActive = activeTab === t.id;
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    className={`${styles.modalToolItem} ${isActive ? styles.modalToolItemActive : ''}`}
+                                    onClick={() => {
+                                      onTabChange(t.id);
+                                      setDropdownOpen(false);
+                                    }}
+                                    title={t.tooltip}
+                                  >
                                     <div className={`${styles.modalToolIconTile} ${styles[`tile_${t.category}`]}`}>
-                                      <Icon size={14} />
+                                      <Icon size={16} />
                                     </div>
                                     <div className={styles.modalToolInfo}>
-                                      <span className={styles.modalToolName}>{t.name}</span>
+                                      <div className={styles.modalToolTitleRow}>
+                                        <span className={styles.modalToolName}>{t.name}</span>
+                                        {isActive && (
+                                          <span className={styles.activePillBadge}>
+                                            <Check size={10} /> Active
+                                          </span>
+                                        )}
+                                      </div>
                                       <span className={styles.modalToolDesc}>{t.tooltip}</span>
                                     </div>
-                                  </div>
-                                  {isActive && <Check size={14} className={styles.modalToolCheck} />}
-                                </button>
-                              );
-                            })}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Modal Footer with Shortcuts */}
+                  <div className={styles.modalFooterRow}>
+                    <div className={styles.footerHints}>
+                      <span><span className={styles.kbdBadge}>↑↓</span> Navigate</span>
+                      <span><span className={styles.kbdBadge}>↵</span> Select</span>
+                      <span><span className={styles.kbdBadge}>ESC</span> Close</span>
+                    </div>
+                    <div className={styles.footerCurrent}>
+                      Current Module: <strong>{activeTabInfo?.name || 'Dashboard'}</strong>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </div>,
+              document.body
+            )}
         </div>
 
         {/* Action Controls */}
