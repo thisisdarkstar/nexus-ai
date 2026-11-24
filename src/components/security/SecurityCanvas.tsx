@@ -96,6 +96,11 @@ export default function SecurityCanvas({
     return cat ? cat.label.split('&')[0].trim() : 'Tool';
   }, [activeTabInfo]);
 
+  const categoryTools = useMemo(() => {
+    const currentCat = activeTabInfo?.category || 'assess';
+    return SECURITY_TABS.filter((t) => t.category === currentCat);
+  }, [activeTabInfo]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -165,13 +170,13 @@ export default function SecurityCanvas({
     <div ref={canvasRef} className={styles.canvasContainer}>
       {/* Canvas Header & Tools Dropdown Modal */}
       <div className={styles.canvasHeader}>
-        {/* Left: Tool Dropdown Trigger & Category Quick Filter */}
+        {/* Left: Tool Dropdown Trigger, Module Tabs & Category Quick Filter */}
         <div className={styles.toolSelectorWrapper} ref={dropdownRef}>
           <button
             type="button"
             className={`${styles.toolDropdownTrigger} ${dropdownOpen ? styles.toolDropdownTriggerOpen : ''}`}
             onClick={() => setDropdownOpen((prev) => !prev)}
-            title="Open Security Modules Menu"
+            title="Open Security Modules Menu (Browse All 17 Tools)"
             aria-label="Select security tool"
             aria-expanded={dropdownOpen}
             aria-haspopup="dialog"
@@ -189,28 +194,68 @@ export default function SecurityCanvas({
             />
           </button>
 
+          {/* Direct Module Tabs for Current Category */}
+          <div className={styles.moduleTabsGroup} role="tablist" aria-label="Current category security modules">
+            {categoryTools.map((t) => {
+              const Icon = t.icon;
+              const isActive = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`${styles.moduleTabBtn} ${isActive ? styles.moduleTabBtnActive : ''}`}
+                  onClick={() => onTabChange(t.id)}
+                  title={t.tooltip}
+                >
+                  <Icon size={12} className={styles.moduleTabIcon} />
+                  <span>{t.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Category Quick Pills */}
           <div className={styles.categoryPillsGroup}>
-            {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => {
-              const isCurrentCat = cat !== 'all' && activeTabInfo?.category === cat;
+            {(['assess', 'web', 'recon', 'defense'] as const).map((cat) => {
+              const isCurrentCat = activeTabInfo?.category === cat;
               return (
                 <button
                   key={cat}
                   type="button"
                   className={`${styles.catPillBtn} ${isCurrentCat ? styles.catPillBtnActive : ''}`}
-                  onClick={() => handleCategoryPillClick(cat)}
+                  onClick={() => {
+                    if (!isCurrentCat) {
+                      const firstTool = SECURITY_TABS.find((t) => t.category === cat);
+                      if (firstTool) onTabChange(firstTool.id);
+                    } else {
+                      // Click active category -> open palette pre-filtered to this category
+                      setModalCategory(cat);
+                      setDropdownOpen(true);
+                    }
+                  }}
                   title={
-                    cat === 'all'
-                      ? 'Browse & Search All 17 Security Modules'
-                      : isCurrentCat
-                        ? `Current: ${activeTabInfo?.name}. Click to switch to next ${cat} module`
-                        : `Switch to ${cat} category`
+                    isCurrentCat
+                      ? `${cat.toUpperCase()} category is active. Click to view all ${cat} modules in launcher`
+                      : `Switch to ${cat.toUpperCase()} category`
                   }
                 >
-                  {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
+                  {cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
                 </button>
               );
             })}
+            <button
+              type="button"
+              className={styles.catPillBtn}
+              onClick={() => {
+                setModalCategory('all');
+                setDropdownOpen(true);
+              }}
+              title="Launch Security Modules Palette (All 17 tools)"
+            >
+              All (17)
+            </button>
           </div>
 
           {dropdownOpen &&
