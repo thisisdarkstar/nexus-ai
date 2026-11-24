@@ -177,6 +177,9 @@ export function useChatEngine({
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
       contextWindow: settings.contextWindow,
+      topP: settings.topP,
+      topK: settings.topK,
+      repeatPenalty: settings.repeatPenalty,
     };
     setIsGenerating(true);
     stopRef.current = false;
@@ -337,6 +340,9 @@ export function useChatEngine({
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
       contextWindow: settings.contextWindow,
+      topP: settings.topP,
+      topK: settings.topK,
+      repeatPenalty: settings.repeatPenalty,
     };
 
     const currentHistory = messagesRef.current;

@@ -310,6 +310,16 @@
   opacity: 0.8;
 }
 
+.speedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.72rem;
+  font-family: 'Consolas', monospace;
+}
+
 @keyframes slideUp {
   to {
     opacity: 1;

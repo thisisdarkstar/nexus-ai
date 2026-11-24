@@ -144,7 +144,14 @@ export class OpenAIProvider implements AIProvider {
     messages: Message[],
     systemPrompt: string | null = null,
     signal: AbortSignal | null = null,
-    options: { temperature?: number; maxTokens?: number; contextWindow?: number } = {}
+    options: {
+      temperature?: number;
+      maxTokens?: number;
+      contextWindow?: number;
+      topP?: number;
+      topK?: number;
+      repeatPenalty?: number;
+    } = {}
   ): AsyncGenerator<string> {
     if (!this.model) {
       throw new Error('No model selected. Pick a model from the model menu or Settings.');
@@ -209,6 +216,7 @@ export class OpenAIProvider implements AIProvider {
     };
     if (options.temperature !== undefined) body.temperature = options.temperature;
     if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+    if (options.topP !== undefined) body.top_p = options.topP;
 
     // For local / Ollama endpoints, pass num_ctx so Ollama expands context window
     const isLocalOrOllama =
@@ -220,6 +228,9 @@ export class OpenAIProvider implements AIProvider {
     if (isLocalOrOllama) {
       body.options = {
         num_ctx: effectiveContextWindow,
+        ...(options.topP !== undefined ? { top_p: options.topP } : {}),
+        ...(options.topK !== undefined ? { top_k: options.topK } : {}),
+        ...(options.repeatPenalty !== undefined ? { repeat_penalty: options.repeatPenalty } : {}),
       };
     }
 

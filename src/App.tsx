@@ -49,6 +49,9 @@ const DEFAULT_SETTINGS: Settings = {
   temperature: 0.7,
   maxTokens: 4096,
   contextWindow: 16384,
+  topP: 0.9,
+  topK: 40,
+  repeatPenalty: 1.1,
   ttsVoice: '',
   executionPolicy: DEFAULT_POLICY_CONFIG,
 };

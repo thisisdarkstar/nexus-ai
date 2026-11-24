@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   GitBranch,
   Square,
+  Zap,
 } from 'lucide-react';
 import { eventBus } from '../../core/bus/EventBus';
 import { renderMarkdown } from '../../lib/markdown';
@@ -426,6 +427,13 @@ export default memo(function MessageItem({
 
           {(msg.generationTime || msg.createdAt || msg.tokens) && (
             <span className={styles.timestamp}>
+              {msg.tokens && msg.generationTime && parseFloat(msg.generationTime) > 0 && (
+                <span className={styles.speedPill} title="Generation speed">
+                  <Zap size={11} color="#f59e0b" />
+                  <span>{(msg.tokens / parseFloat(msg.generationTime)).toFixed(1)} tok/s</span>
+                  <span style={{ opacity: 0.5 }}> ·</span>
+                </span>
+              )}
               {msg.generationTime && (
                 <>
                   <Clock size={12} /> {msg.generationTime}s{msg.createdAt || msg.tokens ? ' ·' : ''}

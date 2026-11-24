@@ -179,6 +179,54 @@ export default function CopilotDrawer({
   const [attachModalOpen, setAttachModalOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [modelDetails, setModelDetails] = useState<{
+    format?: string;
+    family?: string;
+    parameterSize?: string;
+    quantization?: string;
+    sizeBytes?: number;
+    capabilities?: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadModelDetails() {
+      if (settings.provider !== 'openai' || !settings.openaiModel) {
+        setModelDetails(null);
+        return;
+      }
+      try {
+        const baseUrl = settings.openaiBaseUrl || 'http://127.0.0.1:11434/v1';
+        const rootUrl = baseUrl.replace(/\/v1\/?$/, '');
+        const res = await fetch(`${rootUrl}/api/tags`).catch(() => null);
+        if (res && res.ok) {
+          const json = await res.json();
+          const found = (json.models || []).find(
+            (m: any) => m.name === settings.openaiModel || m.model === settings.openaiModel
+          );
+          if (found && isMounted) {
+            setModelDetails({
+              format: found.details?.format,
+              family: found.details?.family,
+              parameterSize: found.details?.parameter_size,
+              quantization: found.details?.quantization_level,
+              sizeBytes: found.size,
+              capabilities: found.capabilities || [],
+            });
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      if (isMounted) setModelDetails(null);
+    }
+    loadModelDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [settings.provider, settings.openaiModel, settings.openaiBaseUrl]);
+
   const {
     messages,
     input,
@@ -869,6 +917,54 @@ export default function CopilotDrawer({
               <span>Base URL:</span>
               <span style={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{settings.openaiBaseUrl}</span>
             </div>
+            {modelDetails && (
+              <>
+                <div className={styles.telemetryStatsRow}>
+                  <span>Architecture / Family:</span>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    {modelDetails.family || 'GGUF'} ({modelDetails.format || 'gguf'})
+                  </strong>
+                </div>
+                {modelDetails.parameterSize && (
+                  <div className={styles.telemetryStatsRow}>
+                    <span>Parameter Size:</span>
+                    <strong style={{ color: '#10b981' }}>{modelDetails.parameterSize}</strong>
+                  </div>
+                )}
+                {modelDetails.quantization && (
+                  <div className={styles.telemetryStatsRow}>
+                    <span>Quantization Tier:</span>
+                    <strong style={{ color: '#f59e0b' }}>{modelDetails.quantization}</strong>
+                  </div>
+                )}
+                {modelDetails.sizeBytes && (
+                  <div className={styles.telemetryStatsRow}>
+                    <span>Memory Footprint:</span>
+                    <span>{(modelDetails.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB</span>
+                  </div>
+                )}
+                {modelDetails.capabilities && modelDetails.capabilities.length > 0 && (
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    {modelDetails.capabilities.map((cap, ci) => (
+                      <span
+                        key={ci}
+                        style={{
+                          fontSize: '0.65rem',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          color: '#38bdf8',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cap}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className={styles.telemetryCard}>
@@ -908,6 +1004,38 @@ export default function CopilotDrawer({
                 step="0.05"
                 value={settings.temperature}
                 onChange={(e) => onSettingsChange?.({ temperature: parseFloat(e.target.value) })}
+                className={styles.telemetrySlider}
+              />
+            </div>
+
+            <div className={styles.telemetryControlRow} style={{ marginTop: '0.5rem' }}>
+              <div className={styles.telemetryControlLabel}>
+                <span>Top P (Nucleus Sampling)</span>
+                <strong>{settings.topP ?? 0.9}</strong>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                value={settings.topP ?? 0.9}
+                onChange={(e) => onSettingsChange?.({ topP: parseFloat(e.target.value) })}
+                className={styles.telemetrySlider}
+              />
+            </div>
+
+            <div className={styles.telemetryControlRow} style={{ marginTop: '0.5rem' }}>
+              <div className={styles.telemetryControlLabel}>
+                <span>Repeat Penalty</span>
+                <strong>{settings.repeatPenalty ?? 1.1}</strong>
+              </div>
+              <input
+                type="range"
+                min="1.0"
+                max="1.5"
+                step="0.05"
+                value={settings.repeatPenalty ?? 1.1}
+                onChange={(e) => onSettingsChange?.({ repeatPenalty: parseFloat(e.target.value) })}
                 className={styles.telemetrySlider}
               />
             </div>

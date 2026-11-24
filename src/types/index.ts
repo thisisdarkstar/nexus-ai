@@ -26,6 +26,9 @@ export interface Settings {
   temperature: number;
   maxTokens: number;
   contextWindow?: number;
+  topP?: number;
+  topK?: number;
+  repeatPenalty?: number;
   ttsVoice: string;
   executionPolicy?: ExecutionPolicyConfig;
 }
