@@ -102,6 +102,7 @@ function AppContent() {
     title: '',
     message: '',
     onConfirm: null,
+    variant: 'danger',
   });
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
 
@@ -359,8 +360,13 @@ function AppContent() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [settingsOpen, confirmModal.isOpen, commandPaletteOpen, artifactIngestOpen]);
 
-  const confirmAction = (title: string, message: string, onConfirm: () => Promise<void>) => {
-    setConfirmModal({ isOpen: true, title, message, onConfirm });
+  const confirmAction = (
+    title: string,
+    message: string,
+    onConfirm: () => Promise<void>,
+    variant: 'danger' | 'primary' | 'warning' | 'info' = 'danger'
+  ) => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm, variant });
   };
 
   const handleDeleteAll = () => {
@@ -372,7 +378,8 @@ function AppContent() {
         setChats([]);
         setCurrentChatId(null);
         toast('success', 'All conversations deleted');
-      }
+      },
+      'danger'
     );
   };
 
@@ -383,9 +390,10 @@ function AppContent() {
       async () => {
         await db.deleteChat(id);
         if (currentChatId === id) setCurrentChatId(null);
-        reloadChats();
+        await reloadChats();
         toast('success', 'Conversation deleted');
-      }
+      },
+      'danger'
     );
   };
 
@@ -575,6 +583,7 @@ function AppContent() {
         <ConfirmModal
           title={confirmModal.title}
           message={confirmModal.message}
+          variant={confirmModal.variant || 'danger'}
           onConfirm={async () => {
             try {
               await confirmModal.onConfirm?.();

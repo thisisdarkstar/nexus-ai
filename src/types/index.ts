@@ -91,6 +91,7 @@ export interface ConfirmModalState {
   title: string;
   message: string;
   onConfirm: (() => Promise<void>) | null;
+  variant?: 'danger' | 'primary' | 'warning' | 'info';
 }
 
 export interface AIProvider {

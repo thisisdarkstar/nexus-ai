@@ -19,7 +19,7 @@ import MessageItem from '../chat/MessageItem';
 import ModelMenu from '../chat/ModelMenu';
 import AttachModal from '../chat/AttachModal';
 import SkeletonBubble from '../chat/SkeletonBubble';
-import CustomSelect from '../common/CustomSelect';
+import CustomSelect, { SelectOption } from '../common/CustomSelect';
 import type {
   Chat,
   Settings,
@@ -172,16 +172,18 @@ export default function CopilotDrawer({
   );
 
   const threadOptions = useMemo(() => {
-    const opts = projectChats.map((c) => ({
+    const opts: SelectOption<string>[] = projectChats.map((c) => ({
       value: c.id,
       label: c.title || 'Untitled Thread',
+      onAction: onDeleteChat ? (id: string) => onDeleteChat(id) : undefined,
+      actionTitle: 'Delete Thread',
     }));
     opts.unshift({
       value: '__new_chat__',
       label: '+ New Research Thread',
     });
     return opts;
-  }, [projectChats]);
+  }, [projectChats, onDeleteChat]);
 
   const handleThreadSelect = (val: string) => {
     if (val === '__new_chat__') {
@@ -322,6 +324,18 @@ export default function CopilotDrawer({
               title="Export Conversation as Markdown"
             >
               <Download size={14} />
+            </button>
+          )}
+
+          {currentChatId && onDeleteChat && (
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${styles.deleteHeaderBtn}`}
+              onClick={() => onDeleteChat(currentChatId)}
+              title="Delete Conversation Thread"
+              aria-label="Delete Conversation Thread"
+            >
+              <Trash2 size={14} />
             </button>
           )}
 

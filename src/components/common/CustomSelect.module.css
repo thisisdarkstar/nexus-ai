@@ -162,6 +162,40 @@
   letter-spacing: 0.02em;
 }
 
+.optionRight {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.optionActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-tertiary, #94a3b8);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  opacity: 0.6;
+}
+
+.optionItem:hover .optionActionBtn,
+.optionActionBtn:focus-visible {
+  opacity: 1;
+}
+
+.optionActionBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
 .checkIcon {
   color: #10b981;
   flex-shrink: 0;

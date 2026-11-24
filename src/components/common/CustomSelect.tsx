@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Trash2 } from 'lucide-react';
 import styles from './CustomSelect.module.css';
 
 export interface SelectOption<T extends string = string> {
@@ -8,6 +8,9 @@ export interface SelectOption<T extends string = string> {
   icon?: React.ReactNode;
   badge?: string;
   description?: string;
+  onAction?: (value: T) => void;
+  actionIcon?: React.ReactNode;
+  actionTitle?: string;
 }
 
 export interface CustomSelectProps<T extends string = string> {
@@ -176,13 +179,16 @@ export default function CustomSelect<T extends string = string>({
             const isFocused = idx === focusedIndex;
             const hasIcon = 'icon' in opt && opt.icon;
             const hasBadge = 'badge' in opt && opt.badge;
+            const hasAction = 'onAction' in opt && typeof (opt as SelectOption<T>).onAction === 'function';
+            const actionIcon = 'actionIcon' in opt ? (opt as SelectOption<T>).actionIcon : undefined;
+            const actionTitle = 'actionTitle' in opt ? (opt as SelectOption<T>).actionTitle : undefined;
 
             return (
-              <button
+              <div
                 key={opt.value}
                 role="option"
                 aria-selected={isSelected}
-                type="button"
+                tabIndex={0}
                 onClick={() => handleSelect(opt.value)}
                 onMouseEnter={() => setFocusedIndex(idx)}
                 className={`${styles.optionItem} ${isSelected ? styles.optionItemActive : ''} ${
@@ -190,12 +196,29 @@ export default function CustomSelect<T extends string = string>({
                 }`}
               >
                 <div className={styles.optionLeft}>
-                  {hasIcon && opt.icon}
+                  {hasIcon && (opt as SelectOption<T>).icon}
                   <span className={styles.optionLabel}>{opt.label}</span>
-                  {hasBadge && <span className={styles.badge}>{opt.badge}</span>}
+                  {hasBadge && <span className={styles.badge}>{(opt as SelectOption<T>).badge}</span>}
                 </div>
-                {isSelected && <Check size={12} className={styles.checkIcon} />}
-              </button>
+                <div className={styles.optionRight}>
+                  {hasAction && (
+                    <button
+                      type="button"
+                      className={styles.optionActionBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsOpen(false);
+                        (opt as SelectOption<T>).onAction!(opt.value);
+                      }}
+                      title={actionTitle || 'Delete'}
+                      aria-label={actionTitle || 'Delete'}
+                    >
+                      {actionIcon || <Trash2 size={12} />}
+                    </button>
+                  )}
+                  {isSelected && <Check size={12} className={styles.checkIcon} />}
+                </div>
+              </div>
             );
           })}
         </div>
