@@ -911,11 +911,15 @@ export default function CopilotDrawer({
                   )}
                   components={{
                     Header: () => <div className={styles.streamHeaderSpacer} />,
-                    Footer: () => (
-                      <div className={styles.streamFooterWrap}>
-                        {isGenerating ? <SkeletonBubble /> : null}
-                      </div>
-                    ),
+                    Footer: () => {
+                      const lastMsg = messages[messages.length - 1];
+                      const showFooterSkeleton = isGenerating && lastMsg?.role !== 'ai';
+                      return (
+                        <div className={styles.streamFooterWrap}>
+                          {showFooterSkeleton ? <SkeletonBubble /> : null}
+                        </div>
+                      );
+                    },
                   }}
                 />
               </>
