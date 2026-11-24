@@ -137,7 +137,7 @@ export default function CustomSelect<T extends string = string>({
   return (
     <div
       ref={containerRef}
-      className={`${styles.selectWrapper} ${className}`}
+      className={`${styles.selectWrapper} ${isOpen ? styles.selectWrapperOpen : ''} ${className}`}
       style={style}
       onKeyDown={handleKeyDown}
     >

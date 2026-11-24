@@ -803,24 +803,6 @@ export default function CopilotDrawer({
                 isGenerating={isGenerating}
                 onModelChange={onModelChange}
               />
-
-              <div
-                className={styles.contextMeterBadge}
-                title={`Estimated conversation context: ~${estimatedTokens.toLocaleString()} / ${contextLimit.toLocaleString()} tokens (${contextPercent}%)`}
-              >
-                <span className={styles.contextMeterText}>
-                  {estimatedTokens > 999 ? `${(estimatedTokens / 1000).toFixed(1)}k` : estimatedTokens} / {contextLimit > 999 ? `${Math.round(contextLimit / 1000)}k` : contextLimit}
-                </span>
-                <div className={styles.contextMeterTrack}>
-                  <div
-                    className={styles.contextMeterFill}
-                    style={{
-                      width: `${contextPercent}%`,
-                      backgroundColor: contextPercent > 85 ? '#ef4444' : contextPercent > 65 ? '#f59e0b' : '#10b981',
-                    }}
-                  />
-                </div>
-              </div>
             </div>
 
             <div className={styles.toolbarRight}>

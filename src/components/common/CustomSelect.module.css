@@ -3,7 +3,11 @@
   display: inline-block;
   min-width: 140px;
   user-select: none;
-  z-index: 50;
+  z-index: 1;
+}
+
+.selectWrapperOpen {
+  z-index: 9999 !important;
 }
 
 .trigger {
