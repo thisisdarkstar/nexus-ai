@@ -1,9 +1,13 @@
 .arenaContainer {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
   height: 100%;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .arenaControlsBar {
@@ -13,19 +17,61 @@
   background: var(--sd-70, rgba(15, 23, 42, 0.7));
   border: 1px solid var(--wa-10, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
-  padding: 0.9rem 1.1rem;
+  padding: 0.85rem 0.95rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .arenaModelSelectors {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .modelSelectGroup {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.modelSelect {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 38px;
+  padding: 0 0.65rem;
+  background: var(--input-bg, #0f172a);
+  border: 1px solid var(--wa-12, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  color: var(--text-primary, #f8fafc);
+  font-size: 0.78rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.modelSelect:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.modelSelect option {
+  background: #0f172a;
+  color: #f8fafc;
 }
 
 .modelSelectLabel {
@@ -50,10 +96,15 @@
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .arenaTextarea {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   background: var(--sd-90, rgba(0, 0, 0, 0.4));
   border: 1px solid var(--wa-12, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
@@ -67,6 +118,7 @@
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s ease;
+  box-sizing: border-box;
 }
 
 .arenaTextarea:focus {
@@ -124,10 +176,13 @@
 /* Side by Side Grid */
 .arenaColumnsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 860px) {
@@ -147,6 +202,8 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .arenaColumnHeader {

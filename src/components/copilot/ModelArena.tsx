@@ -185,8 +185,7 @@ export default function ModelArena({
               <span>Challenger A</span>
             </label>
             <select
-              className={styles.arenaTextarea}
-              style={{ minHeight: '38px', height: '38px', padding: '0 0.5rem', cursor: 'pointer' }}
+              className={styles.modelSelect}
               value={modelA}
               onChange={(e) => setModelA(e.target.value)}
               disabled={isBroadcasting}
@@ -205,8 +204,7 @@ export default function ModelArena({
               <span>Challenger B</span>
             </label>
             <select
-              className={styles.arenaTextarea}
-              style={{ minHeight: '38px', height: '38px', padding: '0 0.5rem', cursor: 'pointer' }}
+              className={styles.modelSelect}
               value={modelB}
               onChange={(e) => setModelB(e.target.value)}
               disabled={isBroadcasting}

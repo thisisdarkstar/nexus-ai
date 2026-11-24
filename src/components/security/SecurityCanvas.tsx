@@ -133,15 +133,22 @@ export default function SecurityCanvas({
   }, [modalCategory, searchQuery]);
 
   const handleCategoryPillClick = (cat: TabCategory) => {
-    setCategory(cat);
     if (cat === 'all') {
       setDropdownOpen(true);
       setModalCategory('all');
       return;
     }
-    const firstInCat = SECURITY_TABS.find((t) => t.category === cat);
-    if (firstInCat && activeTabInfo?.category !== cat) {
-      onTabChange(firstInCat.id);
+    const toolsInCat = SECURITY_TABS.filter((t) => t.category === cat);
+    if (activeTabInfo?.category !== cat) {
+      // Switched to a new category -> activate first tool in category
+      if (toolsInCat[0]) onTabChange(toolsInCat[0].id);
+    } else {
+      // Already in this category -> cycle through tools in this category so it's NEVER stuck!
+      const currentIdx = toolsInCat.findIndex((t) => t.id === activeTab);
+      const nextIdx = (currentIdx + 1) % toolsInCat.length;
+      if (toolsInCat[nextIdx]) {
+        onTabChange(toolsInCat[nextIdx].id);
+      }
     }
   };
 
@@ -184,25 +191,26 @@ export default function SecurityCanvas({
 
           {/* Category Quick Pills */}
           <div className={styles.categoryPillsGroup}>
-            {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`${styles.catPillBtn} ${
-                  cat === 'all'
-                    ? category === 'all'
-                      ? styles.catPillBtnActive
-                      : ''
-                    : activeTabInfo?.category === cat
-                      ? styles.catPillBtnActive
-                      : ''
-                }`}
-                onClick={() => handleCategoryPillClick(cat)}
-                title={`Switch to ${cat === 'all' ? 'All tools' : cat} category`}
-              >
-                {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
-              </button>
-            ))}
+            {(['all', 'assess', 'web', 'recon', 'defense'] as const).map((cat) => {
+              const isCurrentCat = cat !== 'all' && activeTabInfo?.category === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`${styles.catPillBtn} ${isCurrentCat ? styles.catPillBtnActive : ''}`}
+                  onClick={() => handleCategoryPillClick(cat)}
+                  title={
+                    cat === 'all'
+                      ? 'Browse & Search All 17 Security Modules'
+                      : isCurrentCat
+                        ? `Current: ${activeTabInfo?.name}. Click to switch to next ${cat} module`
+                        : `Switch to ${cat} category`
+                  }
+                >
+                  {cat === 'all' ? 'All' : cat === 'assess' ? 'Assess' : cat === 'web' ? 'Web' : cat === 'recon' ? 'Recon' : 'Defense'}
+                </button>
+              );
+            })}
           </div>
 
           {dropdownOpen &&
