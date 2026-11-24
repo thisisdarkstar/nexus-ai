@@ -30,6 +30,8 @@ import {
   Eye,
   BookOpen,
   Swords,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useChatEngine } from '../../hooks/useChatEngine';
@@ -54,6 +56,19 @@ import { getQuickPromptContext } from '../../lib/security/aiContextRegistry';
 import styles from './CopilotDrawer.module.css';
 
 export type CopilotTab = 'chat' | 'arena' | 'vault' | 'presets' | 'telemetry';
+
+const COPILOT_TABS: Array<{
+  id: CopilotTab;
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+  title?: string;
+}> = [
+  { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'arena', label: 'Arena', icon: Swords, title: 'Dual-Model Comparison Arena' },
+  { id: 'vault', label: 'Vault', icon: FolderArchive },
+  { id: 'presets', label: 'Presets', icon: Zap },
+  { id: 'telemetry', label: 'Telemetry', icon: Activity },
+];
 
 export interface SecurityPersonaPreset {
   id: string;
@@ -178,6 +193,7 @@ export default function CopilotDrawer({
   onToggleMaximize,
 }: CopilotDrawerProps) {
   const [activeCopilotTab, setActiveCopilotTab] = useState<CopilotTab>('chat');
+  const [focusSidebarOpen, setFocusSidebarOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -450,6 +466,20 @@ export default function CopilotDrawer({
     });
   };
 
+  const renderTabButtons = (buttonClassName: string, activeClassName: string) =>
+    COPILOT_TABS.map(({ id, label, icon: TabIcon, title: tabTitle }) => (
+      <button
+        key={id}
+        type="button"
+        className={`${buttonClassName} ${activeCopilotTab === id ? activeClassName : ''}`}
+        onClick={() => setActiveCopilotTab(id)}
+        title={tabTitle}
+      >
+        <TabIcon size={13} />
+        <span>{label}</span>
+      </button>
+    ));
+
   return (
     <div
       className={`${styles.copilotContainer} ${isMaximized ? styles.maximized : ''}`}
@@ -463,230 +493,363 @@ export default function CopilotDrawer({
         </div>
       )}
 
-      {/* Top Header */}
-      <div className={styles.header}>
-        <div className={styles.brandGroup}>
-          <div className={styles.copilotBadge}>
-            <Sparkles size={14} className={styles.copilotBadgeIcon} />
-            <span>Copilot</span>
-          </div>
-
-          <div className={styles.threadSelectWrapper}>
-            <CustomSelect
-              value={currentChatId || '__new_chat__'}
-              onChange={handleThreadSelect}
-              options={threadOptions}
-              style={{ fontSize: '0.74rem', padding: '0.2rem 0.45rem', minWidth: 0, width: '100%' }}
-              ariaLabel="Select Thread"
-            />
-          </div>
-        </div>
-
-        <div className={styles.actionsGroup}>
-          <button
-            type="button"
-            className={`${styles.iconBtn} ${historyOpen ? styles.iconBtnActive : ''}`}
-            onClick={() => setHistoryOpen(!historyOpen)}
-            title="Thread History & Past Inquiries"
-          >
-            <History size={14} />
-          </button>
-
-          <button
-            type="button"
-            className={styles.iconBtn}
-            onClick={() => setCurrentChatId(null)}
-            title="Start New Research Thread"
-          >
-            <Plus size={14} />
-          </button>
-
-          {messages.length > 0 && (
+      {/* Full Screen Focus Studio Left Sidebar for Research Threads */}
+      {isMaximized && focusSidebarOpen && (
+        <aside className={styles.focusSidebar} aria-label="Research Threads">
+          <div className={styles.focusSidebarTop}>
             <button
               type="button"
-              className={styles.iconBtn}
-              onClick={handleExportChat}
-              title="Export Conversation as Markdown"
+              className={styles.focusNewThreadBtn}
+              onClick={() => {
+                setCurrentChatId(null);
+                setActiveCopilotTab('chat');
+              }}
             >
-              <Download size={14} />
+              <Plus size={14} />
+              <span>New Research Thread</span>
             </button>
-          )}
 
-          {currentChatId && onDeleteChat && (
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${styles.deleteHeaderBtn}`}
-              onClick={() => onDeleteChat(currentChatId)}
-              title="Delete Conversation Thread"
-              aria-label="Delete Conversation Thread"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-
-          {onToggleMaximize && (
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${isMaximized ? styles.iconBtnActive : ''}`}
-              onClick={onToggleMaximize}
-              title={isMaximized ? 'Restore Split View (Esc)' : 'Expand to Focus Studio (Full Screen)'}
-              aria-label={isMaximized ? 'Restore Split View' : 'Expand to Focus Studio'}
-            >
-              {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={styles.iconBtn}
-            onClick={onClose}
-            title="Collapse AI Copilot Drawer (Ctrl+J / ⌘J)"
-          >
-            <X size={15} />
-          </button>
-        </div>
-      </div>
-
-      {/* History Drawer Flyout */}
-      {historyOpen && (
-        <div className={styles.historyOverlay}>
-          <div className={styles.historyHeader}>
-            <span className={styles.historyTitle}>Research Threads ({projectChats.length})</span>
-            <button
-              type="button"
-              className={styles.iconBtn}
-              onClick={() => setHistoryOpen(false)}
-            >
-              <X size={13} />
-            </button>
+            <div className={styles.historySearch}>
+              <Search size={12} color="#94a3b8" />
+              <input
+                type="text"
+                placeholder="Filter threads..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                aria-label="Filter research threads"
+              />
+            </div>
           </div>
 
-          <div className={styles.historySearch}>
-            <Search size={12} color="#94a3b8" />
-            <input
-              type="text"
-              placeholder="Search conversations..."
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
-              autoFocus
-            />
+          <div className={styles.focusSidebarSectionLabel}>
+            <span>Threads</span>
+            <span>{projectChats.length}</span>
           </div>
 
-          <div className={styles.historyList}>
+          <div className={styles.focusSidebarList}>
             {filteredHistoryChats.length === 0 ? (
-              <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
-                No threads found
+              <div className={styles.focusSidebarEmpty}>
+                {projectChats.length === 0 ? 'No saved threads yet' : 'No matching threads'}
               </div>
             ) : (
-              filteredHistoryChats.map((c) => (
-                <div
-                  key={c.id}
-                  className={`${styles.historyItem} ${c.id === currentChatId ? styles.historyItemActive : ''}`}
-                  onClick={() => {
-                    setCurrentChatId(c.id);
-                    setHistoryOpen(false);
-                  }}
-                >
-                  <span className={styles.historyItemTitle}>{c.title || 'Untitled Thread'}</span>
-                  {onDeleteChat && (
-                    <button
-                      type="button"
-                      className={styles.iconBtn}
-                      style={{ width: '20px', height: '20px' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteChat(c.id);
-                      }}
-                      title="Delete Thread"
-                    >
-                      <Trash2 size={11} color="#f87171" />
-                    </button>
-                  )}
-                </div>
-              ))
+              filteredHistoryChats.map((c) => {
+                const isActive = c.id === currentChatId;
+                return (
+                  <div
+                    key={c.id}
+                    className={`${styles.focusThreadItem} ${isActive ? styles.focusThreadItemActive : ''}`}
+                    onClick={() => {
+                      setCurrentChatId(c.id);
+                      setActiveCopilotTab('chat');
+                    }}
+                    title={c.title || 'Untitled Thread'}
+                  >
+                    <MessageSquare size={13} className={styles.focusThreadIcon} />
+                    <span className={styles.focusThreadTitle}>{c.title || 'Untitled Thread'}</span>
+                    {onDeleteChat && (
+                      <button
+                        type="button"
+                        className={styles.focusThreadDeleteBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteChat(c.id);
+                        }}
+                        title="Delete Thread"
+                        aria-label={`Delete ${c.title || 'thread'}`}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
-        </div>
+
+          <div className={styles.focusSidebarFooter}>
+            <span className={styles.focusSidebarHint}>Esc Split View · Ctrl+J Close</span>
+          </div>
+        </aside>
       )}
 
-      {/* Sub-Tab Navigation Bar */}
-      <div className={styles.subTabBar}>
-        <button
-          type="button"
-          className={`${styles.subTabBtn} ${activeCopilotTab === 'chat' ? styles.subTabActive : ''}`}
-          onClick={() => setActiveCopilotTab('chat')}
-        >
-          <MessageSquare size={13} />
-          <span>Chat</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.subTabBtn} ${activeCopilotTab === 'arena' ? styles.subTabActive : ''}`}
-          onClick={() => setActiveCopilotTab('arena')}
-          title="Dual-Model Comparison Arena"
-        >
-          <Swords size={13} />
-          <span>Arena</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.subTabBtn} ${activeCopilotTab === 'vault' ? styles.subTabActive : ''}`}
-          onClick={() => setActiveCopilotTab('vault')}
-        >
-          <FolderArchive size={13} />
-          <span>Vault</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.subTabBtn} ${activeCopilotTab === 'presets' ? styles.subTabActive : ''}`}
-          onClick={() => setActiveCopilotTab('presets')}
-        >
-          <Zap size={13} />
-          <span>Presets</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.subTabBtn} ${activeCopilotTab === 'telemetry' ? styles.subTabActive : ''}`}
-          onClick={() => setActiveCopilotTab('telemetry')}
-        >
-          <Activity size={13} />
-          <span>Telemetry</span>
-        </button>
-      </div>
+      <div className={styles.focusMainArea}>
+        {/* Header: Single clean unified bar in Focus Mode, compact drawer bar in Split View */}
+        {isMaximized ? (
+          <div className={styles.focusHeader}>
+            <div className={styles.focusHeaderLeft}>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => setFocusSidebarOpen((prev) => !prev)}
+                title={focusSidebarOpen ? 'Hide Threads Sidebar' : 'Show Threads Sidebar'}
+                aria-label={focusSidebarOpen ? 'Hide Threads Sidebar' : 'Show Threads Sidebar'}
+              >
+                {focusSidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
+              </button>
+
+              <div className={styles.copilotBadge}>
+                <Sparkles size={14} className={styles.copilotBadgeIcon} />
+                <span>Copilot Focus</span>
+              </div>
+
+              <span className={styles.contextPill}>
+                <ActiveTabIcon size={12} />
+                <span>{activeMeta.name}</span>
+              </span>
+            </div>
+
+            <div className={styles.focusTabGroup} role="tablist" aria-label="Copilot workspaces">
+              {renderTabButtons(styles.focusTabBtn, styles.focusTabActive)}
+            </div>
+
+            <div className={styles.actionsGroup}>
+              {!focusSidebarOpen && (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => {
+                    setCurrentChatId(null);
+                    setActiveCopilotTab('chat');
+                  }}
+                  title="Start New Research Thread"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={handleExportChat}
+                  title="Export Conversation as Markdown"
+                >
+                  <Download size={14} />
+                </button>
+              )}
+
+              {currentChatId && onDeleteChat && (
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${styles.deleteHeaderBtn}`}
+                  onClick={() => onDeleteChat(currentChatId)}
+                  title="Delete Conversation Thread"
+                  aria-label="Delete Conversation Thread"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+
+              {onToggleMaximize && (
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${styles.iconBtnActive}`}
+                  onClick={onToggleMaximize}
+                  title="Restore Split View (Esc)"
+                  aria-label="Restore Split View"
+                >
+                  <Minimize2 size={14} />
+                </button>
+              )}
+
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={onClose}
+                title="Collapse AI Copilot Drawer (Ctrl+J / ⌘J)"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Compact Split-View Drawer Header */}
+            <div className={styles.header}>
+              <div className={styles.brandGroup}>
+                <div className={styles.copilotBadge}>
+                  <Sparkles size={14} className={styles.copilotBadgeIcon} />
+                  <span>Copilot</span>
+                </div>
+
+                <div className={styles.threadSelectWrapper}>
+                  <CustomSelect
+                    value={currentChatId || '__new_chat__'}
+                    onChange={handleThreadSelect}
+                    options={threadOptions}
+                    style={{ fontSize: '0.74rem', padding: '0.2rem 0.45rem', minWidth: 0, width: '100%' }}
+                    ariaLabel="Select Thread"
+                  />
+                </div>
+              </div>
+
+              <div className={styles.actionsGroup}>
+                <button
+                  type="button"
+                  className={`${styles.iconBtn} ${historyOpen ? styles.iconBtnActive : ''}`}
+                  onClick={() => setHistoryOpen(!historyOpen)}
+                  title="Thread History & Past Inquiries"
+                >
+                  <History size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={() => setCurrentChatId(null)}
+                  title="Start New Research Thread"
+                >
+                  <Plus size={14} />
+                </button>
+
+                {messages.length > 0 && (
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={handleExportChat}
+                    title="Export Conversation as Markdown"
+                  >
+                    <Download size={14} />
+                  </button>
+                )}
+
+                {currentChatId && onDeleteChat && (
+                  <button
+                    type="button"
+                    className={`${styles.iconBtn} ${styles.deleteHeaderBtn}`}
+                    onClick={() => onDeleteChat(currentChatId)}
+                    title="Delete Conversation Thread"
+                    aria-label="Delete Conversation Thread"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+
+                {onToggleMaximize && (
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={onToggleMaximize}
+                    title="Expand to Focus Studio (Full Screen)"
+                    aria-label="Expand to Focus Studio"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={onClose}
+                  title="Collapse AI Copilot Drawer (Ctrl+J / ⌘J)"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* History Drawer Flyout (Split View) */}
+            {historyOpen && (
+              <div className={styles.historyOverlay}>
+                <div className={styles.historyHeader}>
+                  <span className={styles.historyTitle}>Research Threads ({projectChats.length})</span>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => setHistoryOpen(false)}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+
+                <div className={styles.historySearch}>
+                  <Search size={12} color="#94a3b8" />
+                  <input
+                    type="text"
+                    placeholder="Search conversations..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+
+                <div className={styles.historyList}>
+                  {filteredHistoryChats.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                      No threads found
+                    </div>
+                  ) : (
+                    filteredHistoryChats.map((c) => (
+                      <div
+                        key={c.id}
+                        className={`${styles.historyItem} ${c.id === currentChatId ? styles.historyItemActive : ''}`}
+                        onClick={() => {
+                          setCurrentChatId(c.id);
+                          setHistoryOpen(false);
+                        }}
+                      >
+                        <span className={styles.historyItemTitle}>{c.title || 'Untitled Thread'}</span>
+                        {onDeleteChat && (
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            style={{ width: '20px', height: '20px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteChat(c.id);
+                            }}
+                            title="Delete Thread"
+                          >
+                            <Trash2 size={11} color="#f87171" />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Tab Navigation Bar (Split View) */}
+            <div className={styles.subTabBar}>{renderTabButtons(styles.subTabBtn, styles.subTabActive)}</div>
+          </>
+        )}
 
       {activeCopilotTab === 'chat' && (
         <>
-          {/* Security Context Bar */}
-          <div className={styles.contextBar}>
-            <div className={styles.contextBarInner}>
-              <div className={styles.contextHeader}>
-                <span className={styles.contextPill}>
-                  <ActiveTabIcon size={12} />
-                  <span>Active: {activeMeta.name}</span>
-                </span>
-                <span className={styles.contextModelLabel}>
-                  {settings.provider === 'openai' ? settings.openaiModel || 'OpenAI' : 'Gemini Nano'}
-                </span>
-              </div>
-
-              {messages.length > 0 && (
-                <div className={styles.quickChips}>
-                  {activeMeta.suggestions.map((sug, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      className={styles.chip}
-                      onClick={() => handleQuickChipClick(sug)}
-                      title={sug}
-                    >
-                      <Sparkles size={10} color="#38bdf8" />
-                      <span>{sug}</span>
-                    </button>
-                  ))}
+          {/* Compact Security Context Bar (Split Drawer View only — Focus Mode keeps this clean in FocusBar + bottom chips) */}
+          {!isMaximized && (
+            <div className={styles.contextBar}>
+              <div className={styles.contextBarInner}>
+                <div className={styles.contextHeader}>
+                  <span className={styles.contextPill}>
+                    <ActiveTabIcon size={12} />
+                    <span>Active: {activeMeta.name}</span>
+                  </span>
+                  <span className={styles.contextModelLabel}>
+                    {settings.provider === 'openai' ? settings.openaiModel || 'OpenAI' : 'Gemini Nano'}
+                  </span>
                 </div>
-              )}
+
+                {messages.length > 0 && (
+                  <div className={styles.quickChips}>
+                    {activeMeta.suggestions.map((sug, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={styles.chip}
+                        onClick={() => handleQuickChipClick(sug)}
+                        title={sug}
+                      >
+                        <Sparkles size={10} color="#38bdf8" />
+                        <span>{sug}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Messages Stream */}
           <div className={styles.messagesContainer}>
@@ -761,6 +924,23 @@ export default function CopilotDrawer({
 
       {/* Dedicated Integrated Bottom Input Dock */}
       <div className={styles.inputDock}>
+        {isMaximized && messages.length > 0 && activeMeta.suggestions.length > 0 && (
+          <div className={styles.focusQuickChips}>
+            {activeMeta.suggestions.slice(0, 3).map((sug, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className={styles.chip}
+                onClick={() => handleQuickChipClick(sug)}
+                title={sug}
+              >
+                <Sparkles size={10} color="#38bdf8" />
+                <span>{sug}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {hasQueuedPrompt && (
           <div className={styles.queuedPill}>
             <span className={styles.queuedDot} />
@@ -1333,6 +1513,8 @@ export default function CopilotDrawer({
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Attach Modal */}
       {attachModalOpen && (
