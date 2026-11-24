@@ -6,13 +6,13 @@
 [![Pyodide](https://img.shields.io/badge/Pyodide-WebAssembly-ffd43b.svg?logo=python&logoColor=blue)](https://pyodide.org/)
 [![License](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 
-**Nexus AI** is a production-grade, local-first artificial intelligence assistant and cybersecurity engineering workbench. Built with React 19, TypeScript, and Vite, Nexus seamlessly bridges local Large Language Models (via **Ollama**, **LM Studio**, or **Chrome Gemini Nano**) with a comprehensive suite of **11 specialized penetration testing and security analysis modules**.
+**Nexus AI** is a production-grade, local-first artificial intelligence assistant and cybersecurity engineering workbench. Built with React 19, TypeScript, and Vite, Nexus seamlessly bridges local Large Language Models (via **Ollama**, **LM Studio**, or **Chrome Gemini Nano**) with a comprehensive suite of **17 specialized penetration testing and security analysis modules**.
 
 ---
 
 ## 🌟 Key Highlights
 
-- **🔒 100% Local-First & Privacy-Preserving**: Complete offline operational capability. Conversations, target assets, scope matrices, and tool data stay stored directly in your browser (`IndexedDB` & `localStorage`).
+- **🔒 Local-First & Privacy-Preserving**: Conversations, target assets, scope matrices, and tool data stay stored directly in your browser (`IndexedDB` & `localStorage`). Cloud provider endpoints and the Pyodide CDN still require network access.
 - **🤖 Context-Aware AI Security Co-Pilot**: Every workbench module features dedicated **"Ask AI"** hooks that automatically inject active tool context (e.g., CVSS vectors, decoded JWT claims, Burp requests, SAST code, or YARA/Sigma rules) into the conversation without manual prompt typing.
 - **⚡ Sequential Prompt FIFO Queue**: Rapid-fire queries queued seamlessly in real-time, preventing concurrent thinking conflicts and maintaining multi-turn context integrity.
 - **🎛️ Dual-Pane & Fullscreen Responsive Workbench**: Resizable split-screen layout with CSS container queries that adapt effortlessly between narrow sidebars and ultra-wide/4K multi-column views.
@@ -35,6 +35,12 @@
 | 🐍 **Python Sandbox** | In-browser WebAssembly Python runtime powered by **Pyodide**. Run security scripts, parse tokens, test regexes, and verify PoCs with zero local Python installation. |
 | 🛡️ **SAST Code Auditor** | Static application security analyzer. Scans source code for CWE vulnerabilities (SQLi, XSS, SSRF, Command Injection), providing risk analysis and secure code diff patches. |
 | ⚡ **Threat Studio** | Detection engineering suite. Build **Sigma detection rules** mapped to MITRE ATT&CK techniques and evaluate systems against the **STRIDE Threat Model** (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege). |
+| 📊 **Engagement Dashboard** | Executive security posture dashboard aggregating findings, severity, remediation lifecycle, technologies, and evidence counts for the active engagement. |
+| 🌐 **API Studio** | OpenAPI 3.0 / Swagger contract reviewer with route exploration, auth gap matrix, risk scoring, and OWASP API Top 10 mapping. |
+| 🕸️ **Asset Graph** | Relational attack-surface graph linking hosts, domains, ports, technologies, and findings with composite risk prioritisation. |
+| 🔀 **Workflows** | Visual assessment orchestration with pipeline steps, context metrics, and a replay runner that honours scope and execution policy. |
+| 🩹 **Remediation Hub** | Patch diff viewer, root-cause analysis, and AI-assisted fix verification with automated regression test templates. |
+| 📚 **Knowledge Base** | CWE and OWASP technical weakness encyclopedia with attack vectors, defensive controls, and code examples. |
 
 ---
 
@@ -56,14 +62,14 @@ nexus-ai/
     │   ├── useChatEngine.ts         # Sequential FIFO queue, provider orchestration & context memory
     │   └── useVoice.ts              # Speech-to-Text (STT) and Web Speech API integration
     ├── components/
-    │   ├── ChatArea.tsx             # Main chat view, prompt suggestions, and input box
+    │   ├── copilot/CopilotDrawer.tsx # AI security copilot drawer, chat history & prompt input
     │   ├── ConfirmModal.tsx         # Custom glassmorphic confirmation modal system
     │   ├── SettingsModal.tsx        # Model configurations, system prompts, and theme switcher
     │   ├── chat/
     │   │   └── MessageItem.tsx      # Markdown bubble renderer with code syntax highlighting
-    │   ├── layout/
-    │   │   └── Sidebar.tsx          # Chat history, session switching, and import/export
-    │   └── security/                # 11 Security Workbench Components & CSS Modules
+    │   ├── workbench/
+    │   │   └── WorkbenchHeader.tsx  # Engagement selector, quick search, settings & theme actions
+    │   └── security/                # 17 Security Workbench Components & CSS Modules
     │       ├── SecurityCanvas.tsx   # Workbench container, custom dropdown & tab switcher
     │       ├── ReportStudio.tsx     # VAPT & Bug Bounty reports + CVSS v3.1 calculator
     │       ├── ScopeManager.tsx     # Target scope matrix & tech stack tracker

@@ -204,5 +204,25 @@ describe('ExecutionPolicyGuard (P0 Security Boundary)', () => {
     expect(logs[0].allowed).toBe(false);
     expect(logs[0].rejectionCode).toBe('OUT_OF_SCOPE');
   });
+
+  it('clamps invalid policy values instead of accepting negative budgets', () => {
+    guard.updateConfig({ maxRequestsPerSecondPerDomain: 0, maxSessionRequestBudget: -10 });
+    expect(guard.getConfig().maxRequestsPerSecondPerDomain).toBe(1);
+    expect(guard.getConfig().maxSessionRequestBudget).toBe(1);
+  });
+
+  it('notifies audit subscribers when the session log changes', () => {
+    let notifications = 0;
+    const unsubscribe = guard.subscribeAudit(() => {
+      notifications += 1;
+    });
+
+    guard.clearAuditLogs();
+    expect(notifications).toBe(1);
+
+    unsubscribe();
+    guard.clearAuditLogs();
+    expect(notifications).toBe(1);
+  });
 });
 

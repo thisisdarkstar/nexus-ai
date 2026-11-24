@@ -23,8 +23,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   flex-wrap: wrap;
@@ -40,7 +40,7 @@
 .targetInput {
   flex: 1 1 200px;
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   color: #38bdf8;
   padding: 0.4rem 0.7rem;
   border-radius: 6px;
@@ -54,7 +54,7 @@
   display: inline-flex;
   align-items: center;
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   border-radius: 8px;
   padding: 0.2rem;
   gap: 0.2rem;
@@ -99,8 +99,8 @@
 }
 
 .reconCard {
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.75rem;
   display: flex;
@@ -118,7 +118,7 @@
 .cardTitle {
   font-size: 0.84rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -132,8 +132,8 @@
 }
 
 .codeBox {
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-main);
+  border: 1px solid var(--wa-8);
   border-radius: 6px;
   padding: 0.6rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -148,7 +148,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.74rem;
   color: #fbbf24;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--inset-30);
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
   word-break: break-all;
@@ -164,8 +164,8 @@
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--wa-10);
+  background: var(--wa-5);
   color: var(--text-primary, #f8fafc);
   transition: all 0.2s;
   white-space: nowrap;
@@ -179,7 +179,7 @@
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--wa-10);
 }
 
 .btnPrimary {
@@ -207,8 +207,8 @@
 }
 
 .metricCard {
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.65rem 0.85rem;
   display: flex;
@@ -234,7 +234,7 @@
 .metricValue {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
   line-height: 1;
 }
 
@@ -243,8 +243,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   flex-wrap: wrap;
@@ -261,7 +261,7 @@
 
 .searchInput {
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   color: var(--text-primary, #f8fafc);
   padding: 0.38rem 0.65rem;
   border-radius: 6px;
@@ -283,8 +283,8 @@
 }
 
 .assetCard {
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sd-75);
+  border: 1px solid var(--wa-8);
   border-left: 4px solid #64748b;
   border-radius: 8px;
   padding: 0.85rem 1rem;
@@ -296,8 +296,8 @@
 }
 
 .assetCard:hover {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--sd-90);
+  border-color: var(--wa-15);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
@@ -341,7 +341,7 @@
 .assetTitle {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -408,9 +408,9 @@
   font-weight: 500;
   padding: 0.12rem 0.45rem;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--wa-6);
+  color: var(--text-secondary);
+  border: 1px solid var(--wa-8);
 }
 
 .assetActions {
@@ -420,12 +420,12 @@
   gap: 0.4rem;
   flex-wrap: wrap;
   padding-top: 0.4rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--wa-6);
 }
 
 .metaInfo {
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -499,7 +499,7 @@
 
 .riskInfo {
   background: rgba(148, 163, 184, 0.15);
-  color: #cbd5e1;
+  color: var(--text-primary);
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
@@ -510,10 +510,10 @@
   justify-content: center;
   gap: 0.75rem;
   padding: 3rem 1.5rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: var(--sd-50);
+  border: 1px dashed var(--wa-12);
   border-radius: 8px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-align: center;
 }
 
@@ -538,8 +538,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sd-60);
+  border: 1px solid var(--wa-8);
   border-radius: 8px;
   padding: 0.75rem;
 }
@@ -548,9 +548,9 @@
   width: 100%;
   height: 140px;
   background: #090d16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--wa-10);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.78rem;
   line-height: 1.45;
@@ -571,8 +571,8 @@
 }
 
 .secretCard {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sd-70);
+  border: 1px solid var(--wa-8);
   border-left: 3px solid #64748b;
   border-radius: 6px;
   padding: 0.65rem 0.8rem;
@@ -609,7 +609,7 @@
   align-items: center;
   justify-content: space-between;
   background: #090d16;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--wa-7);
   border-radius: 4px;
   padding: 0.35rem 0.6rem;
   font-family: 'JetBrains Mono', monospace;
@@ -623,8 +623,8 @@
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  background: var(--wa-6);
+  color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -632,8 +632,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--sd-50);
+  border: 1px solid var(--wa-6);
   border-radius: 6px;
   padding: 0.45rem 0.65rem;
   gap: 0.5rem;
@@ -746,7 +746,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #94a3b8;
+  color: var(--text-secondary);
   margin-bottom: 0.15rem;
 }
 

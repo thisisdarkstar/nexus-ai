@@ -1,3 +1,5 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search,
@@ -216,12 +218,12 @@ export const SAMPLE_BOUNTY_ASSETS: ReconAsset[] = [
 
 export default function ReconHub({ onSendToAI }: ReconHubProps) {
   const [targetDomain, setTargetDomain] = useState(() => {
-    return localStorage.getItem(RECON_TARGET_STORAGE_KEY) || 'acmefinance.com';
+    return projectLocalStorage.getItem(RECON_TARGET_STORAGE_KEY) || 'acmefinance.com';
   });
 
   const [assets, setAssets] = useState<ReconAsset[]>(() => {
     try {
-      const saved = localStorage.getItem(RECON_ASSETS_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(RECON_ASSETS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -234,7 +236,7 @@ export default function ReconHub({ onSendToAI }: ReconHubProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(RECON_TARGET_STORAGE_KEY, targetDomain);
+      projectLocalStorage.setItem(RECON_TARGET_STORAGE_KEY, targetDomain);
     } catch (e) {
       console.error(e);
     }
@@ -242,7 +244,7 @@ export default function ReconHub({ onSendToAI }: ReconHubProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(RECON_ASSETS_STORAGE_KEY, JSON.stringify(assets));
+      projectLocalStorage.setItem(RECON_ASSETS_STORAGE_KEY, JSON.stringify(assets));
     } catch (e) {
       console.error(e);
     }
@@ -250,20 +252,14 @@ export default function ReconHub({ onSendToAI }: ReconHubProps) {
 
   // Listen for newly ingested recon assets from ArtifactIngestModal or other sources
   useEffect(() => {
-    const handleReconAssetsEvent = (e: Event) => {
-      const custom = e as CustomEvent<ReconAsset[]>;
-      if (custom.detail && Array.isArray(custom.detail)) {
-        setAssets((prev) => {
-          const map = new Map<string, ReconAsset>();
-          prev.forEach((a) => map.set(a.url.toLowerCase(), a));
-          custom.detail.forEach((a) => map.set(a.url.toLowerCase(), a));
-          return Array.from(map.values());
-        });
-      }
-    };
-
-    window.addEventListener('nexus:workbench:add-recon-assets', handleReconAssetsEvent);
-    return () => window.removeEventListener('nexus:workbench:add-recon-assets', handleReconAssetsEvent);
+    return eventBus.subscribe('workbench:add-recon-assets', (incoming) => {
+      setAssets((prev) => {
+        const map = new Map<string, ReconAsset>();
+        prev.forEach((a) => map.set(a.url.toLowerCase(), a));
+        incoming.forEach((a) => map.set(a.url.toLowerCase(), a));
+        return Array.from(map.values());
+      });
+    });
   }, []);
 
   const [activeTab, setActiveTab] = useState<ReconTab>('surface_explorer');
@@ -1415,7 +1411,7 @@ Generate an end-to-end OSINT and Reconnaissance Attack Plan tailored specificall
                           style={{
                             fontFamily: 'JetBrains Mono, monospace',
                             fontSize: '0.78rem',
-                            color: '#f1f5f9',
+                            color: 'var(--text-primary)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',

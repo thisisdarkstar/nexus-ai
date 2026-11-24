@@ -1,15 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Search,
-  FileText,
-  Target,
-  CheckSquare,
-  Globe,
-  Radio,
-  Binary,
-  ShieldAlert,
-  Terminal,
-  Layers,
   UploadCloud,
   Plus,
   Settings as SettingsIcon,
@@ -20,6 +11,7 @@ import {
 } from 'lucide-react';
 import { workbenchBridge } from '../lib/security/workbenchBridge';
 import { exportEngagementBundle, importEngagementBundle } from '../lib/security/engagementBundle';
+import { SECURITY_TABS } from '../lib/security/tabRegistry';
 import type { SecurityTab } from '../types';
 import styles from './CommandPalette.module.css';
 
@@ -30,6 +22,7 @@ interface CommandItem {
   icon: React.ComponentType<{ size?: number; color?: string }>;
   action: () => void;
   shortcut?: string;
+  keywords?: string[];
 }
 
 interface CommandPaletteProps {
@@ -67,70 +60,15 @@ export default function CommandPalette({
   };
 
   const commands: CommandItem[] = [
-    // Workbench tabs
-    {
-      id: 'tab-reports',
-      title: 'Open VAPT Report Studio (CVSS Calculator)',
-      category: 'Workbench',
-      icon: FileText,
-      action: () => switchTab('reports'),
-    },
-    {
-      id: 'tab-scope',
-      title: 'Open Target Scope Matrix',
-      category: 'Workbench',
-      icon: Target,
-      action: () => switchTab('scope'),
-    },
-    {
-      id: 'tab-checklist',
-      title: 'Open OWASP Checklist Tracker',
-      category: 'Workbench',
-      icon: CheckSquare,
-      action: () => switchTab('checklists'),
-    },
-    {
-      id: 'tab-http',
-      title: 'Open HTTP Studio (Burp Parser)',
-      category: 'Workbench',
-      icon: Globe,
-      action: () => switchTab('http_studio'),
-    },
-    {
-      id: 'tab-auditor',
-      title: 'Open SAST Code Auditor (Live Scan)',
-      category: 'Workbench',
-      icon: ShieldAlert,
-      action: () => switchTab('auditor'),
-    },
-    {
-      id: 'tab-decoders',
-      title: 'Open Decoders & JWT Hub',
-      category: 'Workbench',
-      icon: Binary,
-      action: () => switchTab('decoders'),
-    },
-    {
-      id: 'tab-payloads',
-      title: 'Open Exploit Payload Crafter',
-      category: 'Workbench',
-      icon: Radio,
-      action: () => switchTab('payloads'),
-    },
-    {
-      id: 'tab-sandbox',
-      title: 'Open Python Wasm Sandbox',
-      category: 'Workbench',
-      icon: Terminal,
-      action: () => switchTab('sandbox'),
-    },
-    {
-      id: 'tab-threat',
-      title: 'Open Threat Studio (STRIDE / Sigma)',
-      category: 'Workbench',
-      icon: Layers,
-      action: () => switchTab('threat_studio'),
-    },
+    // All workbench tabs, derived from the shared registry.
+    ...SECURITY_TABS.map((tab) => ({
+      id: `tab-${tab.id}`,
+      title: `Open ${tab.name}`,
+      category: 'Workbench' as const,
+      icon: tab.icon,
+      keywords: [tab.id, tab.tooltip, ...tab.keywords],
+      action: () => switchTab(tab.id),
+    })),
 
     // Actions
     {
@@ -215,10 +153,16 @@ export default function CommandPalette({
     },
   ];
 
-  const filtered = commands.filter((cmd) =>
-    cmd.title.toLowerCase().includes(query.toLowerCase()) ||
-    cmd.category.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = commands.filter((cmd) => {
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      cmd.title.toLowerCase().includes(q) ||
+      cmd.category.toLowerCase().includes(q) ||
+      cmd.keywords?.some((keyword) => keyword.toLowerCase().includes(q)) ||
+      false
+    );
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {

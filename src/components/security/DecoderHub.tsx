@@ -1,3 +1,4 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { useState, useMemo, useEffect } from 'react';
 import {
   Key,
@@ -60,7 +61,7 @@ export default function DecoderHub({
   const [input, setInput] = useState(() => {
     if (initialInput) return initialInput;
     try {
-      return localStorage.getItem(DECODER_INPUT_STORAGE_KEY) || '';
+      return projectLocalStorage.getItem(DECODER_INPUT_STORAGE_KEY) || '';
     } catch {
       return '';
     }
@@ -72,7 +73,7 @@ export default function DecoderHub({
 
   useEffect(() => {
     try {
-      localStorage.setItem(DECODER_INPUT_STORAGE_KEY, input);
+      projectLocalStorage.setItem(DECODER_INPUT_STORAGE_KEY, input);
     } catch (e) {
       console.error(e);
     }

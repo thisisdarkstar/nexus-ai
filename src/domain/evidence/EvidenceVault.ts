@@ -75,6 +75,11 @@ export class EvidenceVault {
     return evidence;
   }
 
+  /** Remove all evidence records belonging to an engagement. */
+  public async clearEvidence(projectId: string = 'default'): Promise<void> {
+    await storageManager.clearEvidence(projectId);
+  }
+
   /**
    * Retrieves all evidence records for a given project.
    */

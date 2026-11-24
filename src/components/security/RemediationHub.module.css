@@ -30,8 +30,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
 }
@@ -54,7 +54,7 @@
   font-size: 1.15rem;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .workspaceGrid {
@@ -77,9 +77,9 @@
 }
 
 .findingItem {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  background: var(--sd-60);
+  border: 1px solid var(--wa-8);
+  border-left: 3px solid var(--wa-20);
   border-radius: 6px;
   padding: 0.55rem 0.65rem;
   cursor: pointer;
@@ -90,8 +90,8 @@
 }
 
 .findingItem:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--wa-6);
+  border-color: var(--wa-15);
 }
 
 .findingItemActive {
@@ -108,8 +108,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--sd-40);
+  border: 1px solid var(--wa-7);
   border-radius: 8px;
   padding: 0.85rem;
 }
@@ -118,7 +118,7 @@
   display: flex;
   flex-direction: column;
   background: #090d16;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--wa-8);
   border-radius: 6px;
   overflow: hidden;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -131,10 +131,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.4rem 0.7rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--wa-3);
+  border-bottom: 1px solid var(--wa-8);
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .diffLineRemoved {
@@ -152,7 +152,7 @@
 }
 
 .diffLineContext {
-  color: #64748b;
+  color: var(--text-muted);
   padding: 0.2rem 0.75rem;
 }
 
@@ -166,8 +166,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--wa-2);
+  border: 1px solid var(--wa-5);
   border-radius: 6px;
   padding: 0.45rem 0.65rem;
   font-size: 0.78rem;
@@ -176,7 +176,7 @@
 
 .checkItemDone {
   text-decoration: line-through;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .btn {
@@ -188,16 +188,16 @@
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #f8fafc;
+  border: 1px solid var(--wa-12);
+  background: var(--wa-5);
+  color: var(--text-primary);
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--wa-12);
+  border-color: var(--wa-20);
 }
 
 .btnPrimary {
@@ -215,10 +215,10 @@
   justify-content: center;
   gap: 0.75rem;
   padding: 3rem 1.5rem;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: var(--sd-50);
+  border: 1px dashed var(--wa-12);
   border-radius: 8px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-align: center;
   flex: 1;
 }

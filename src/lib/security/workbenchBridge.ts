@@ -1,13 +1,6 @@
+import { eventBus } from '../../core/bus/EventBus';
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import type { VulnerabilityFinding, ScopeItem, SecurityTab, ReconAsset } from '../../types';
-
-export interface WorkbenchEvents {
-  'nexus:workbench:add-finding': VulnerabilityFinding;
-  'nexus:workbench:add-scope': ScopeItem[];
-  'nexus:workbench:add-recon-assets': ReconAsset[];
-  'nexus:workbench:update-checklist': { testId: string; status: 'pass' | 'fail' | 'untested' | 'na'; evidence?: string };
-  'nexus:workbench:load-http': string;
-  'nexus:workbench:load-audit-code': { code: string; language?: string };
-}
 
 class WorkbenchBridge {
   private static instance: WorkbenchBridge;
@@ -27,7 +20,7 @@ class WorkbenchBridge {
   public addFinding(finding: Omit<VulnerabilityFinding, 'id'> & { id?: string }): void {
     try {
       const REPORT_STORAGE_KEY = 'nexus_security_report';
-      const saved = localStorage.getItem(REPORT_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(REPORT_STORAGE_KEY);
       const report = saved ? JSON.parse(saved) : { findings: [] };
 
       // Ensure finding has unique id
@@ -44,11 +37,9 @@ class WorkbenchBridge {
         report.findings = [uniqueFinding, ...(report.findings || [])];
       }
 
-      localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(report));
+      projectLocalStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(report));
 
-      window.dispatchEvent(
-        new CustomEvent('nexus:workbench:add-finding', { detail: uniqueFinding })
-      );
+      eventBus.publish('workbench:add-finding', uniqueFinding);
     } catch (e) {
       console.error('Failed to save finding via workbenchBridge:', e);
     }
@@ -60,7 +51,7 @@ class WorkbenchBridge {
   public addScopeItems(items: ScopeItem[]): void {
     try {
       const SCOPE_STORAGE_KEY = 'nexus_security_scope';
-      const saved = localStorage.getItem(SCOPE_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(SCOPE_STORAGE_KEY);
       const existing: ScopeItem[] = saved ? JSON.parse(saved) : [];
 
       const updated = [...existing];
@@ -76,11 +67,9 @@ class WorkbenchBridge {
         }
       });
 
-      localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(updated));
+      projectLocalStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(updated));
 
-      window.dispatchEvent(
-        new CustomEvent('nexus:workbench:add-scope', { detail: items })
-      );
+      eventBus.publish('workbench:add-scope', items);
     } catch (e) {
       console.error('Failed to save scope items via workbenchBridge:', e);
     }
@@ -92,7 +81,7 @@ class WorkbenchBridge {
   public addReconAssets(assets: ReconAsset[]): void {
     try {
       const RECON_STORAGE_KEY = 'nexus_security_recon_assets';
-      const saved = localStorage.getItem(RECON_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(RECON_STORAGE_KEY);
       const existing: ReconAsset[] = saved ? JSON.parse(saved) : [];
 
       const updated = [...existing];
@@ -109,11 +98,9 @@ class WorkbenchBridge {
         }
       });
 
-      localStorage.setItem(RECON_STORAGE_KEY, JSON.stringify(updated));
+      projectLocalStorage.setItem(RECON_STORAGE_KEY, JSON.stringify(updated));
 
-      window.dispatchEvent(
-        new CustomEvent('nexus:workbench:add-recon-assets', { detail: assets })
-      );
+      eventBus.publish('workbench:add-recon-assets', assets);
     } catch (e) {
       console.error('Failed to save recon assets via workbenchBridge:', e);
     }
@@ -125,7 +112,7 @@ class WorkbenchBridge {
   public getReconAssets(): ReconAsset[] {
     try {
       const RECON_STORAGE_KEY = 'nexus_security_recon_assets';
-      const saved = localStorage.getItem(RECON_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(RECON_STORAGE_KEY);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -137,11 +124,7 @@ class WorkbenchBridge {
    */
   public updateChecklistItem(testId: string, status: 'pass' | 'fail' | 'untested' | 'na', evidence?: string): void {
     try {
-      window.dispatchEvent(
-        new CustomEvent('nexus:workbench:update-checklist', {
-          detail: { testId, status, evidence },
-        })
-      );
+      eventBus.publish('workbench:update-checklist', { testId, status, evidence });
     } catch (e) {
       console.error('Failed to update checklist item via workbenchBridge:', e);
     }
@@ -152,12 +135,9 @@ class WorkbenchBridge {
    */
   public loadHttp(rawHttp: string): void {
     try {
-      localStorage.setItem('nexus_security_http_request', rawHttp);
-      window.dispatchEvent(
-        new CustomEvent('nexus:open-security', {
-          detail: { tab: 'http_studio' },
-        })
-      );
+      projectLocalStorage.setItem('nexus_security_http_request', rawHttp);
+      eventBus.publish('workbench:load-http', { rawHttp });
+      eventBus.publish('open-security', { tab: 'http_studio' });
     } catch (e) {
       console.error('Failed to load HTTP snippet via workbenchBridge:', e);
     }
@@ -177,10 +157,8 @@ class WorkbenchBridge {
     matcherWords?: string;
   }): void {
     try {
-      localStorage.setItem('nexus_security_nuclei_preset', JSON.stringify(template));
-      window.dispatchEvent(
-        new CustomEvent('nexus:workbench:load-nuclei', { detail: template })
-      );
+      projectLocalStorage.setItem('nexus_security_nuclei_preset', JSON.stringify(template));
+      eventBus.publish('workbench:load-nuclei', template);
       this.switchTab('nuclei');
     } catch (e) {
       console.error('Failed to load nuclei template via workbenchBridge:', e);
@@ -191,11 +169,7 @@ class WorkbenchBridge {
    * Switch the active security workbench tab
    */
   public switchTab(tab: SecurityTab, extra?: { code?: string; input?: string }): void {
-    window.dispatchEvent(
-      new CustomEvent('nexus:open-security', {
-        detail: { tab, ...extra },
-      })
-    );
+    eventBus.publish('open-security', { tab, ...extra });
   }
 }
 

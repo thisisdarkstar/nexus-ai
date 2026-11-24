@@ -1,3 +1,5 @@
+import { getActiveProjectId, projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import { useState, useMemo, useEffect } from 'react';
 import {
   Play,
@@ -90,7 +92,7 @@ const HTTP_REQUEST_STORAGE_KEY = 'nexus_security_http_request';
 export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
   const [rawText, setRawText] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem(HTTP_REQUEST_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(HTTP_REQUEST_STORAGE_KEY);
       if (saved) return saved;
     } catch (e) {
       console.error('Failed to load http request from localStorage:', e);
@@ -100,23 +102,19 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(HTTP_REQUEST_STORAGE_KEY, rawText);
+      projectLocalStorage.setItem(HTTP_REQUEST_STORAGE_KEY, rawText);
     } catch (e) {
       console.error('Failed to save http request to localStorage:', e);
     }
   }, [rawText]);
 
   useEffect(() => {
-    const handleLoadHttp = (e: Event) => {
-      const custom = e as CustomEvent<{ raw?: string } | string>;
-      const raw = typeof custom.detail === 'string' ? custom.detail : custom.detail?.raw;
-      if (raw) {
-        setRawText(raw);
+    return eventBus.subscribe('workbench:load-http', ({ rawHttp }) => {
+      if (rawHttp) {
+        setRawText(rawHttp);
         setLeftTab('raw');
       }
-    };
-    window.addEventListener('nexus:workbench:load-http', handleLoadHttp);
-    return () => window.removeEventListener('nexus:workbench:load-http', handleLoadHttp);
+    });
   }, []);
 
   const [leftTab, setLeftTab] = useState<'raw' | 'headers' | 'params' | 'body' | 'cookies'>('raw');
@@ -253,7 +251,11 @@ export default function HttpStudio({ onSendToAI }: HttpStudioProps) {
         initiator: 'HttpStudio',
       };
 
-      const dispatchRes = await replayService.dispatchAuthorizedRequest(executionReq, 'default', 8000);
+      const dispatchRes = await replayService.dispatchAuthorizedRequest(
+        executionReq,
+        getActiveProjectId(),
+        8000
+      );
 
       if (!dispatchRes.validation.allowed) {
         setPolicyStatus({

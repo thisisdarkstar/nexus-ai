@@ -15,7 +15,7 @@
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--wa-8);
   border: none;
   border-radius: 50%;
   width: 26px;
@@ -24,14 +24,14 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--wa-65);
   z-index: 2;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: background 0.2s;
 }
 
 .closeBtn:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--wa-16);
 }
 
 .canvas {
@@ -86,14 +86,14 @@
   font-size: 0.72rem;
   cursor: pointer;
   font-weight: 500;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: background 0.2s;
 }
 
 .textPreview {
   padding: 0 16px 14px;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--wa-45);
   line-height: 1.5;
   font-style: italic;
   border-top: 1px solid;

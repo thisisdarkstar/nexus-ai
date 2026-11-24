@@ -8,6 +8,7 @@ import {
   ZoomOut,
   Maximize2,
 } from 'lucide-react';
+import { getActiveProjectId } from '../../core/storage/projectStorage';
 import { AssetGraph } from '../../domain/graph/AssetGraph';
 import type { GraphNode, GraphEdge, AssetNodeType } from '../../domain/graph/types';
 import { prioritizationEngine } from '../../domain/prioritization/PrioritizationEngine';
@@ -54,7 +55,8 @@ const FILTER_OPTIONS: Array<{ value: string; label: string }> = [
 
 export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) {
   const { toast } = useToast();
-  const [graph] = useState<AssetGraph>(() => new AssetGraph('default'));
+  const projectId = getActiveProjectId();
+  const [graph] = useState<AssetGraph>(() => new AssetGraph(projectId));
   const [nodes, setNodes] = useState<SimNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) 
     let scopeRules: ScopeItem[] = [];
 
     try {
-      const storedAssets = await storageManager.getAssets('default');
+      const storedAssets = await storageManager.getAssets(projectId);
       if (storedAssets && storedAssets.length > 0) {
         assets = storedAssets as unknown as ReconAsset[];
       } else {
@@ -136,7 +138,7 @@ export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) 
         ];
       }
 
-      const storedScope = await storageManager.getScope('default');
+      const storedScope = await storageManager.getScope(projectId);
       if (storedScope && storedScope.length > 0) {
         scopeRules = storedScope;
       }
@@ -145,7 +147,7 @@ export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) 
     }
 
     graph.clear();
-    graph.buildFromFlatAssets(assets, 'default', scopeRules);
+    graph.buildFromFlatAssets(assets, projectId, scopeRules);
 
     const rawNodes = graph.getAllNodes();
     const rawEdges = graph.getAllEdges();
@@ -179,7 +181,7 @@ export default function AssetGraphViewer({ onSendToAI }: AssetGraphViewerProps) 
     setNodes(simNodes);
     setEdges(rawEdges);
     setSelectedNodeId(simNodes[0]?.id || null);
-  }, [graph, canvasDimensions.width, canvasDimensions.height]);
+  }, [graph, canvasDimensions.width, canvasDimensions.height, projectId]);
 
   useEffect(() => {
     loadGraphData();

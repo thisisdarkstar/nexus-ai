@@ -24,8 +24,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   flex-wrap: wrap;
@@ -35,7 +35,7 @@
 .input {
   flex: 1 1 200px;
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   color: #38bdf8;
   padding: 0.4rem 0.7rem;
   border-radius: 6px;
@@ -51,7 +51,7 @@
 
 .select {
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   color: var(--text-primary, #f8fafc);
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
@@ -68,8 +68,8 @@
 }
 
 .scopeCard {
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.85rem;
   display: flex;
@@ -121,9 +121,9 @@
   font-size: 0.7rem;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--wa-6);
   color: var(--text-secondary, #94a3b8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--wa-8);
   font-weight: 500;
 }
 
@@ -137,8 +137,8 @@
   font-size: 0.76rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--wa-10);
+  background: var(--wa-5);
   color: var(--text-primary, #f8fafc);
   transition: all 0.2s;
   line-height: 1;
@@ -152,7 +152,7 @@
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--wa-10);
 }
 
 .btnPrimary {

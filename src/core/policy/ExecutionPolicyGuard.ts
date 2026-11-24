@@ -1,5 +1,7 @@
 import { ScopeEvaluator } from '../../domain/assessment/ScopeEvaluator';
-import type { ScopeItem } from '../../types';
+import type { ExecutionPolicyConfig, ScopeItem } from '../../types';
+
+export type { ExecutionPolicyConfig } from '../../types';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
 
@@ -40,13 +42,6 @@ export interface ExecutionAuditLog {
   responseSize?: number;
 }
 
-export interface ExecutionPolicyConfig {
-  maxRequestsPerSecondPerDomain: number;
-  maxSessionRequestBudget: number;
-  allowLocalhostFixtures: boolean;
-  enforceApprovalForMutating: boolean;
-}
-
 export const DEFAULT_POLICY_CONFIG: ExecutionPolicyConfig = {
   maxRequestsPerSecondPerDomain: 5,
   maxSessionRequestBudget: 500,
@@ -58,6 +53,7 @@ export class ExecutionPolicyGuard {
   private static instance: ExecutionPolicyGuard;
   private config: ExecutionPolicyConfig;
   private auditLogs: ExecutionAuditLog[] = [];
+  private auditListeners = new Set<() => void>();
   private domainTimestamps: Map<string, number[]> = new Map();
   private totalExecutedRequests: number = 0;
 
@@ -75,7 +71,19 @@ export class ExecutionPolicyGuard {
   }
 
   public updateConfig(patch: Partial<ExecutionPolicyConfig>): void {
-    this.config = { ...this.config, ...patch };
+    const next = { ...this.config, ...patch };
+    const rate = Number(next.maxRequestsPerSecondPerDomain);
+    const budget = Number(next.maxSessionRequestBudget);
+    this.config = {
+      maxRequestsPerSecondPerDomain: Number.isFinite(rate)
+        ? Math.max(1, Math.floor(rate))
+        : DEFAULT_POLICY_CONFIG.maxRequestsPerSecondPerDomain,
+      maxSessionRequestBudget: Number.isFinite(budget)
+        ? Math.max(1, Math.floor(budget))
+        : DEFAULT_POLICY_CONFIG.maxSessionRequestBudget,
+      allowLocalhostFixtures: Boolean(next.allowLocalhostFixtures),
+      enforceApprovalForMutating: Boolean(next.enforceApprovalForMutating),
+    };
   }
 
   public getConfig(): ExecutionPolicyConfig {
@@ -93,6 +101,23 @@ export class ExecutionPolicyGuard {
 
   public clearAuditLogs(): void {
     this.auditLogs = [];
+    this.notifyAuditListeners();
+  }
+
+  /** Subscribe to session audit changes so settings/audit UI can refresh live. */
+  public subscribeAudit(listener: () => void): () => void {
+    this.auditListeners.add(listener);
+    return () => this.auditListeners.delete(listener);
+  }
+
+  private notifyAuditListeners(): void {
+    this.auditListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (err) {
+        console.error('[ExecutionPolicyGuard] Audit listener failed:', err);
+      }
+    });
   }
 
   /**
@@ -239,7 +264,7 @@ export class ExecutionPolicyGuard {
   }
 
   /**
-   * Records an approved or rejected execution in the immutable audit trail.
+   * Records an approved or rejected execution in the in-memory session audit trail.
    */
   public recordExecution(
     request: ExecutionRequest,
@@ -280,6 +305,7 @@ export class ExecutionPolicyGuard {
       }
     }
 
+    this.notifyAuditListeners();
     return log;
   }
 

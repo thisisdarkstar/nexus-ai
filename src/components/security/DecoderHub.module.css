@@ -19,8 +19,8 @@
 }
 
 .quickCard {
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 10px;
   padding: 0.85rem 1rem;
   display: flex;
@@ -33,7 +33,7 @@
 
 .quickCard:hover {
   border-color: rgba(16, 185, 129, 0.25);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--wa-4);
 }
 
 .cardHeader {
@@ -100,7 +100,7 @@
 .textarea {
   width: 100%;
   background: var(--input-bg, #0f172a);
-  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--input-border, var(--wa-10));
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -127,9 +127,9 @@
 }
 
 .presetSelect {
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
+  background: var(--bg-main);
+  border: 1px solid var(--wa-12);
+  color: var(--text-secondary);
   padding: 0.3rem 0.5rem;
   border-radius: 6px;
   font-size: 0.74rem;
@@ -152,8 +152,8 @@
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--wa-10);
+  background: var(--wa-5);
   color: var(--text-primary, #f8fafc);
   transition: all 0.2s;
   line-height: 1;
@@ -167,8 +167,8 @@
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--wa-10);
+  border-color: var(--wa-20);
 }
 
 .btnPrimary {
@@ -199,8 +199,8 @@
 }
 
 .jsonBox {
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-main);
+  border: 1px solid var(--wa-8);
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
   font-family: 'JetBrains Mono', monospace;
@@ -243,7 +243,7 @@
 
 .hashTable td {
   padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--wa-5);
 }
 
 .hashLabel {

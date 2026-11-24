@@ -1,3 +1,4 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Wrench,
@@ -144,7 +145,7 @@ function synthesizeDiff(finding: VulnerabilityFinding): GeneratedDiff {
 export default function RemediationHub({ onSendToAI }: RemediationHubProps) {
   const [findings, setFindings] = useState<VulnerabilityFinding[]>(() => {
     try {
-      const raw = localStorage.getItem('nexus_security_report');
+      const raw = projectLocalStorage.getItem('nexus_security_report');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.findings) && parsed.findings.length > 0) {
@@ -401,11 +402,11 @@ Please provide:
 
             {/* Automated Regression Test Suite Generator */}
             {generatedSuite && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.85rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'var(--inset-25)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--wa-6)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <Code2 size={14} color="#38bdf8" />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f1f5f9' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       Automated Regression Test Generator
                     </span>
                     <span style={{ fontSize: '0.65rem', background: 'rgba(234,179,8,0.15)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.3)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
@@ -419,9 +420,9 @@ Please provide:
                         key={fw}
                         type="button"
                         style={{
-                          background: testFramework === fw ? '#0284c7' : 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          color: '#fff',
+                          background: testFramework === fw ? '#0284c7' : 'var(--wa-5)',
+                          border: '1px solid var(--wa-12)',
+                          color: 'var(--text-primary)',
                           borderRadius: '4px',
                           padding: '0.2rem 0.5rem',
                           fontSize: '0.7rem',
@@ -437,9 +438,9 @@ Please provide:
                     <button
                       type="button"
                       style={{
-                        background: 'rgba(255,255,255,0.08)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        color: '#fff',
+                        background: 'var(--wa-8)',
+                        border: '1px solid var(--wa-15)',
+                        color: 'var(--text-primary)',
                         borderRadius: '4px',
                         padding: '0.2rem 0.5rem',
                         fontSize: '0.7rem',
@@ -461,9 +462,9 @@ Please provide:
                     <button
                       type="button"
                       style={{
-                        background: 'rgba(255,255,255,0.08)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        color: '#fff',
+                        background: 'var(--wa-8)',
+                        border: '1px solid var(--wa-15)',
+                        color: 'var(--text-primary)',
                         borderRadius: '4px',
                         padding: '0.2rem 0.5rem',
                         fontSize: '0.7rem',

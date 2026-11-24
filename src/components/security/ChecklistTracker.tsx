@@ -1,3 +1,5 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import { useState, useEffect } from 'react';
 import {
   CheckSquare,
@@ -202,7 +204,7 @@ interface ChecklistTrackerProps {
 export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) {
   const [items, setItems] = useState<SecurityChecklistItem[]>(() => {
     try {
-      const saved = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(CHECKLIST_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -236,35 +238,23 @@ export default function ChecklistTracker({ onSendToAI }: ChecklistTrackerProps) 
 
   useEffect(() => {
     try {
-      localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(items));
+      projectLocalStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(items));
     } catch (e) {
       console.error('Failed to save checklist to localStorage:', e);
     }
   }, [items]);
 
   useEffect(() => {
-    const handleUpdateChecklistEvent = (e: Event) => {
-      const custom = e as CustomEvent<{ testId: string; status: SecurityChecklistItem['status']; evidence?: string }>;
-      if (custom.detail?.testId) {
-        setItems((prev) =>
-          prev.map((it) => {
-            const matches =
-              it.id.toLowerCase() === custom.detail.testId.toLowerCase() ||
-              it.code.toLowerCase() === custom.detail.testId.toLowerCase();
-            if (matches) {
-              return {
-                ...it,
-                status: custom.detail.status,
-                evidence: custom.detail.evidence || it.evidence,
-              };
-            }
-            return it;
-          })
-        );
-      }
-    };
-    window.addEventListener('nexus:workbench:update-checklist', handleUpdateChecklistEvent);
-    return () => window.removeEventListener('nexus:workbench:update-checklist', handleUpdateChecklistEvent);
+    return eventBus.subscribe('workbench:update-checklist', ({ testId, status, evidence }) => {
+      setItems((prev) =>
+        prev.map((it) => {
+          const matches =
+            it.id.toLowerCase() === testId.toLowerCase() || it.code.toLowerCase() === testId.toLowerCase();
+          if (!matches) return it;
+          return { ...it, status, evidence: evidence || it.evidence };
+        })
+      );
+    });
   }, []);
 
   const handleStatusChange = (id: string, newStatus: SecurityChecklistItem['status']) => {

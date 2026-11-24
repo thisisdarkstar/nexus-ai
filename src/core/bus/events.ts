@@ -59,5 +59,30 @@ export interface SecurityEventMap {
 
   // Project & Workspace Context
   'project:switched': { projectId: string; previousProjectId?: string };
+
+  // Shell-level routing (formerly raw window CustomEvents)
+  'open-security': { tab?: SecurityTab; code?: string; input?: string };
+  'open-ingest': void;
+
+  // WorkbenchBridge domain events
+  'workbench:add-finding': VulnerabilityFinding;
+  'workbench:add-scope': ScopeItem[];
+  'workbench:add-recon-assets': ReconAsset[];
+  'workbench:update-checklist': {
+    testId: string;
+    status: 'pass' | 'fail' | 'untested' | 'na';
+    evidence?: string;
+  };
+  'workbench:load-http': { rawHttp: string };
+  'workbench:load-nuclei': {
+    templateId?: string;
+    name?: string;
+    path?: string;
+    severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+    tags?: string;
+    description?: string;
+    method?: string;
+    matcherWords?: string;
+  };
 }
 

@@ -186,6 +186,41 @@ export class StorageManager {
       tx.onerror = () => reject(tx.error);
     });
   }
+
+  /** Delete every record in a store that belongs to one engagement. */
+  private async clearStoreByProject(
+    storeName: 'assets' | 'findings' | 'scope' | 'checklists' | 'evidence',
+    projectId: string
+  ): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const index = store.index('projectId');
+      const req = index.getAllKeys(IDBKeyRange.only(projectId));
+      req.onsuccess = () => {
+        req.result.forEach((key) => store.delete(key));
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  public async clearFindings(projectId: string = 'default'): Promise<void> {
+    await this.clearStoreByProject('findings', projectId);
+  }
+
+  public async clearScope(projectId: string = 'default'): Promise<void> {
+    await this.clearStoreByProject('scope', projectId);
+  }
+
+  public async clearChecklists(projectId: string = 'default'): Promise<void> {
+    await this.clearStoreByProject('checklists', projectId);
+  }
+
+  public async clearEvidence(projectId: string = 'default'): Promise<void> {
+    await this.clearStoreByProject('evidence', projectId);
+  }
 }
 
 export const storageManager = StorageManager.getInstance();

@@ -15,6 +15,7 @@ import {
   Database,
   Terminal,
 } from 'lucide-react';
+import { getActiveProjectId } from '../../core/storage/projectStorage';
 import { storageManager } from '../../core/storage/StorageManager';
 import { evidenceVault } from '../../domain/evidence/EvidenceVault';
 import { eventBus } from '../../core/bus/EventBus';
@@ -29,7 +30,7 @@ interface SecurityDashboardProps {
 
 export default function SecurityDashboard({ onTabChange, onSendToAI }: SecurityDashboardProps) {
   const { toast } = useToast();
-  const [projectId] = useState<string>('default');
+  const [projectId] = useState<string>(() => getActiveProjectId());
   const [assets, setAssets] = useState<ReconAsset[]>([]);
   const [findings, setFindings] = useState<VulnerabilityFinding[]>([]);
   const [scope, setScope] = useState<ScopeItem[]>([]);
@@ -236,7 +237,7 @@ Please draft:
       {/* KPI Metrics Grid */}
       <div className={styles.kpiGrid}>
         <div className={`${styles.kpiCard} ${criticalCount > 0 ? styles.kpiCardHighlight : ''}`}>
-          <span className={styles.kpiNumber} style={{ color: criticalCount > 0 ? '#ef4444' : '#fff' }}>
+          <span className={styles.kpiNumber} style={{ color: criticalCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
             {findings.length}
           </span>
           <span className={styles.kpiLabel}>Total Vulnerabilities Recorded</span>
@@ -246,7 +247,7 @@ Please draft:
         </div>
 
         <div className={styles.kpiCard}>
-          <span className={styles.kpiNumber} style={{ color: Number(meanCvss) >= 7.0 ? '#f97316' : '#fff' }}>
+          <span className={styles.kpiNumber} style={{ color: Number(meanCvss) >= 7.0 ? '#f97316' : 'var(--text-primary)' }}>
             {meanCvss}
           </span>
           <span className={styles.kpiLabel}>Mean CVSS v3.1 Severity</span>
@@ -278,7 +279,7 @@ Please draft:
             <h3 className={styles.cardTitle}>
               <ShieldAlert size={16} color="#f97316" /> Findings by Severity
             </h3>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{findings.length} Total</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{findings.length} Total</span>
           </div>
 
           <div className={styles.severityBarRow}>
@@ -336,7 +337,7 @@ Please draft:
 
             <div className={styles.barItem}>
               <div className={styles.barMeta}>
-                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Informational</span>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Informational</span>
                 <span>{infoCount} ({findings.length ? Math.round((infoCount / findings.length) * 100) : 0}%)</span>
               </div>
               <div className={styles.barTrack}>
@@ -355,7 +356,7 @@ Please draft:
             <h3 className={styles.cardTitle}>
               <CheckCircle size={16} color="#10b981" /> Remediation Lifecycle
             </h3>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
               {fixedCount + retestedCount}/{findings.length} Resolved
             </span>
           </div>
@@ -379,7 +380,7 @@ Please draft:
             </div>
           </div>
 
-          <div style={{ fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             {findings.length === 0 ? (
               <span>No findings loaded yet. Ingest scan data or run an API contract audit to start.</span>
             ) : openCount === 0 ? (
@@ -400,7 +401,7 @@ Please draft:
             <h3 className={styles.cardTitle}>
               <Layers size={16} color="#38bdf8" /> Technology Exposure
             </h3>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{Object.keys(techMap).length} Detected</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{Object.keys(techMap).length} Detected</span>
           </div>
 
           {topTechnologies.length === 0 ? (
@@ -425,7 +426,7 @@ Please draft:
             <h3 className={styles.cardTitle}>
               <Terminal size={16} color="#a855f7" /> Assessment Modules
             </h3>
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Quick Access</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Quick Access</span>
           </div>
 
           <div className={styles.navGrid}>

@@ -1,3 +1,4 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { useState, useEffect } from 'react';
 import {
   Sparkles,
@@ -105,16 +106,16 @@ const SIGMA_STORAGE_KEY = 'nexus_security_sigma';
 export default function DetectionStudio({ onSendToAI }: DetectionStudioProps) {
   const [activeTab, setActiveTab] = useState<'yara' | 'sigma' | 'stride'>('yara');
   const [yaraCode, setYaraCode] = useState(() => {
-    return localStorage.getItem(YARA_STORAGE_KEY) || SAMPLE_YARA;
+    return projectLocalStorage.getItem(YARA_STORAGE_KEY) || SAMPLE_YARA;
   });
   const [sigmaCode, setSigmaCode] = useState(() => {
-    return localStorage.getItem(SIGMA_STORAGE_KEY) || SAMPLE_SIGMA;
+    return projectLocalStorage.getItem(SIGMA_STORAGE_KEY) || SAMPLE_SIGMA;
   });
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     try {
-      localStorage.setItem(YARA_STORAGE_KEY, yaraCode);
+      projectLocalStorage.setItem(YARA_STORAGE_KEY, yaraCode);
     } catch (e) {
       console.error(e);
     }
@@ -122,7 +123,7 @@ export default function DetectionStudio({ onSendToAI }: DetectionStudioProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(SIGMA_STORAGE_KEY, sigmaCode);
+      projectLocalStorage.setItem(SIGMA_STORAGE_KEY, sigmaCode);
     } catch (e) {
       console.error(e);
     }

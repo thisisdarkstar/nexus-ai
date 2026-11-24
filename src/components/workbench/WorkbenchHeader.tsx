@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Shield,
   Target,
@@ -9,6 +9,7 @@ import {
   Sun,
   Moon,
   FolderKanban,
+  Trash2,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 import type { Project, SecurityTab } from '../../types';
@@ -19,6 +20,8 @@ interface WorkbenchHeaderProps {
   currentProjectId: string;
   onSelectProject: (id: string) => void;
   onCreateProject: (name: string) => Promise<void>;
+  onDeleteProject: () => void;
+  canDeleteProject: boolean;
   activeTab: SecurityTab;
   onTabChange: (tab: SecurityTab) => void;
   scopeCount: number;
@@ -36,6 +39,8 @@ export default function WorkbenchHeader({
   currentProjectId,
   onSelectProject,
   onCreateProject,
+  onDeleteProject,
+  canDeleteProject,
   activeTab,
   onTabChange,
   scopeCount,
@@ -59,15 +64,28 @@ export default function WorkbenchHeader({
     return opts;
   }, [projects]);
 
-  const handleProjectChange = async (val: string) => {
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const projectNameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (creatingProject) projectNameRef.current?.focus();
+  }, [creatingProject]);
+
+  const handleProjectChange = (val: string) => {
     if (val === '__new_project__') {
-      const name = window.prompt('Enter new engagement or target project name:');
-      if (name && name.trim()) {
-        await onCreateProject(name.trim());
-      }
+      setNewProjectName('');
+      setCreatingProject(true);
     } else {
       onSelectProject(val);
     }
+  };
+
+  const submitNewProject = async () => {
+    const name = newProjectName.trim();
+    if (!name) return;
+    setCreatingProject(false);
+    await onCreateProject(name);
   };
 
   return (
@@ -90,9 +108,20 @@ export default function WorkbenchHeader({
             value={currentProjectId}
             onChange={handleProjectChange}
             options={projectOptions}
-            style={{ minWidth: '170px' }}
+            style={{ minWidth: 'var(--engagement-select-width, 170px)' }}
             ariaLabel="Active Engagement Target"
           />
+          {canDeleteProject && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={onDeleteProject}
+              title="Delete this engagement and all of its data"
+              aria-label="Delete current engagement"
+            >
+              <Trash2 size={13} color="#f87171" />
+            </button>
+          )}
         </div>
 
         <button
@@ -143,7 +172,7 @@ export default function WorkbenchHeader({
         >
           <Sparkles size={13} />
           <span>AI Copilot</span>
-          <span className={styles.kbd} style={{ background: 'rgba(0,0,0,0.2)', color: 'currentColor' }}>
+          <span className={styles.kbd} style={{ background: 'var(--inset-20)', color: 'currentColor' }}>
             Ctrl+J
           </span>
         </button>
@@ -153,6 +182,7 @@ export default function WorkbenchHeader({
           className={styles.iconBtn}
           onClick={onOpenSettings}
           title="System & AI Model Configuration"
+          aria-label="Open settings"
         >
           <SettingsIcon size={15} />
         </button>
@@ -162,10 +192,44 @@ export default function WorkbenchHeader({
           className={styles.iconBtn}
           onClick={onToggleTheme}
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         >
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
       </div>
+
+      {creatingProject && (
+        <div className={styles.modalBackdrop} onMouseDown={() => setCreatingProject(false)}>
+          <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <h3>New Engagement</h3>
+            <p>Give this assessment engagement a recognizable name.</p>
+            <input
+              ref={projectNameRef}
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitNewProject();
+                if (e.key === 'Escape') setCreatingProject(false);
+              }}
+              placeholder="e.g. ACME Corp — Q4 Web App Test"
+              aria-label="Engagement name"
+            />
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btn} onClick={() => setCreatingProject(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.primaryBtn}`}
+                disabled={!newProjectName.trim()}
+                onClick={() => void submitNewProject()}
+              >
+                Create Engagement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

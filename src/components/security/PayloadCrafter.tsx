@@ -1,3 +1,4 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { useState, useMemo, useEffect } from 'react';
 import {
   Terminal,
@@ -23,15 +24,15 @@ const LPORT_STORAGE_KEY = 'nexus_security_lport';
 
 export default function PayloadCrafter({ onSendToAI }: PayloadCrafterProps) {
   const [lhost, setLhost] = useState(() => {
-    return localStorage.getItem(LHOST_STORAGE_KEY) || '10.10.14.x';
+    return projectLocalStorage.getItem(LHOST_STORAGE_KEY) || '10.10.14.x';
   });
   const [lport, setLport] = useState(() => {
-    return localStorage.getItem(LPORT_STORAGE_KEY) || '4444';
+    return projectLocalStorage.getItem(LPORT_STORAGE_KEY) || '4444';
   });
 
   useEffect(() => {
     try {
-      localStorage.setItem(LHOST_STORAGE_KEY, lhost);
+      projectLocalStorage.setItem(LHOST_STORAGE_KEY, lhost);
     } catch (e) {
       console.error(e);
     }
@@ -39,7 +40,7 @@ export default function PayloadCrafter({ onSendToAI }: PayloadCrafterProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(LPORT_STORAGE_KEY, lport);
+      projectLocalStorage.setItem(LPORT_STORAGE_KEY, lport);
     } catch (e) {
       console.error(e);
     }

@@ -46,7 +46,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: color 0.2s;
 }
 
@@ -127,7 +127,7 @@
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: color 0.2s;
 }
 
@@ -149,12 +149,12 @@
   border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cancelBtn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--wa-5);
 }
 
 .attachBtn {
@@ -165,7 +165,7 @@
   border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

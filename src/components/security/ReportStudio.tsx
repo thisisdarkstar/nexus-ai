@@ -1,3 +1,5 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import { useState, useEffect } from 'react';
 import {
   FileText,
@@ -54,7 +56,7 @@ interface ReportStudioProps {
 export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
   const [report, setReport] = useState<VAPTReport>(() => {
     try {
-      const saved = localStorage.getItem(REPORT_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(REPORT_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error('Failed to load report from localStorage:', e);
@@ -64,40 +66,32 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(report));
+      projectLocalStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(report));
     } catch (e) {
       console.error('Failed to save report to localStorage:', e);
     }
   }, [report]);
 
   useEffect(() => {
-    const handleAddFindingEvent = (e: Event) => {
-      const custom = e as CustomEvent<VulnerabilityFinding>;
-      if (custom.detail) {
-        setReport((prev) => {
-          const exists = prev.findings.some(
-            (f) => f.id === custom.detail.id || f.title.toLowerCase() === custom.detail.title.toLowerCase()
-          );
-          if (exists) {
-            return {
-              ...prev,
-              findings: prev.findings.map((f) =>
-                f.id === custom.detail.id || f.title.toLowerCase() === custom.detail.title.toLowerCase()
-                  ? { ...f, ...custom.detail }
-                  : f
-              ),
-            };
-          }
+    return eventBus.subscribe('workbench:add-finding', (finding) => {
+      setReport((prev) => {
+        const exists = prev.findings.some(
+          (f) => f.id === finding.id || f.title.toLowerCase() === finding.title.toLowerCase()
+        );
+        if (exists) {
           return {
             ...prev,
-            findings: [custom.detail, ...prev.findings],
+            findings: prev.findings.map((f) =>
+              f.id === finding.id || f.title.toLowerCase() === finding.title.toLowerCase()
+                ? { ...f, ...finding }
+                : f
+            ),
           };
-        });
-        setSelectedFindingId(custom.detail.id);
-      }
-    };
-    window.addEventListener('nexus:workbench:add-finding', handleAddFindingEvent);
-    return () => window.removeEventListener('nexus:workbench:add-finding', handleAddFindingEvent);
+        }
+        return { ...prev, findings: [finding, ...prev.findings] };
+      });
+      setSelectedFindingId(finding.id);
+    });
   }, []);
 
   const [subTab, setSubTab] = useState<'editor' | 'markdown' | 'bug_bounty' | 'html'>('editor');
@@ -894,7 +888,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
           <div className={styles.copyRow}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <FileText size={14} color="#10b981" />
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f1f5f9' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 Executive VAPT Audit Report
               </span>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>

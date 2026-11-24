@@ -1,3 +1,4 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { db } from '../db';
 import { workbenchBridge } from './workbenchBridge';
 import { storageManager } from '../../core/storage/StorageManager';
@@ -34,7 +35,7 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
 
   let report: VAPTReport | undefined;
   try {
-    const raw = localStorage.getItem('nexus_security_report');
+    const raw = projectLocalStorage.getItem('nexus_security_report');
     if (raw) report = JSON.parse(raw);
   } catch {
     // ignore
@@ -42,7 +43,7 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
 
   let scopeItems: ScopeItem[] | undefined;
   try {
-    const raw = localStorage.getItem('nexus_security_scope');
+    const raw = projectLocalStorage.getItem('nexus_security_scope');
     if (raw) scopeItems = JSON.parse(raw);
   } catch {
     // ignore
@@ -50,7 +51,7 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
 
   let checklistItems: SecurityChecklistItem[] | undefined;
   try {
-    const raw = localStorage.getItem('nexus_security_checklist');
+    const raw = projectLocalStorage.getItem('nexus_security_checklist');
     if (raw) checklistItems = JSON.parse(raw);
   } catch {
     // ignore
@@ -62,7 +63,7 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
     if (idbAssets && idbAssets.length > 0) {
       reconAssets = idbAssets as unknown as ReconAsset[];
     } else {
-      const raw = localStorage.getItem('nexus_security_recon_assets');
+      const raw = projectLocalStorage.getItem('nexus_security_recon_assets');
       if (raw) reconAssets = JSON.parse(raw);
     }
   } catch {
@@ -76,7 +77,7 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
     // ignore
   }
 
-  const httpRequest = localStorage.getItem('nexus_security_http_request') || undefined;
+  const httpRequest = projectLocalStorage.getItem('nexus_security_http_request') || undefined;
 
   const bundle: NexusEngagementBundle = {
     version: '1.0.0',
@@ -142,7 +143,7 @@ export async function importEngagementBundle(file: File): Promise<{
   // 4. Restore Findings / Report
   let findingsCount = 0;
   if (bundle.report) {
-    localStorage.setItem('nexus_security_report', JSON.stringify(bundle.report));
+    projectLocalStorage.setItem('nexus_security_report', JSON.stringify(bundle.report));
     if (bundle.report.findings) {
       findingsCount = bundle.report.findings.length;
       bundle.report.findings.forEach((f) => workbenchBridge.addFinding(f));
@@ -151,7 +152,7 @@ export async function importEngagementBundle(file: File): Promise<{
 
   // 5. Restore Checklist
   if (bundle.checklistItems && Array.isArray(bundle.checklistItems)) {
-    localStorage.setItem('nexus_security_checklist', JSON.stringify(bundle.checklistItems));
+    projectLocalStorage.setItem('nexus_security_checklist', JSON.stringify(bundle.checklistItems));
   }
 
   // 6. Restore HTTP Request

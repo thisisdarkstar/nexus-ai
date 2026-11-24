@@ -1,5 +1,12 @@
 import type { Chat, Project } from '../types';
 
+/** Chat rows carry both keys: workspaceId is the legacy field still used by readers. */
+type PersistedChat = Chat & { projectId?: string };
+
+function withProjectId(chat: Chat | PersistedChat): PersistedChat {
+  return { ...chat, projectId: (chat as PersistedChat).projectId || chat.workspaceId };
+}
+
 export class StorageDB {
   dbName: string;
   dbVersion: number;
@@ -7,7 +14,7 @@ export class StorageDB {
 
   constructor() {
     this.dbName = 'nexus_ai_react_db';
-    this.dbVersion = 3;
+    this.dbVersion = 4;
     this.db = null;
   }
 
@@ -38,6 +45,24 @@ export class StorageDB {
             chatsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
           }
         }
+        if (e.oldVersion < 4) {
+          // The index above was created on a field chats never actually store.
+          // Add the real one, then backfill both fields on existing rows.
+          if (!chatsStore.indexNames.contains('workspaceId')) {
+            chatsStore.createIndex('workspaceId', 'workspaceId', { unique: false });
+          }
+          const cursorRequest = chatsStore.openCursor();
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            const value = cursor.value as PersistedChat;
+            const projectId = value.projectId || value.workspaceId;
+            if (projectId && (value.projectId !== projectId || !value.workspaceId)) {
+              cursor.update({ ...value, workspaceId: value.workspaceId || projectId, projectId });
+            }
+            cursor.continue();
+          };
+        }
       };
     });
   }
@@ -51,7 +76,7 @@ export class StorageDB {
     return new Promise((resolve, reject) => {
       const tx = this.assertDb().transaction('chats', 'readwrite');
       const store = tx.objectStore('chats');
-      const req = store.put(chat);
+      const req = store.put(withProjectId(chat));
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
@@ -137,8 +162,7 @@ export class StorageDB {
   async exportAll(): Promise<string> {
     const chats = await this.getChats();
     const projects = await this.getProjects();
-    const safeChats = chats.map(({ systemPrompt, ...rest }) => rest);
-    return JSON.stringify({ chats: safeChats, projects }, null, 2);
+    return JSON.stringify({ version: 1, exportedAt: Date.now(), chats, projects }, null, 2);
   }
 
   async importData(jsonData: string): Promise<void> {
@@ -149,7 +173,7 @@ export class StorageDB {
 
       if (!Array.isArray(chats)) throw new Error('Invalid format');
 
-      for (const chat of chats) {
+      for (const chat of chats as PersistedChat[]) {
         if (
           chat.id &&
           typeof chat.id === 'string' &&
@@ -157,9 +181,15 @@ export class StorageDB {
           Array.isArray(chat.messages) &&
           typeof chat.title === 'string'
         ) {
-          const sanitized: Chat = {
+          const workspaceId =
+            typeof chat.workspaceId === 'string'
+              ? chat.workspaceId
+              : typeof chat.projectId === 'string'
+                ? chat.projectId
+                : 'default';
+          const sanitized = withProjectId({
             id: chat.id,
-            workspaceId: typeof chat.workspaceId === 'string' ? chat.workspaceId : 'default',
+            workspaceId,
             title: chat.title.replace(/<[^>]*>/g, '').slice(0, 200),
             messages: chat.messages
               .filter((m) => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'ai'))
@@ -169,7 +199,12 @@ export class StorageDB {
               })),
             createdAt: typeof chat.createdAt === 'number' ? chat.createdAt : Date.now(),
             updatedAt: typeof chat.updatedAt === 'number' ? chat.updatedAt : Date.now(),
-          };
+            systemPrompt: typeof chat.systemPrompt === 'string' ? chat.systemPrompt.slice(0, 20000) : '',
+            tags: Array.isArray(chat.tags) ? chat.tags.filter((t: unknown) => typeof t === 'string') : [],
+            pinned: chat.pinned === true,
+            provider: typeof chat.provider === 'string' ? chat.provider : undefined,
+            model: typeof chat.model === 'string' ? chat.model : undefined,
+          });
           await this.saveChat(sanitized);
         }
       }

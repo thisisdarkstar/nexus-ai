@@ -1,3 +1,5 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import { useState, useMemo, useEffect } from 'react';
 import {
   FileCode,
@@ -31,54 +33,65 @@ interface NucleiStudioProps {
   onSendToAI: (prompt: string) => void;
 }
 
+interface NucleiPreset {
+  templateId?: string;
+  name?: string;
+  path?: string;
+  severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  tags?: string;
+  description?: string;
+  method?: string;
+  matcherWords?: string;
+}
+
+const NUCLEI_PRESET_KEY = 'nexus_security_nuclei_preset';
+
+function loadNucleiPreset(): NucleiPreset {
+  try {
+    const saved = projectLocalStorage.getItem(NUCLEI_PRESET_KEY);
+    return saved ? (JSON.parse(saved) as NucleiPreset) : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function NucleiStudio({ onSendToAI }: NucleiStudioProps) {
-  const [templateId, setTemplateId] = useState('custom-auth-bypass-check');
-  const [name, setName] = useState('Unauthorized Administrative Endpoint Exposure');
+  // A preset may be published before this lazily mounted module exists, so read the persisted copy on mount.
+  const preset = useMemo(loadNucleiPreset, []);
+  const [templateId, setTemplateId] = useState(preset.templateId || 'custom-auth-bypass-check');
+  const [name, setName] = useState(preset.name || 'Unauthorized Administrative Endpoint Exposure');
   const [author, setAuthor] = useState('nexus-security');
-  const [severity, setSeverity] = useState<'critical' | 'high' | 'medium' | 'low' | 'info'>('high');
-  const [tags, setTags] = useState('cve,exposure,auth-bypass,admin');
+  const [severity, setSeverity] = useState<'critical' | 'high' | 'medium' | 'low' | 'info'>(preset.severity || 'high');
+  const [tags, setTags] = useState(preset.tags || 'cve,exposure,auth-bypass,admin');
   const [description, setDescription] = useState(
-    'Detects unauthenticated access to internal administration dashboard and configuration endpoints.'
+    preset.description ||
+      'Detects unauthenticated access to internal administration dashboard and configuration endpoints.'
   );
 
-  const [method, setMethod] = useState('GET');
-  const [path, setPath] = useState('{{BaseURL}}/admin/config/settings');
+  const [method, setMethod] = useState(preset.method || 'GET');
+  const [path, setPath] = useState(preset.path || '{{BaseURL}}/admin/config/settings');
   const [headers, setHeaders] = useState('X-Requested-With: XMLHttpRequest\nAccept: application/json');
   const [body, setBody] = useState('');
 
   const [matcherStatus, setMatcherStatus] = useState('200');
-  const [matcherWords, setMatcherWords] = useState('"admin_dashboard", "database_host", "private_key"');
+  const [matcherWords, setMatcherWords] = useState(
+    preset.matcherWords || '"admin_dashboard", "database_host", "private_key"'
+  );
   const [matcherCondition, setMatcherCondition] = useState<'and' | 'or'>('or');
 
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const handleLoadNuclei = (e: Event) => {
-      const custom = e as CustomEvent<{
-        templateId?: string;
-        name?: string;
-        path?: string;
-        severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
-        tags?: string;
-        description?: string;
-        method?: string;
-        matcherWords?: string;
-      }>;
-      const d = custom.detail;
-      if (d) {
-        if (d.templateId) setTemplateId(d.templateId);
-        if (d.name) setName(d.name);
-        if (d.path) setPath(d.path);
-        if (d.severity) setSeverity(d.severity);
-        if (d.tags) setTags(d.tags);
-        if (d.description) setDescription(d.description);
-        if (d.method) setMethod(d.method);
-        if (d.matcherWords) setMatcherWords(d.matcherWords);
-      }
-    };
-
-    window.addEventListener('nexus:workbench:load-nuclei', handleLoadNuclei);
-    return () => window.removeEventListener('nexus:workbench:load-nuclei', handleLoadNuclei);
+    return eventBus.subscribe('workbench:load-nuclei', (d) => {
+      if (d.templateId) setTemplateId(d.templateId);
+      if (d.name) setName(d.name);
+      if (d.path) setPath(d.path);
+      if (d.severity) setSeverity(d.severity);
+      if (d.tags) setTags(d.tags);
+      if (d.description) setDescription(d.description);
+      if (d.method) setMethod(d.method);
+      if (d.matcherWords) setMatcherWords(d.matcherWords);
+    });
   }, []);
 
   const yamlContent = useMemo(() => {

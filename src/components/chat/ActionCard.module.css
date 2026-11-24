@@ -1,6 +1,6 @@
 .card {
   margin: 0.75rem 0;
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--sd-75);
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 8px;
   padding: 0.85rem;
@@ -24,7 +24,7 @@
   gap: 0.45rem;
   font-weight: 600;
   font-size: 0.9rem;
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .badges {
@@ -67,7 +67,7 @@
 
 .info {
   background: rgba(148, 163, 184, 0.2);
-  color: #cbd5e1;
+  color: var(--text-primary);
   border: 1px solid rgba(148, 163, 184, 0.4);
 }
 

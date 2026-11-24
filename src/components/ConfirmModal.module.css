@@ -4,7 +4,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(2, 6, 23, 0.75);
+  background: var(--scrim);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
@@ -22,18 +22,18 @@
 }
 
 .modal {
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--sd-95);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   width: 100%;
   max-width: 440px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--wa-12);
   padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 1px var(--wa-20);
   animation: scaleUp 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -91,7 +91,7 @@
   padding: 8px 16px;
   background: transparent;
   color: var(--text-secondary, #94a3b8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--wa-10);
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.82rem;
@@ -100,8 +100,8 @@
 }
 
 .cancelBtn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #f8fafc;
+  background: var(--wa-6);
+  color: var(--text-primary);
 }
 
 .confirmBtn {

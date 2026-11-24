@@ -1,0 +1,43 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.mobileCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.mobileScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  border: 0;
+  background: rgba(2, 6, 23, 0.5);
+  backdrop-filter: blur(1px);
+  cursor: default;
+}
+
+.mobileDrawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  height: calc(min(68dvh, 560px) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+  border-top: 1px solid var(--wa-8);
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}

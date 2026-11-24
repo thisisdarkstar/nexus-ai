@@ -5,8 +5,8 @@
 
 .trigger {
   height: 30px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--wa-4);
+  border: 1px solid var(--wa-12);
   color: var(--accent-color, #10b981);
   border-radius: 15px;
   padding: 0 10px;
@@ -39,7 +39,7 @@
 }
 
 .triggerDisabled:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--wa-4);
 }
 
 .chevron {
@@ -68,12 +68,12 @@
   margin-bottom: 10px;
   width: 290px;
   max-width: calc(100vw - 32px);
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--sd-98);
+  border: 1px solid var(--wa-15);
   border-radius: 14px;
   padding: 8px;
   z-index: 10000;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 1px var(--wa-20);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   max-height: 320px;
@@ -126,7 +126,7 @@
   gap: 10px;
   font-size: 0.9rem;
   transition: all 0.2s;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
 }
 
 .option:hover {
@@ -136,7 +136,7 @@
 
 .optionActive {
   background: rgba(16, 185, 129, 0.2);
-  color: #fff;
+  color: #10b981;
 }
 
 .optionActive:hover {

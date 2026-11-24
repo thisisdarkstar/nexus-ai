@@ -19,6 +19,7 @@ import {
   type PipelineStep,
   type PipelineExecutionContext,
 } from '../../domain/workflow/PipelineRunner';
+import { getActiveProjectId } from '../../core/storage/projectStorage';
 import { storageManager } from '../../core/storage/StorageManager';
 import CustomSelect from '../common/CustomSelect';
 import type { ReconAsset, ScopeItem } from '../../types';
@@ -70,7 +71,7 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
       let scopeRules: ScopeItem[] = [];
 
       try {
-        const storedAssets = await storageManager.getAssets('default');
+        const storedAssets = await storageManager.getAssets(getActiveProjectId());
         if (storedAssets && storedAssets.length > 0) {
           assets = storedAssets.map((a) => ({
             id: a.id,
@@ -111,7 +112,7 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
           ];
         }
 
-        const storedScope = await storageManager.getScope('default');
+        const storedScope = await storageManager.getScope(getActiveProjectId());
         if (storedScope && storedScope.length > 0) {
           scopeRules = storedScope;
         } else {
@@ -139,7 +140,7 @@ export default function WorkflowStudio({ onSendToAI }: WorkflowStudioProps) {
       const newRunner = new PipelineRunner(
         preset,
         {
-          projectId: 'default',
+          projectId: getActiveProjectId(),
           assets,
           scopeRules,
         },

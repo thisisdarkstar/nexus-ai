@@ -1,3 +1,5 @@
+import { projectLocalStorage } from '../../core/storage/projectStorage';
+import { eventBus } from '../../core/bus/EventBus';
 import { useState, useEffect } from 'react';
 import { Target, Plus, Trash2, Globe, Sparkles, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
@@ -34,7 +36,7 @@ interface ScopeManagerProps {
 export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
   const [scopeItems, setScopeItems] = useState<ScopeItem[]>(() => {
     try {
-      const saved = localStorage.getItem(SCOPE_STORAGE_KEY);
+      const saved = projectLocalStorage.getItem(SCOPE_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error('Failed to load scope from localStorage:', e);
@@ -62,32 +64,27 @@ export default function ScopeManager({ onSendToAI }: ScopeManagerProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopeItems));
+      projectLocalStorage.setItem(SCOPE_STORAGE_KEY, JSON.stringify(scopeItems));
     } catch (e) {
       console.error('Failed to save scope to localStorage:', e);
     }
   }, [scopeItems]);
 
   useEffect(() => {
-    const handleAddScopeEvent = (e: Event) => {
-      const custom = e as CustomEvent<ScopeItem[]>;
-      if (custom.detail && Array.isArray(custom.detail)) {
-        setScopeItems((prev) => {
-          const updated = [...prev];
-          custom.detail.forEach((item) => {
-            const idx = updated.findIndex((s) => s.target.toLowerCase() === item.target.toLowerCase());
-            if (idx >= 0) {
-              updated[idx] = { ...updated[idx], ...item };
-            } else {
-              updated.push(item);
-            }
-          });
-          return updated;
+    return eventBus.subscribe('workbench:add-scope', (items) => {
+      setScopeItems((prev) => {
+        const updated = [...prev];
+        items.forEach((item) => {
+          const idx = updated.findIndex((s) => s.target.toLowerCase() === item.target.toLowerCase());
+          if (idx >= 0) {
+            updated[idx] = { ...updated[idx], ...item };
+          } else {
+            updated.push(item);
+          }
         });
-      }
-    };
-    window.addEventListener('nexus:workbench:add-scope', handleAddScopeEvent);
-    return () => window.removeEventListener('nexus:workbench:add-scope', handleAddScopeEvent);
+        return updated;
+      });
+    });
   }, []);
 
   const handleAdd = () => {

@@ -23,7 +23,7 @@
 .progressStrip {
   width: 100%;
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--wa-8);
   border-radius: 9999px;
   overflow: hidden;
 }
@@ -49,8 +49,8 @@
   font-size: 0.74rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--wa-10);
+  background: var(--wa-3);
   color: var(--text-secondary, #94a3b8);
   transition: all 0.2s;
   white-space: nowrap;
@@ -58,7 +58,7 @@
 
 .filterBtn:hover {
   color: var(--text-primary, #f8fafc);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--wa-8);
 }
 
 .activeFilter {
@@ -76,8 +76,8 @@
 }
 
 .checkCard {
-  background: var(--card-glass, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.08));
+  background: var(--card-glass, var(--wa-3));
+  border: 1px solid var(--card-border, var(--wa-8));
   border-radius: 8px;
   padding: 0.75rem 0.85rem;
   display: flex;
@@ -87,7 +87,7 @@
 }
 
 .checkCard:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--wa-15);
 }
 
 .cardFail {
@@ -124,10 +124,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--inset-30);
   padding: 2px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--wa-5);
 }
 
 .statusBtn {
@@ -161,7 +161,7 @@
 
 .naActive {
   background: rgba(148, 163, 184, 0.2) !important;
-  color: #94a3b8 !important;
+  color: var(--text-secondary) !important;
   border-color: rgba(148, 163, 184, 0.4) !important;
 }
 
@@ -175,8 +175,8 @@
   font-size: 0.76rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--wa-10);
+  background: var(--wa-5);
   color: var(--text-primary, #f8fafc);
   transition: all 0.2s;
   line-height: 1;
@@ -190,7 +190,7 @@
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--wa-10);
 }
 
 .btnPrimary {
