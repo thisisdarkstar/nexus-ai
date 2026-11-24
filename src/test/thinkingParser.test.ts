@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { extractThinkingAndContent } from '../lib/thinkingParser';
+import { extractThinkingAndContent, formatThinkingDuration } from '../lib/thinkingParser';
+
+describe('formatThinkingDuration', () => {
+  it('formats sub-minute durations with one decimal place and minutes cleanly', () => {
+    expect(formatThinkingDuration(0)).toBe('0.0s');
+    expect(formatThinkingDuration(4.26)).toBe('4.3s');
+    expect(formatThinkingDuration('12.4')).toBe('12.4s');
+    expect(formatThinkingDuration(74)).toBe('1m 14s');
+    expect(formatThinkingDuration(-1)).toBe('0.0s');
+  });
+});
 
 describe('extractThinkingAndContent', () => {
   it('parses complete <think>...</think> tags cleanly', () => {

@@ -25,9 +25,55 @@ import { renderMarkdown } from '../../lib/markdown';
 import { escapeHtml } from '../../lib/sanitize';
 import ActionCard, { type ActionCardData } from './ActionCard';
 import ThinkingBlock from './ThinkingBlock';
-import { extractThinkingAndContent } from '../../lib/thinkingParser';
+import { extractThinkingAndContent, formatThinkingDuration } from '../../lib/thinkingParser';
 import type { Message, Settings, AvailableModel, CitationSource } from '../../types';
 import styles from './MessageItem.module.css';
+
+function LiveThinkingStatus({ startedAt }: { startedAt?: number }) {
+  const startRef = useRef<number>(startedAt ?? Date.now());
+  const [elapsed, setElapsed] = useState<number>(() =>
+    startedAt ? Math.max(0, (Date.now() - startedAt) / 1000) : 0
+  );
+
+  useEffect(() => {
+    if (startedAt) startRef.current = startedAt;
+  }, [startedAt]);
+
+  useEffect(() => {
+    const tick = () => setElapsed(Math.max(0, (Date.now() - startRef.current) / 1000));
+    tick();
+    const timer = setInterval(tick, 100);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+
+  return (
+    <span
+      style={{
+        opacity: 0.85,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.45rem',
+      }}
+    >
+      <Sparkles size={13} color="var(--accent-color, #10b981)" />
+      <span>Thinking...</span>
+      <span
+        style={{
+          fontFamily: 'Consolas, monospace',
+          fontVariantNumeric: 'tabular-nums',
+          fontSize: '0.78em',
+          color: '#34d399',
+          background: 'rgba(16, 185, 129, 0.14)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '10px',
+          padding: '1px 7px',
+        }}
+      >
+        {formatThinkingDuration(elapsed)}
+      </span>
+    </span>
+  );
+}
 
 function extractActionCards(content: string): ActionCardData[] {
   if (!content) return [];
@@ -281,17 +327,7 @@ export default memo(function MessageItem({
           <pre className={`message-body ${styles.rawContent}`}>{msg.content}</pre>
         ) : isThinking ? (
           <div className="message-body">
-            <span
-              style={{
-                opacity: 0.75,
-                animation: 'pulse 2s infinite',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-              }}
-            >
-              <Sparkles size={13} color="var(--accent-color, #10b981)" /> Thinking...
-            </span>
+            <LiveThinkingStatus startedAt={msg.thinkingStartedAt} />
           </div>
         ) : (
           <div ref={bodyRef} className="message-body">
@@ -303,11 +339,15 @@ export default memo(function MessageItem({
                   <ThinkingBlock
                     thinking={parsed.thinking}
                     isActive={Boolean(parsed.isThinkingActive && isGenerating && isLatest)}
+                    startedAt={msg.thinkingStartedAt}
+                    duration={msg.thinkingTime}
                   />
                 )}
                 {parsed.content ? (
                   <div dangerouslySetInnerHTML={{ __html: renderMarkdown(parsed.content) }} />
-                ) : parsed.isThinkingActive ? null : (
+                ) : parsed.isThinkingActive ? (
+                  !parsed.thinking ? <LiveThinkingStatus startedAt={msg.thinkingStartedAt} /> : null
+                ) : (
                   <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
                 )}
                 {isCancelled && (

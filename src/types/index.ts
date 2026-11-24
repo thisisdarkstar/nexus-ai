@@ -54,6 +54,8 @@ export interface Message {
   error?: boolean;
   cancelled?: boolean;
   generationTime?: string;
+  thinkingTime?: string;
+  thinkingStartedAt?: number;
   tokens?: number;
   createdAt?: number;
   branches?: Message[];

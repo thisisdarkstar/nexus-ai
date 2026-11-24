@@ -25,6 +25,28 @@ interface UseChatEngineParams {
   onModelChange: (provider: string, model: string) => void;
 }
 
+/**
+ * Tracks elapsed reasoning time from request start until the first closing
+ * thinking tag (`</think>`, `</thought>`, or `</reasoning>`) arrives.
+ */
+function createThinkingTracker(startTime: number) {
+  let thinkingTime: string | undefined;
+  return {
+    onDelta(accumulated: string): string | undefined {
+      if (thinkingTime === undefined && /<\/(think|thought|reasoning)>/i.test(accumulated)) {
+        thinkingTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      }
+      return thinkingTime;
+    },
+    finalize(accumulated: string): string | undefined {
+      if (thinkingTime === undefined && /<(think|thought|reasoning)>/i.test(accumulated)) {
+        thinkingTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      }
+      return thinkingTime;
+    },
+  };
+}
+
 export function useChatEngine({
   currentChatId,
   setCurrentChatId,
@@ -213,6 +235,7 @@ export function useChatEngine({
     stopRef.current = false;
     abortRef.current = new AbortController();
     const startTime = Date.now();
+    const thinkingTracker = createThinkingTracker(startTime);
 
     const existingBranches = oldMsg.branches || [];
     const branchIndex = existingBranches.length;
@@ -220,6 +243,8 @@ export function useChatEngine({
     const placeholderAi: Message = {
       role: 'ai',
       content: '',
+      thinkingStartedAt: startTime,
+      thinkingTime: undefined,
       branches: [...existingBranches, newBranch],
       branchIndex: branchIndex + 1,
       citations: retrievedCitations.length > 0 ? retrievedCitations : undefined,
@@ -235,7 +260,7 @@ export function useChatEngine({
         id: currentChatId,
         workspaceId: currentProjectId || 'default',
         title,
-        messages: [...history, { ...placeholderAi, content: accumulated }],
+        messages: [...history, { ...placeholderAi, thinkingStartedAt: undefined, thinkingTime: thinkingTracker.finalize(accumulated), content: accumulated }],
         systemPrompt: chatSystemPrompt,
         provider: settings.provider,
         model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
@@ -255,11 +280,16 @@ export function useChatEngine({
       for await (const delta of stream) {
         if (stopRef.current) break;
         accumulated += delta;
+        const recordedThinkingTime = thinkingTracker.onDelta(accumulated);
         setMessages((prev) => {
           const newMsgs = [...prev];
           const last = newMsgs[newMsgs.length - 1];
           if (last) {
-            newMsgs[newMsgs.length - 1] = { ...last, content: accumulated };
+            newMsgs[newMsgs.length - 1] = {
+              ...last,
+              content: accumulated,
+              ...(recordedThinkingTime ? { thinkingTime: recordedThinkingTime } : {}),
+            };
           }
           return newMsgs;
         });
@@ -270,7 +300,7 @@ export function useChatEngine({
               id: currentChatId,
               workspaceId: currentProjectId || 'default',
               title,
-              messages: [...history, { ...placeholderAi, content: accumulated }],
+              messages: [...history, { ...placeholderAi, thinkingStartedAt: undefined, thinkingTime: thinkingTracker.finalize(accumulated), content: accumulated }],
               systemPrompt: chatSystemPrompt,
               provider: settings.provider,
               model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
@@ -301,11 +331,14 @@ export function useChatEngine({
         }
       }
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const finalThinkingTime = thinkingTracker.finalize(accumulated);
       const wasCancelled = stopRef.current || !!abortRef.current?.signal.aborted;
       const finalMessages: Message[] = [
         ...history,
         {
           ...placeholderAi,
+          thinkingStartedAt: undefined,
+          thinkingTime: finalThinkingTime,
           content: accumulated,
           cancelled: wasCancelled,
           error: !wasCancelled && !accumulated,
@@ -407,7 +440,17 @@ export function useChatEngine({
       history.length === 1 ? text.substring(0, 30) + (text.length > 30 ? '...' : '') : title;
     if (history.length === 1) setTitle(chatTitle);
 
-    setMessages([...history, { role: 'ai', content: '', citations: retrievedCitations.length > 0 ? retrievedCitations : undefined }]);
+    const thinkingTracker = createThinkingTracker(startTime);
+
+    setMessages([
+      ...history,
+      {
+        role: 'ai',
+        content: '',
+        thinkingStartedAt: startTime,
+        citations: retrievedCitations.length > 0 ? retrievedCitations : undefined,
+      },
+    ]);
 
     let accumulated = '';
     let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -418,7 +461,7 @@ export function useChatEngine({
         id: sessionChatId!,
         workspaceId: currentProjectId || 'default',
         title: chatTitle,
-        messages: [...history, { role: 'ai', content: accumulated, citations: retrievedCitations.length > 0 ? retrievedCitations : undefined }],
+        messages: [...history, { role: 'ai', content: accumulated, thinkingTime: thinkingTracker.finalize(accumulated), citations: retrievedCitations.length > 0 ? retrievedCitations : undefined }],
         systemPrompt: chatSystemPrompt,
         provider: settings.provider,
         model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
@@ -438,9 +481,14 @@ export function useChatEngine({
       for await (const delta of stream) {
         if (stopRef.current) break;
         accumulated += delta;
+        const recordedThinkingTime = thinkingTracker.onDelta(accumulated);
         setMessages((prev) => {
           const newMsgs = [...prev];
-          newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], content: accumulated };
+          newMsgs[newMsgs.length - 1] = {
+            ...newMsgs[newMsgs.length - 1],
+            content: accumulated,
+            ...(recordedThinkingTime ? { thinkingTime: recordedThinkingTime } : {}),
+          };
           return newMsgs;
         });
         clearTimeout(autosaveTimer);
@@ -450,7 +498,7 @@ export function useChatEngine({
               id: sessionChatId!,
               workspaceId: currentProjectId || 'default',
               title: chatTitle,
-              messages: [...history, { role: 'ai', content: accumulated }],
+              messages: [...history, { role: 'ai', content: accumulated, thinkingTime: thinkingTracker.finalize(accumulated) }],
               systemPrompt: chatSystemPrompt,
               provider: settings.provider,
               model: settings.provider === 'openai' ? settings.openaiModel : 'Gemini Nano',
@@ -472,6 +520,7 @@ export function useChatEngine({
       clearTimeout(autosaveTimer);
       flushPendingRef.current = null;
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const finalThinkingTime = thinkingTracker.finalize(accumulated);
       const wasCancelled = stopRef.current || !!abortRef.current?.signal.aborted;
       const finalMessages: Message[] = [
         ...history,
@@ -481,6 +530,7 @@ export function useChatEngine({
           cancelled: wasCancelled,
           error: !wasCancelled && !accumulated,
           generationTime: duration,
+          thinkingTime: finalThinkingTime,
           tokens: estimateTokens(accumulated),
           createdAt: Date.now(),
           citations: retrievedCitations.length > 0 ? retrievedCitations : undefined,

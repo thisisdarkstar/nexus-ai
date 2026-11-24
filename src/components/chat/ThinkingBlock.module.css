@@ -23,27 +23,40 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.45rem 0.75rem;
   background: var(--wa-2);
-  cursor: pointer;
-  user-select: none;
   font-size: 0.76rem;
   transition: background 0.15s ease;
-  border: none;
   width: 100%;
-  text-align: left;
-  outline: none;
-  font-family: inherit;
-  color: inherit;
+  gap: 0.25rem;
 }
 
 .header:hover {
   background: var(--wa-6);
 }
 
-.header:focus-visible {
+.headerToggleBtn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.25rem 0.45rem 0.75rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.headerToggleBtn:focus-visible {
   outline: 2px solid rgba(16, 185, 129, 0.5);
   outline-offset: -2px;
+  border-radius: 6px;
 }
 
 .headerLeft {
@@ -74,6 +87,18 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+.timerBadge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: 'Consolas', monospace;
+  font-variant-numeric: tabular-nums;
+  padding: 0.08rem 0.45rem;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
 .badge {
   font-size: 0.65rem;
   font-weight: 500;
@@ -87,9 +112,10 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  padding-right: 0.55rem;
   color: var(--text-muted, #64748b);
   font-size: 0.72rem;
+  flex-shrink: 0;
 }
 
 .copyBtn {

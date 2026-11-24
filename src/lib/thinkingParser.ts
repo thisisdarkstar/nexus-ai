@@ -5,6 +5,19 @@ export interface ParsedThinkingMessage {
 }
 
 /**
+ * Formats an elapsed thinking duration in seconds into a compact human label
+ * (`0.0s`..`59.9s` below a minute, `1m 14s` for longer reasoning phases).
+ */
+export function formatThinkingDuration(value: number | string): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (!Number.isFinite(num) || num < 0) return '0.0s';
+  if (num < 60) return `${num.toFixed(1)}s`;
+  const mins = Math.floor(num / 60);
+  const secs = Math.round(num % 60);
+  return secs === 60 ? `${mins + 1}m 0s` : `${mins}m ${secs}s`;
+}
+
+/**
  * Extracts internal model reasoning/thinking tokens from raw message text.
  * Handles:
  *  1. Closed tags: <think>...</think>, <thought>...</thought>, <reasoning>...</reasoning>
