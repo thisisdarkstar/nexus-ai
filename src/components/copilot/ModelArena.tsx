@@ -34,6 +34,8 @@ const ARENA_PROMPTS = [
   'Create a Python script using scapy to fuzz HTTP headers for null-byte injection.',
 ];
 
+const ARENA_MODELS_KEY = 'nexus_arena_models_v1';
+
 export default function ModelArena({
   availableModels,
   currentModel,
@@ -41,11 +43,34 @@ export default function ModelArena({
   onAdoptResponse,
   onSendToSandbox,
 }: ModelArenaProps) {
-  const [modelA, setModelA] = useState<string>(() => currentModel || availableModels[0]?.id || '');
+  const [savedModels] = useState<{ modelA?: string; modelB?: string }>(() => {
+    try {
+      const raw = localStorage.getItem(ARENA_MODELS_KEY);
+      if (raw) return JSON.parse(raw) as { modelA?: string; modelB?: string };
+    } catch {
+      // ignore storage errors
+    }
+    return {};
+  });
+
+  const [modelA, setModelA] = useState<string>(
+    () => savedModels.modelA || currentModel || availableModels[0]?.id || ''
+  );
   const [modelB, setModelB] = useState<string>(() => {
+    if (savedModels.modelB) return savedModels.modelB;
     const other = availableModels.find((m) => m.id !== currentModel);
     return other ? other.id : availableModels[0]?.id || '';
   });
+
+  useEffect(() => {
+    try {
+      if (modelA || modelB) {
+        localStorage.setItem(ARENA_MODELS_KEY, JSON.stringify({ modelA, modelB }));
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [modelA, modelB]);
 
   const [prompt, setPrompt] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);

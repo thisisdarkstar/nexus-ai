@@ -17,6 +17,12 @@ export interface NexusEngagementBundle {
   httpRequest?: string;
   reconAssets?: ReconAsset[];
   evidence?: any[];
+  notemap?: unknown;
+  apiStudio?: unknown;
+  codeAuditor?: unknown;
+  sandbox?: unknown;
+  knowledgeBase?: unknown;
+  vaultDocs?: unknown[];
 }
 
 /**
@@ -79,6 +85,15 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
 
   const httpRequest = projectLocalStorage.getItem('nexus_security_http_request') || undefined;
 
+  const readJson = (key: string) => {
+    try {
+      const raw = projectLocalStorage.getItem(key);
+      return raw ? JSON.parse(raw) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const bundle: NexusEngagementBundle = {
     version: '1.0.0',
     exportedAt: Date.now(),
@@ -90,6 +105,12 @@ export async function exportEngagementBundle(currentProjectId: string = 'default
     httpRequest,
     reconAssets,
     evidence,
+    notemap: readJson('nexus_security_notemap_v1'),
+    apiStudio: readJson('nexus_security_api_studio_v1'),
+    codeAuditor: readJson('nexus_security_code_auditor_v1'),
+    sandbox: readJson('nexus_security_sandbox_v1'),
+    knowledgeBase: readJson('nexus_security_kb_v1'),
+    vaultDocs: readJson('nexus_copilot_vault_docs_v1'),
   };
 
   const json = JSON.stringify(bundle, null, 2);
@@ -159,6 +180,19 @@ export async function importEngagementBundle(file: File): Promise<{
   if (bundle.httpRequest) {
     workbenchBridge.loadHttp(bundle.httpRequest);
   }
+
+  // 7. Restore extended engagement modules & notes/vault
+  const restoreJson = (key: string, value: unknown) => {
+    if (value !== undefined) {
+      projectLocalStorage.setItem(key, JSON.stringify(value));
+    }
+  };
+  restoreJson('nexus_security_notemap_v1', bundle.notemap);
+  restoreJson('nexus_security_api_studio_v1', bundle.apiStudio);
+  restoreJson('nexus_security_code_auditor_v1', bundle.codeAuditor);
+  restoreJson('nexus_security_sandbox_v1', bundle.sandbox);
+  restoreJson('nexus_security_kb_v1', bundle.knowledgeBase);
+  restoreJson('nexus_copilot_vault_docs_v1', bundle.vaultDocs);
 
   // 7. Restore Recon Assets (Fixing Line 48 Data Loss liability)
   if (bundle.reconAssets && Array.isArray(bundle.reconAssets)) {

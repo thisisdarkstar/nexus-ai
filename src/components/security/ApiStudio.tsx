@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   FileCode,
   ShieldAlert,
@@ -15,6 +15,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { OpenApiParser, type ApiAuditResult, type ApiEndpoint, type HttpMethod, type ApiRiskLevel } from '../../domain/api/OpenApiParser';
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { eventBus } from '../../core/bus/EventBus';
 import { useToast } from '../../lib/toast';
 import CustomSelect from '../common/CustomSelect';
@@ -190,28 +191,70 @@ const SAMPLE_VULNERABLE_BANK_SPEC = JSON.stringify(
   2
 );
 
+const API_STUDIO_STORAGE_KEY = 'nexus_security_api_studio_v1';
+
+interface SavedApiStudioState {
+  specInput?: string;
+  filterMethod?: string;
+  filterRisk?: string;
+  filterAuth?: string;
+  searchQuery?: string;
+  selectedEndpointId?: string | null;
+}
+
+function loadSavedApiStudioState(): SavedApiStudioState {
+  try {
+    const raw = projectLocalStorage.getItem(API_STUDIO_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as SavedApiStudioState;
+  } catch {
+    // ignore storage parse failure
+  }
+  return {};
+}
+
 export default function ApiStudio({ onSendToAI }: ApiStudioProps) {
   const { toast } = useToast();
-  const [specInput, setSpecInput] = useState<string>(SAMPLE_VULNERABLE_BANK_SPEC);
+  const [savedState] = useState<SavedApiStudioState>(() => loadSavedApiStudioState());
+  const [specInput, setSpecInput] = useState<string>(
+    savedState.specInput || SAMPLE_VULNERABLE_BANK_SPEC
+  );
   const [showSpecEditor, setShowSpecEditor] = useState<boolean>(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
   const [auditResult, setAuditResult] = useState<ApiAuditResult>(() => {
     try {
-      return OpenApiParser.parse(SAMPLE_VULNERABLE_BANK_SPEC);
+      return OpenApiParser.parse(savedState.specInput || SAMPLE_VULNERABLE_BANK_SPEC);
     } catch {
       return OpenApiParser.parse('{"openapi":"3.0.0","info":{"title":"Fallback","version":"1.0"},"paths":{}}');
     }
   });
 
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(
-    auditResult.endpoints[0]?.id || null
+    savedState.selectedEndpointId || auditResult.endpoints[0]?.id || null
   );
 
-  const [filterMethod, setFilterMethod] = useState<string>('ALL');
-  const [filterRisk, setFilterRisk] = useState<string>('ALL');
-  const [filterAuth, setFilterAuth] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterMethod, setFilterMethod] = useState<string>(savedState.filterMethod || 'ALL');
+  const [filterRisk, setFilterRisk] = useState<string>(savedState.filterRisk || 'ALL');
+  const [filterAuth, setFilterAuth] = useState<string>(savedState.filterAuth || 'ALL');
+  const [searchQuery, setSearchQuery] = useState<string>(savedState.searchQuery || '');
+
+  useEffect(() => {
+    try {
+      projectLocalStorage.setItem(
+        API_STUDIO_STORAGE_KEY,
+        JSON.stringify({
+          specInput,
+          filterMethod,
+          filterRisk,
+          filterAuth,
+          searchQuery,
+          selectedEndpointId,
+        })
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [specInput, filterMethod, filterRisk, filterAuth, searchQuery, selectedEndpointId]);
 
   const handleParseSpec = (content: string) => {
     try {

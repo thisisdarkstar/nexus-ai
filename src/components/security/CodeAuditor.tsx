@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { scanSourceCode } from '../../lib/security/sastScanner';
 import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import type { VulnerabilityFinding } from '../../types';
@@ -134,18 +135,53 @@ app.get('/fetch-url', async (req, res) => {
   },
 ];
 
+const CODE_AUDITOR_STORAGE_KEY = 'nexus_security_code_auditor_v1';
+
+interface SavedCodeAuditorState {
+  code?: string;
+  language?: string;
+  selectedSample?: string;
+  findings?: VulnerabilityFinding[];
+}
+
+function loadSavedCodeAuditor(): SavedCodeAuditorState {
+  try {
+    const raw = projectLocalStorage.getItem(CODE_AUDITOR_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as SavedCodeAuditorState;
+  } catch {
+    // ignore storage parse failure
+  }
+  return {};
+}
+
 export default function CodeAuditor({
   initialCode,
   onSendToAI,
 }: CodeAuditorProps) {
-  const [code, setCode] = useState(initialCode || SAMPLE_VULNERABILITIES[0].code);
-  const [language, setLanguage] = useState('python');
-  const [selectedSample, setSelectedSample] = useState(SAMPLE_VULNERABILITIES[0].id);
-  const [findings, setFindings] = useState<VulnerabilityFinding[]>([
-    SAMPLE_VULNERABILITIES[0].finding,
-  ]);
+  const [savedState] = useState<SavedCodeAuditorState>(() => loadSavedCodeAuditor());
+  const [code, setCode] = useState(
+    initialCode || savedState.code || SAMPLE_VULNERABILITIES[0].code
+  );
+  const [language, setLanguage] = useState(savedState.language || 'python');
+  const [selectedSample, setSelectedSample] = useState(
+    savedState.selectedSample || SAMPLE_VULNERABILITIES[0].id
+  );
+  const [findings, setFindings] = useState<VulnerabilityFinding[]>(
+    Array.isArray(savedState.findings) ? savedState.findings : [SAMPLE_VULNERABILITIES[0].finding]
+  );
   const [copiedPatchId, setCopiedPatchId] = useState<string | null>(null);
   const [exportedFindingId, setExportedFindingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      projectLocalStorage.setItem(
+        CODE_AUDITOR_STORAGE_KEY,
+        JSON.stringify({ code, language, selectedSample, findings })
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [code, language, selectedSample, findings]);
 
   useEffect(() => {
     if (initialCode) {
@@ -155,6 +191,7 @@ export default function CodeAuditor({
         setFindings(localFindings);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCode]);
 
   const handleSelectSample = (sampleId: string) => {

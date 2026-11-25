@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { usePyodide, SECURITY_SCRIPT_PRESETS } from '../../lib/sandbox/usePyodide';
 import styles from './SandboxTerminal.module.css';
 
@@ -32,9 +33,35 @@ export default function SandboxTerminal({
     presets,
   } = usePyodide();
 
-  const [code, setCode] = useState(initialCode || SECURITY_SCRIPT_PRESETS[0].code);
-  const [selectedPreset, setSelectedPreset] = useState(SECURITY_SCRIPT_PRESETS[0].id);
+  const SANDBOX_STORAGE_KEY = 'nexus_security_sandbox_v1';
+  const [savedSandbox] = useState<{ code?: string; selectedPreset?: string }>(() => {
+    try {
+      const raw = projectLocalStorage.getItem(SANDBOX_STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as { code?: string; selectedPreset?: string };
+    } catch {
+      // ignore storage errors
+    }
+    return {};
+  });
+
+  const [code, setCode] = useState(
+    initialCode || savedSandbox.code || SECURITY_SCRIPT_PRESETS[0].code
+  );
+  const [selectedPreset, setSelectedPreset] = useState(
+    savedSandbox.selectedPreset || SECURITY_SCRIPT_PRESETS[0].id
+  );
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      projectLocalStorage.setItem(
+        SANDBOX_STORAGE_KEY,
+        JSON.stringify({ code, selectedPreset })
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [code, selectedPreset]);
 
   useEffect(() => {
     if (initialCode) {

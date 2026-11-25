@@ -192,11 +192,34 @@ export default function CopilotDrawer({
   isMaximized = false,
   onToggleMaximize,
 }: CopilotDrawerProps) {
-  const [activeCopilotTab, setActiveCopilotTab] = useState<CopilotTab>('chat');
-  const [visitedTabs, setVisitedTabs] = useState<Set<CopilotTab>>(() => new Set(['chat']));
+  const [activeCopilotTab, setActiveCopilotTab] = useState<CopilotTab>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_copilot_active_tab');
+      if (
+        saved === 'chat' ||
+        saved === 'arena' ||
+        saved === 'vault' ||
+        saved === 'presets' ||
+        saved === 'telemetry'
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return 'chat';
+  });
+  const [visitedTabs, setVisitedTabs] = useState<Set<CopilotTab>>(
+    () => new Set<CopilotTab>(['chat', activeCopilotTab])
+  );
   const [focusSidebarOpen, setFocusSidebarOpen] = useState(true);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('nexus_copilot_active_tab', activeCopilotTab);
+    } catch {
+      // ignore storage errors
+    }
     setVisitedTabs((prev) => {
       if (prev.has(activeCopilotTab)) return prev;
       const next = new Set(prev);
@@ -204,6 +227,10 @@ export default function CopilotDrawer({
       return next;
     });
   }, [activeCopilotTab]);
+
+  useEffect(() => {
+    vaultStore.reloadForProject();
+  }, [currentProjectId]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -1199,6 +1226,23 @@ export default function CopilotDrawer({
                         </span>
                       </div>
                       <div className={styles.vaultDocActions}>
+                        <button
+                          type="button"
+                          className={styles.vaultActionBtn}
+                          onClick={() => vaultStore.toggleDocumentScope(doc.id)}
+                          title={
+                            doc.scope === 'global'
+                              ? 'Shared across all engagements (click to scope to current project)'
+                              : 'Scoped to current engagement (click to share globally as playbook)'
+                          }
+                          style={{
+                            fontSize: '0.66rem',
+                            padding: '0.18rem 0.45rem',
+                            color: doc.scope === 'global' ? '#f59e0b' : '#38bdf8',
+                          }}
+                        >
+                          {doc.scope === 'global' ? 'Global' : 'Project'}
+                        </button>
                         <button
                           type="button"
                           className={`${styles.vaultToggleBtn} ${!doc.enabled ? styles.vaultToggleBtnDisabled : ''}`}

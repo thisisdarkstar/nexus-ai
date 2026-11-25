@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BookOpen,
   Search,
@@ -15,6 +15,7 @@ import {
   type KnowledgeBaseEntry,
 } from '../../domain/knowledge/KnowledgeBaseData';
 import { eventBus } from '../../core/bus/EventBus';
+import { projectLocalStorage } from '../../core/storage/projectStorage';
 import { useToast } from '../../lib/toast';
 import CustomSelect from '../common/CustomSelect';
 import styles from './KnowledgeBase.module.css';
@@ -23,14 +24,45 @@ interface KnowledgeBaseProps {
   onSendToAI?: (prompt: string) => void;
 }
 
+const KB_STORAGE_KEY = 'nexus_security_kb_v1';
+
+interface SavedKbState {
+  searchQuery?: string;
+  selectedCategory?: string;
+  selectedSeverity?: string;
+  selectedEntryId?: string;
+}
+
+function loadSavedKb(): SavedKbState {
+  try {
+    const raw = projectLocalStorage.getItem(KB_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as SavedKbState;
+  } catch {
+    // ignore storage errors
+  }
+  return {};
+}
+
 export default function KnowledgeBase({ onSendToAI }: KnowledgeBaseProps) {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
+  const [savedKb] = useState<SavedKbState>(() => loadSavedKb());
+  const [searchQuery, setSearchQuery] = useState<string>(savedKb.searchQuery || '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(savedKb.selectedCategory || 'ALL');
+  const [selectedSeverity, setSelectedSeverity] = useState<string>(savedKb.selectedSeverity || 'ALL');
   const [selectedEntryId, setSelectedEntryId] = useState<string>(
-    KNOWLEDGE_BASE_ENTRIES[0]?.id || 'CWE-89'
+    savedKb.selectedEntryId || KNOWLEDGE_BASE_ENTRIES[0]?.id || 'CWE-89'
   );
+
+  useEffect(() => {
+    try {
+      projectLocalStorage.setItem(
+        KB_STORAGE_KEY,
+        JSON.stringify({ searchQuery, selectedCategory, selectedSeverity, selectedEntryId })
+      );
+    } catch {
+      // ignore storage errors
+    }
+  }, [searchQuery, selectedCategory, selectedSeverity, selectedEntryId]);
 
   const categories = useMemo(() => {
     const cats = new Set(KNOWLEDGE_BASE_ENTRIES.map((e) => e.category));
