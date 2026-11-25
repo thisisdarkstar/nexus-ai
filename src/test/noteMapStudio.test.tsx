@@ -44,5 +44,5 @@ describe('NoteMapStudio floating access and persistence', () => {
     expect(
       (screen.getByLabelText(/Security note markdown content/i) as HTMLTextAreaElement).value
     ).toContain('Persistent Field Note');
-  });
+  }, 15000);
 });

@@ -12,4 +12,13 @@ describe('generateHTMLReport dark PDF styling', () => {
     expect(html).toContain('background: #020617 !important;');
     expect(html).not.toContain('body { background: #ffffff;');
   });
+
+  it('supports optional light paper theme and prevents ID wrapping in summary table', () => {
+    const html = generateHTMLReport(SAMPLE_VAPT_REPORT, 'light');
+
+    expect(html).toContain('color-scheme: light;');
+    expect(html).toContain('--bg-page: #f8fafc;');
+    expect(html).toContain('--bg-card: #ffffff;');
+    expect(html).toContain('white-space: nowrap;');
+  });
 });

@@ -15,6 +15,7 @@ import {
 import { providerManager } from '../../lib/providers/ProviderManager';
 import { renderMarkdown } from '../../lib/markdown';
 import { estimateTokens } from '../../lib/tokens';
+import CustomSelect from '../common/CustomSelect';
 import type { AvailableModel, Settings } from '../../types';
 import styles from './ModelArena.module.css';
 
@@ -184,18 +185,17 @@ export default function ModelArena({
               <Swords size={12} />
               <span>Challenger A</span>
             </label>
-            <select
-              className={styles.modelSelect}
+            <CustomSelect
               value={modelA}
-              onChange={(e) => setModelA(e.target.value)}
+              onChange={setModelA}
               disabled={isBroadcasting}
-            >
-              {availableModels.map((m) => (
-                <option key={`a-${m.id}`} value={m.id}>
-                  {m.endpointName ? `${m.id} (${m.endpointName})` : m.id}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Challenger A model"
+              style={{ width: '100%', minWidth: 0 }}
+              options={availableModels.map((m) => ({
+                value: m.id,
+                label: m.endpointName ? `${m.id} (${m.endpointName})` : m.id,
+              }))}
+            />
           </div>
 
           <div className={styles.modelSelectGroup}>
@@ -203,18 +203,17 @@ export default function ModelArena({
               <Swords size={12} />
               <span>Challenger B</span>
             </label>
-            <select
-              className={styles.modelSelect}
+            <CustomSelect
               value={modelB}
-              onChange={(e) => setModelB(e.target.value)}
+              onChange={setModelB}
               disabled={isBroadcasting}
-            >
-              {availableModels.map((m) => (
-                <option key={`b-${m.id}`} value={m.id}>
-                  {m.endpointName ? `${m.id} (${m.endpointName})` : m.id}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Challenger B model"
+              style={{ width: '100%', minWidth: 0 }}
+              options={availableModels.map((m) => ({
+                value: m.id,
+                label: m.endpointName ? `${m.id} (${m.endpointName})` : m.id,
+              }))}
+            />
           </div>
         </div>
 

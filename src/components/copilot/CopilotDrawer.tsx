@@ -1521,26 +1521,21 @@ export default function CopilotDrawer({
                 <span>Context Size (num_ctx)</span>
                 <strong>{((settings.contextWindow || 16384) / 1024).toFixed(0)}K tokens</strong>
               </div>
-              <select
-                value={settings.contextWindow || 16384}
-                onChange={(e) => onSettingsChange?.({ contextWindow: parseInt(e.target.value, 10) })}
-                style={{
-                  background: 'var(--sd-90)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--wa-12)',
-                  padding: '0.35rem 0.5rem',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                }}
-              >
-                <option value="2048">2,048 tokens (2K)</option>
-                <option value="4096">4,096 tokens (4K)</option>
-                <option value="8192">8,192 tokens (8K)</option>
-                <option value="16384">16,384 tokens (16K - Recommended)</option>
-                <option value="32768">32,768 tokens (32K)</option>
-                <option value="65536">65,536 tokens (64K)</option>
-                <option value="131072">131,072 tokens (128K)</option>
-              </select>
+              <CustomSelect
+                value={String(settings.contextWindow || 16384)}
+                onChange={(val) => onSettingsChange?.({ contextWindow: parseInt(val, 10) })}
+                options={[
+                  { value: '2048', label: '2,048 tokens (2K)' },
+                  { value: '4096', label: '4,096 tokens (4K)' },
+                  { value: '8192', label: '8,192 tokens (8K)' },
+                  { value: '16384', label: '16,384 tokens (16K - Recommended)' },
+                  { value: '32768', label: '32,768 tokens (32K)' },
+                  { value: '65536', label: '65,536 tokens (64K)' },
+                  { value: '131072', label: '131,072 tokens (128K)' },
+                ]}
+                ariaLabel="Context window size"
+                style={{ width: '100%' }}
+              />
             </div>
           </div>
 

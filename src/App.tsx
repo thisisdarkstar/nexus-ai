@@ -647,7 +647,6 @@ function AppContent() {
                   display: copilotOpen ? 'flex' : 'none',
                   width: copilotMaximized ? '100%' : `${copilotWidthPct}%`,
                 }}
-                aria-hidden={!copilotOpen}
               >
                 {copilotDrawer}
               </div>

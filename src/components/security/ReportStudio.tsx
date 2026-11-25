@@ -99,6 +99,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
     report.findings[0]?.id || null
   );
   const [previewMode, setPreviewMode] = useState<'rendered' | 'raw'>('rendered');
+  const [htmlTheme, setHtmlTheme] = useState<'dark' | 'light'>('dark');
   const [copied, setCopied] = useState(false);
 
   const [modalConfig, setModalConfig] = useState<{
@@ -222,7 +223,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
   const bugBountyContent = selectedFinding
     ? generateBugBountyMarkdown(selectedFinding, report.targetScope)
     : 'No finding selected';
-  const htmlContent = generateHTMLReport(report);
+  const htmlContent = generateHTMLReport(report, htmlTheme);
 
   return (
     <div className={styles.reportContainer}>
@@ -896,6 +897,24 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className={styles.viewToggle} role="group" aria-label="HTML Report Theme">
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${htmlTheme === 'dark' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setHtmlTheme('dark')}
+                  title="Obsidian Dark PDF"
+                >
+                  Dark PDF
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${htmlTheme === 'light' ? styles.toggleBtnActive : ''}`}
+                  onClick={() => setHtmlTheme('light')}
+                  title="Light Paper PDF"
+                >
+                  Light
+                </button>
+              </div>
               <button
                 className={styles.btn}
                 onClick={() => {
@@ -942,6 +961,7 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
           <iframe
             srcDoc={htmlContent}
             className={styles.reportIframe}
+            style={{ background: htmlTheme === 'light' ? '#ffffff' : '#020617' }}
             title="HTML Report Preview"
           />
         </div>
