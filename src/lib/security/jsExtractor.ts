@@ -75,7 +75,7 @@ const SECRET_RULES: SecretRule[] = [
     type: 'stripe_secret_key',
     cwe: 'CWE-798',
     severity: 'critical',
-    pattern: /\b(sk_SAMPLE_[0-9a-zA-Z]{24,34})\b/g,
+    pattern: /\b(sk_live_[0-9a-zA-Z]{24,34}|sk_SAMPLE_[0-9a-zA-Z]{24,34})\b/g,
     description: 'Exposed Stripe payment gateway live secret key granting full merchant API control.',
   },
   {
@@ -328,12 +328,13 @@ window.__CONFIG__ = {
 };
 
 // Payment Gateway Controller & Secrets
+// NOTE: All values below are INTENTIONALLY FAKE demo data for secret-scanning demos.
 const paymentConfig = {
   stripePublishableKey: "pk_SAMPLE_51M0XYZ9827361524354231",
-  stripeSecretKey: "sk_SAMPLE_51M0XYZ982736152435423199ABCEFG", // CRITICAL LEAK
-  googleMapsApiKey: "AIzaSyDEMO_8492049182309128309182390123849", // HIGH LEAK
-  slackNotificationWebhook: "https://hooks.slack.com/services/DEMO0000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
-  jwtServiceToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi1zZXJ2aWNlIiwicm9sZXMiOlsic3VwZXJhZG1pbiJdfQ.7Y8Z9aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+  stripeSecretKey: "sk_SAMPLE_51M0XYZ982736152435423199ABCEFG", // CRITICAL LEAK (demo)
+  googleMapsApiKey: "AIzaSyDEMO_8492049182309128309182390123849", // HIGH LEAK (demo)
+  slackNotificationWebhook: "https://hooks.slack.com/services/DEMO0000/DEMO0000/DEMOXXXXXXXXXXXXXXXXXXXXXXXX",
+  jwtServiceToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi1zZXJ2aWNlIiwicm9sZXMiOlsic3VwZXJhZG1pbiJdfQ.DEMO_7Y8Z9aBcDeFgHiJkLmNoPqRsTuVwXyZ"
 };
 
 // Endpoints for Banking & Identity Actions
