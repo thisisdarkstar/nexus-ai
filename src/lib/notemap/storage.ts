@@ -189,6 +189,71 @@ export function saveNoteMapWorkspace(data: NoteMapWorkspaceData): void {
   projectLocalStorage.setItem(NOTEMAP_STORAGE_KEY, JSON.stringify(data));
 }
 
+/** Appends a new node under the primary root of the active workspace document and returns the updated workspace. */
+export function appendNodeToWorkspace(
+  workspace: NoteMapWorkspaceData,
+  payload: {
+    text: string;
+    tag?: string;
+    notes?: string;
+    accent?: MindmapNode['accent'];
+  }
+): NoteMapWorkspaceData {
+  const targetId = workspace.activeDocId || workspace.documents[0]?.id;
+  if (!targetId) return workspace;
+
+  const nextDocs = workspace.documents.map((doc) => {
+    if (doc.id !== targetId) return doc;
+    const roots = getRootNodeIds(doc.mindmap.nodes);
+    const parentId = roots[0] ?? Object.keys(doc.mindmap.nodes)[0] ?? null;
+    const parent = parentId ? doc.mindmap.nodes[parentId] : undefined;
+    const siblingCount = parent ? parent.childOrder.length : Object.keys(doc.mindmap.nodes).length;
+    const nodeId = createNodeId();
+
+    const newNode: MindmapNode = {
+      id: nodeId,
+      parentId: parent ? parent.id : null,
+      text: payload.text.slice(0, 120) || 'Security Finding',
+      notes: payload.notes,
+      tag: payload.tag,
+      accent: payload.accent || 'rose',
+      position: parent
+        ? {
+            x: parent.position.x + parent.size.width + 68,
+            y: parent.position.y + siblingCount * 76,
+          }
+        : { x: 140, y: 180 + siblingCount * 76 },
+      size: { width: 204, height: 56 },
+      childOrder: [],
+    };
+
+    const nextNodes: Record<string, MindmapNode> = {
+      ...doc.mindmap.nodes,
+      [nodeId]: newNode,
+    };
+    if (parent) {
+      nextNodes[parent.id] = {
+        ...parent,
+        collapsed: false,
+        childOrder: [...parent.childOrder, nodeId],
+      };
+    }
+
+    return {
+      ...doc,
+      updatedAt: Date.now(),
+      mindmap: {
+        ...doc.mindmap,
+        nodes: nextNodes,
+      },
+    };
+  });
+
+  const updated = { ...workspace, documents: nextDocs };
+  saveNoteMapWorkspace(updated);
+  return updated;
+}
+
 /** Converts a mindmap hierarchy into clean nested Markdown outline text. */
 export function mindmapToMarkdownOutline(map: MindmapState, title = 'Mindmap Outline'): string {
   const lines: string[] = [`# ${title}`, ''];

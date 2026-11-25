@@ -9,6 +9,8 @@ import {
   Download,
   FolderArchive,
   Swords,
+  Brain,
+  FileText,
 } from 'lucide-react';
 import { eventBus } from '../core/bus/EventBus';
 import { workbenchBridge } from '../lib/security/workbenchBridge';
@@ -153,6 +155,40 @@ export default function CommandPalette({
         eventBus.publish('open-quick-hud', { query: 'Compare models in Arena' });
       },
       keywords: ['arena', 'compare', 'dual', 'lmsys', 'benchmark', 'models'],
+    },
+    {
+      id: 'action-notemap-open',
+      title: 'Open Notes & Attack Mindmap Studio',
+      category: 'Actions',
+      icon: Brain,
+      action: () => {
+        onClose();
+        workbenchBridge.openNoteMap();
+      },
+      shortcut: 'Ctrl+Shift+M',
+      keywords: ['mindmap', 'notes', 'notepad', 'scratchpad', 'graph', 'tree'],
+    },
+    {
+      id: 'action-notemap-new-map',
+      title: 'Create New Attack Mindmap',
+      category: 'Actions',
+      icon: Brain,
+      action: () => {
+        onClose();
+        workbenchBridge.openNoteMap({ createMode: 'mindmap' });
+      },
+      keywords: ['new mindmap', 'create map', 'attack tree'],
+    },
+    {
+      id: 'action-notemap-new-note',
+      title: 'Create New Security Note',
+      category: 'Actions',
+      icon: FileText,
+      action: () => {
+        onClose();
+        workbenchBridge.openNoteMap({ createMode: 'note' });
+      },
+      keywords: ['new note', 'notepad', 'markdown', 'scratchpad'],
     },
 
     // System

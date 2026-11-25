@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Brain,
   FileText,
@@ -13,10 +13,11 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import MindmapCanvas from './MindmapCanvas';
-import NoteEditor from './NoteEditor';
+import ModuleErrorBoundary from '../common/ModuleErrorBoundary';
+import { eventBus } from '../../core/bus/EventBus';
 import { buildMindmapSvg } from '../../lib/notemap/layout';
 import {
+  appendNodeToWorkspace,
   createBlankDocument,
   loadNoteMapWorkspace,
   markdownToMindmap,
@@ -25,6 +26,9 @@ import {
 } from '../../lib/notemap/storage';
 import type { MindmapState, NoteMapDocument, NoteMapViewMode, NoteMapWorkspaceData } from '../../lib/notemap/types';
 import styles from './NoteMapStudio.module.css';
+
+const MindmapCanvas = lazy(() => import('./MindmapCanvas'));
+const NoteEditor = lazy(() => import('./NoteEditor'));
 
 interface NoteMapStudioProps {
   projectId: string;
@@ -79,6 +83,41 @@ export default function NoteMapStudio({ projectId, onSendToAI }: NoteMapStudioPr
   useEffect(() => {
     if (isOpen) setHasMounted(true);
   }, [isOpen]);
+
+  // Listen for CommandPalette & Workbench cross-module bridge actions
+  useEffect(() => {
+    const unsubOpen = eventBus.subscribe('notemap:open', (payload) => {
+      if (payload?.createMode) {
+        const doc = createBlankDocument(payload.createMode);
+        setWorkspace((prev) => ({
+          ...prev,
+          activeDocId: doc.id,
+          documents: [doc, ...prev.documents],
+        }));
+      } else if (payload?.mode) {
+        setWorkspace((prev) => {
+          const targetId = prev.activeDocId || prev.documents[0]?.id;
+          if (!targetId) return prev;
+          return {
+            ...prev,
+            documents: prev.documents.map((doc) =>
+              doc.id === targetId ? { ...doc, mode: payload.mode!, updatedAt: Date.now() } : doc
+            ),
+          };
+        });
+      }
+      setIsOpen(true);
+    });
+
+    const unsubAdd = eventBus.subscribe('notemap:add-node', (payload) => {
+      setWorkspace((prev) => appendNodeToWorkspace(prev, payload));
+    });
+
+    return () => {
+      unsubOpen();
+      unsubAdd();
+    };
+  }, []);
 
   // Global toggle shortcut: Ctrl+Shift+M / Cmd+Shift+M
   useEffect(() => {
@@ -459,51 +498,72 @@ export default function NoteMapStudio({ projectId, onSendToAI }: NoteMapStudioPr
               )}
 
               <div className={styles.contentArea}>
-                <div
-                  className={styles.splitHalf}
-                  style={{
-                    display: activeDoc.mode === 'mindmap' || activeDoc.mode === 'split' ? 'flex' : 'none',
-                  }}
+                <Suspense
+                  fallback={
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary, #94a3b8)',
+                        fontSize: '0.84rem',
+                      }}
+                    >
+                      Loading Notes &amp; Attack Mindmap...
+                    </div>
+                  }
                 >
-                  <MindmapCanvas
-                    mindmap={activeDoc.mindmap}
-                    searchQuery={searchQuery}
-                    onChange={(nextMap: MindmapState) =>
-                      updateActiveDoc((d) => ({ ...d, mindmap: nextMap }))
-                    }
-                    onSendToAI={
-                      onSendToAI
-                        ? (prompt) => {
-                            onSendToAI(prompt);
-                            setIsOpen(false);
-                          }
-                        : undefined
-                    }
-                  />
-                </div>
+                  <div
+                    className={styles.splitHalf}
+                    style={{
+                      display: activeDoc.mode === 'mindmap' || activeDoc.mode === 'split' ? 'flex' : 'none',
+                    }}
+                  >
+                    <ModuleErrorBoundary moduleName="Attack Mindmap">
+                      <MindmapCanvas
+                        mindmap={activeDoc.mindmap}
+                        searchQuery={searchQuery}
+                        onChange={(nextMap: MindmapState) =>
+                          updateActiveDoc((d) => ({ ...d, mindmap: nextMap }))
+                        }
+                        onSendToAI={
+                          onSendToAI
+                            ? (prompt) => {
+                                onSendToAI(prompt);
+                                setIsOpen(false);
+                              }
+                            : undefined
+                        }
+                      />
+                    </ModuleErrorBoundary>
+                  </div>
 
-                {activeDoc.mode === 'split' && <div className={styles.splitDivider} />}
+                  {activeDoc.mode === 'split' && <div className={styles.splitDivider} />}
 
-                <div
-                  className={styles.splitHalf}
-                  style={{
-                    display: activeDoc.mode === 'note' || activeDoc.mode === 'split' ? 'flex' : 'none',
-                  }}
-                >
-                  <NoteEditor
-                    title={activeDoc.title}
-                    content={activeDoc.noteContent}
-                    onChangeTitle={(title) => updateActiveDoc((d) => ({ ...d, title }))}
-                    onChangeContent={(noteContent) => updateActiveDoc((d) => ({ ...d, noteContent }))}
-                    onSyncToMindmap={() =>
-                      updateActiveDoc((d) => ({
-                        ...d,
-                        mindmap: markdownToMindmap(d.noteContent, d.title),
-                        mode: d.mode === 'note' ? 'split' : d.mode,
-                      }))
-                    }
-                  />
-                </div>
+                  <div
+                    className={styles.splitHalf}
+                    style={{
+                      display: activeDoc.mode === 'note' || activeDoc.mode === 'split' ? 'flex' : 'none',
+                    }}
+                  >
+                    <ModuleErrorBoundary moduleName="Security Notepad">
+                      <NoteEditor
+                        title={activeDoc.title}
+                        content={activeDoc.noteContent}
+                        onChangeTitle={(title) => updateActiveDoc((d) => ({ ...d, title }))}
+                        onChangeContent={(noteContent) => updateActiveDoc((d) => ({ ...d, noteContent }))}
+                        onSyncToMindmap={() =>
+                          updateActiveDoc((d) => ({
+                            ...d,
+                            mindmap: markdownToMindmap(d.noteContent, d.title),
+                            mode: d.mode === 'note' ? 'split' : d.mode,
+                          }))
+                        }
+                      />
+                    </ModuleErrorBoundary>
+                  </div>
+                </Suspense>
               </div>
             </div>
           </section>

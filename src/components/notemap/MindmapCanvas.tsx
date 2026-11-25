@@ -17,8 +17,11 @@ import {
   Grid,
   ChevronRight,
   Minus,
+  ShieldAlert,
+  Check,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
+import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import {
   NODE_ACCENT_COLORS,
   buildEdgePath,
@@ -59,6 +62,7 @@ export default function MindmapCanvas({
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
+  const [promotedNodeId, setPromotedNodeId] = useState<string | null>(null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     () => getRootNodeIds(mindmap.nodes)[0] ?? Object.keys(mindmap.nodes)[0] ?? null
@@ -982,6 +986,45 @@ export default function MindmapCanvas({
                     onClick={() => addNode(selectedNode.id)}
                   >
                     <ChevronRight size={13} /> Add Child
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.toolBtn}
+                    onClick={() => {
+                      const sev =
+                        selectedNode.accent === 'rose'
+                          ? 'critical'
+                          : selectedNode.accent === 'amber'
+                          ? 'medium'
+                          : selectedNode.accent === 'sky'
+                          ? 'low'
+                          : 'high';
+                      workbenchBridge.addFinding({
+                        title: selectedNode.text || 'Mindmap Attack Node',
+                        severity: sev,
+                        cweId: selectedNode.tag || 'CWE-284',
+                        targetEndpoint: selectedNode.tag || 'Engagement Attack Map',
+                        description:
+                          selectedNode.notes ||
+                          `Promoted from Notes & Attack Mindmap node "${selectedNode.text}".`,
+                        remediation:
+                          'Validate exploitation impact and implement defense-in-depth controls.',
+                        status: 'open',
+                      });
+                      setPromotedNodeId(selectedNode.id);
+                      setTimeout(() => setPromotedNodeId(null), 1800);
+                    }}
+                    title="Promote this node directly to a VAPT Report finding"
+                  >
+                    {promotedNodeId === selectedNode.id ? (
+                      <>
+                        <Check size={13} color="#10b981" /> Added
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert size={13} color="#f59e0b" /> + Report
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"

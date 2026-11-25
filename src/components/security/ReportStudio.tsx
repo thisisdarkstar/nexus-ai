@@ -15,7 +15,9 @@ import {
   RotateCcw,
   Eye,
   Code,
+  GitBranch,
 } from 'lucide-react';
+import { workbenchBridge } from '../../lib/security/workbenchBridge';
 import { calculateCVSS31, DEFAULT_CVSS } from '../../lib/security/cvss';
 import {
   generateMarkdownReport,
@@ -393,7 +395,32 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
                       {selectedFinding.id}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <button
+                      className={styles.btn}
+                      onClick={() => {
+                        workbenchBridge.addNodeToMindmap({
+                          text: selectedFinding.title,
+                          tag: selectedFinding.severity.toUpperCase(),
+                          notes: [
+                            selectedFinding.targetEndpoint ? `Target: ${selectedFinding.targetEndpoint}` : '',
+                            selectedFinding.description,
+                          ]
+                            .filter(Boolean)
+                            .join('\n\n'),
+                          accent:
+                            selectedFinding.severity === 'critical' || selectedFinding.severity === 'high'
+                              ? 'rose'
+                              : selectedFinding.severity === 'medium'
+                              ? 'amber'
+                              : 'sky',
+                        });
+                        workbenchBridge.openNoteMap({ mode: 'mindmap' });
+                      }}
+                      title="Send this finding to Notes & Attack Mindmap"
+                    >
+                      <GitBranch size={13} /> + Mindmap
+                    </button>
                     <button
                       className={styles.btn}
                       onClick={() => setIsCvssOpen(!isCvssOpen)}

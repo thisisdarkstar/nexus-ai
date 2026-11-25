@@ -1,5 +1,9 @@
 import { eventBus } from '../../core/bus/EventBus';
 import { projectLocalStorage } from '../../core/storage/projectStorage';
+import {
+  appendNodeToWorkspace,
+  loadNoteMapWorkspace,
+} from '../notemap/storage';
 import type { VulnerabilityFinding, ScopeItem, SecurityTab, ReconAsset } from '../../types';
 
 class WorkbenchBridge {
@@ -170,6 +174,34 @@ class WorkbenchBridge {
    */
   public switchTab(tab: SecurityTab, extra?: { code?: string; input?: string }): void {
     eventBus.publish('open-security', { tab, ...extra });
+  }
+
+  /**
+   * Open the floating Notes & Attack Mindmap Studio
+   */
+  public openNoteMap(options?: {
+    mode?: 'mindmap' | 'note' | 'split';
+    createMode?: 'mindmap' | 'note';
+  }): void {
+    eventBus.publish('notemap:open', options);
+  }
+
+  /**
+   * Add a security finding, asset, or payload directly into the active engagement Mindmap
+   */
+  public addNodeToMindmap(payload: {
+    text: string;
+    tag?: string;
+    notes?: string;
+    accent?: 'slate' | 'emerald' | 'sky' | 'amber' | 'rose' | 'violet';
+  }): void {
+    try {
+      const current = loadNoteMapWorkspace();
+      appendNodeToWorkspace(current, payload);
+      eventBus.publish('notemap:add-node', payload);
+    } catch (e) {
+      console.error('Failed to add node to mindmap via workbenchBridge:', e);
+    }
   }
 }
 

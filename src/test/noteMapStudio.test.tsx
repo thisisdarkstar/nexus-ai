@@ -8,7 +8,7 @@ describe('NoteMapStudio floating access and persistence', () => {
     localStorage.clear();
   });
 
-  it('renders floating button everywhere, opens studio on click, switches modes without losing drafts, and persists across close/reopen', () => {
+  it('renders floating button everywhere, opens studio on click, switches modes without losing drafts, and persists across close/reopen', async () => {
     const onSendToAI = vi.fn();
     render(<NoteMapStudio projectId="default" onSendToAI={onSendToAI} />);
 
@@ -19,11 +19,15 @@ describe('NoteMapStudio floating access and persistence', () => {
 
     // Open studio
     fireEvent.click(fab);
-    expect(screen.getByRole('dialog', { name: /Nexus Notes and Mindmap Studio/i })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: /Nexus Notes and Mindmap Studio/i })).toBeTruthy();
 
-    // Switch to Notepad tab and type a note
+    // Switch to Notepad tab and type a note (lazy chunk)
     fireEvent.click(screen.getByRole('tab', { name: /Notepad/i }));
-    const noteArea = screen.getByLabelText(/Security note markdown content/i) as HTMLTextAreaElement;
+    const noteArea = (await screen.findByLabelText(
+      /Security note markdown content/i,
+      {},
+      { timeout: 10000 }
+    )) as HTMLTextAreaElement;
     fireEvent.change(noteArea, { target: { value: '# Persistent Field Note\n## IDOR Check' } });
 
     // Switch to Mindmap tab, then back to Split — both must stay mounted with draft preserved

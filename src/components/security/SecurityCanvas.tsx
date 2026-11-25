@@ -11,6 +11,7 @@ import {
   Search,
   ShieldAlert,
 } from 'lucide-react';
+import ModuleErrorBoundary from '../common/ModuleErrorBoundary';
 
 const CodeAuditor = lazy(() => import('./CodeAuditor'));
 const SandboxTerminal = lazy(() => import('./SandboxTerminal'));
@@ -517,7 +518,9 @@ export default function SecurityCanvas({
                 style={{ display: isActive ? 'flex' : 'none' }}
                 aria-hidden={!isActive}
               >
-                {renderSecurityModule(t.id)}
+                <ModuleErrorBoundary moduleName={t.name}>
+                  {renderSecurityModule(t.id)}
+                </ModuleErrorBoundary>
               </div>
             );
           })}

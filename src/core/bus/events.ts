@@ -65,6 +65,15 @@ export interface SecurityEventMap {
   'open-ingest': void;
   'open-quick-hud': { query?: string } | void;
 
+  // Notes & Attack Mindmap Studio bridges
+  'notemap:open': { mode?: 'mindmap' | 'note' | 'split'; createMode?: 'mindmap' | 'note' } | void;
+  'notemap:add-node': {
+    text: string;
+    tag?: string;
+    notes?: string;
+    accent?: 'slate' | 'emerald' | 'sky' | 'amber' | 'rose' | 'violet';
+  };
+
   // WorkbenchBridge domain events
   'workbench:add-finding': VulnerabilityFinding;
   'workbench:add-scope': ScopeItem[];
