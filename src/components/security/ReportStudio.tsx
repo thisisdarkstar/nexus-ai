@@ -30,6 +30,8 @@ import { evidenceVault } from '../../domain/evidence/EvidenceVault';
 import ConfirmModal from '../ConfirmModal';
 import CustomSelect from '../common/CustomSelect';
 import type { VAPTReport, VulnerabilityFinding, CVSSMetrics, VulnerabilitySeverity } from '../../types';
+import CvssCalculator from './CvssCalculator';
+import ReportPreviewPane from './ReportPreviewPane';
 import styles from './ReportStudio.module.css';
 
 const ASSESSMENT_TYPE_OPTIONS: Array<{ value: VAPTReport['assessmentType']; label: string }> = [
@@ -440,148 +442,11 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
 
                 {/* CVSS Modal Accordion */}
                 {isCvssOpen && (
-                  <div className={styles.cvssBox}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#10b981' }}>
-                        CVSS v3.1 Base Score: {activeCvss.score} ({activeCvss.severity.toUpperCase()})
-                      </span>
-                      <button
-                        className={`${styles.btn} ${styles.btnPrimary}`}
-                        onClick={handleApplyCvss}
-                      >
-                        Apply Score
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                      Vector: <code>{activeCvss.vectorString}</code>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Attack Vector (AV):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'A', 'L', 'P'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.av === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('av', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Attack Complexity (AC):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['L', 'H'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.ac === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('ac', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Privileges Required (PR):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'L', 'H'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.pr === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('pr', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>User Interaction (UI):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'R'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.ui === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('ui', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Scope (S):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['U', 'C'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.s === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('s', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Confidentiality (C):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'L', 'H'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.c === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('c', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Integrity (I):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'L', 'H'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.i === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('i', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.cvssRow}>
-                      <span>Availability (A):</span>
-                      <div className={styles.cvssBtnGroup}>
-                        {(['N', 'L', 'H'] as const).map((v) => (
-                          <button
-                            key={v}
-                            className={`${styles.cvssBtn} ${activeCvss.a === v ? styles.cvssBtnActive : ''}`}
-                            onClick={() => handleCvssMetricChange('a', v)}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <CvssCalculator
+                    metrics={activeCvss}
+                    onMetricChange={handleCvssMetricChange}
+                    onApply={handleApplyCvss}
+                  />
                 )}
 
                 {/* Finding Title: Full width */}
@@ -772,143 +637,33 @@ export default function ReportStudio({ onSendToAI }: ReportStudioProps) {
       )}
 
       {subTab === 'markdown' && (
-        <div className={styles.previewContainer}>
-          <div className={styles.copyRow}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <div className={styles.viewToggle}>
-                <button
-                  className={`${styles.toggleBtn} ${previewMode === 'rendered' ? styles.toggleBtnActive : ''}`}
-                  onClick={() => setPreviewMode('rendered')}
-                  title="Rendered Executive Document"
-                >
-                  <Eye size={12} /> Rendered View
-                </button>
-                <button
-                  className={`${styles.toggleBtn} ${previewMode === 'raw' ? styles.toggleBtnActive : ''}`}
-                  onClick={() => setPreviewMode('raw')}
-                  title="Raw Markdown Syntax"
-                >
-                  <Code size={12} /> Raw Markdown
-                </button>
-              </div>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
-                {report.findings.length} findings • {markdownContent.split(/\s+/).filter(Boolean).length} words
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <button
-                className={styles.btn}
-                onClick={() => handleCopy(markdownContent)}
-                title="Copy markdown text to clipboard"
-              >
-                {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-              <button
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={() => handleDownload(markdownContent, `${report.title.toLowerCase().replace(/\s+/g, '_')}.md`, 'text/markdown')}
-                title="Download as Markdown file"
-              >
-                <Download size={12} /> Download .md
-              </button>
-            </div>
-          </div>
-
-          {previewMode === 'rendered' ? (
-            <div
-              className={styles.renderedContainer}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(markdownContent) }}
-            />
-          ) : (
-            <textarea
-              className={styles.previewCode}
-              value={markdownContent}
-              readOnly
-              spellCheck={false}
-            />
-          )}
-        </div>
+        <ReportPreviewPane
+          mode="markdown"
+          previewMode={previewMode}
+          onPreviewModeChange={setPreviewMode}
+          content={markdownContent}
+          copied={copied}
+          onCopy={handleCopy}
+          onDownload={handleDownload}
+          downloadFilename={`${report.title.toLowerCase().replace(/\s+/g, '_')}.md`}
+          findingCount={report.findings.length}
+        />
       )}
 
       {subTab === 'bug_bounty' && (
-        <div className={styles.previewContainer}>
-          <div className={styles.findingSelectorRow}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary, #94a3b8)' }}>
-                Target Finding:
-              </span>
-              <CustomSelect
-                value={selectedFindingId || ''}
-                onChange={setSelectedFindingId}
-                options={report.findings.map((f) => ({
-                  value: f.id,
-                  label: `[${f.id}] ${f.title} (${f.severity.toUpperCase()})`,
-                }))}
-                style={{ width: 'auto', minWidth: '240px', maxWidth: '380px' }}
-              />
-              {selectedFinding?.cvss && (
-                <span className={`${styles.severityBadge} ${styles[selectedFinding.severity]}`}>
-                  CVSS {selectedFinding.cvss.score} ({selectedFinding.cvss.severity.toUpperCase()})
-                </span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div className={styles.viewToggle}>
-                <button
-                  className={`${styles.toggleBtn} ${previewMode === 'rendered' ? styles.toggleBtnActive : ''}`}
-                  onClick={() => setPreviewMode('rendered')}
-                  title="Rendered Document"
-                >
-                  <Eye size={12} /> Rendered
-                </button>
-                <button
-                  className={`${styles.toggleBtn} ${previewMode === 'raw' ? styles.toggleBtnActive : ''}`}
-                  onClick={() => setPreviewMode('raw')}
-                  title="Raw Markdown"
-                >
-                  <Code size={12} /> Raw
-                </button>
-              </div>
-              <button
-                className={styles.btn}
-                onClick={() => handleCopy(bugBountyContent)}
-                title="Copy HackerOne / Bugcrowd markdown to clipboard"
-              >
-                {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-              <button
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={() =>
-                  handleDownload(
-                    bugBountyContent,
-                    `${(selectedFinding?.title || 'bounty_report').toLowerCase().replace(/\s+/g, '_')}.md`,
-                    'text/markdown'
-                  )
-                }
-                title="Download Bug Bounty Report"
-              >
-                <Download size={12} /> Download
-              </button>
-            </div>
-          </div>
-
-          {previewMode === 'rendered' ? (
-            <div
-              className={styles.renderedContainer}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(bugBountyContent) }}
-            />
-          ) : (
-            <textarea
-              className={styles.previewCode}
-              value={bugBountyContent}
-              readOnly
-              spellCheck={false}
-            />
-          )}
-        </div>
+        <ReportPreviewPane
+          mode="bug_bounty"
+          previewMode={previewMode}
+          onPreviewModeChange={setPreviewMode}
+          content={bugBountyContent}
+          copied={copied}
+          onCopy={handleCopy}
+          onDownload={handleDownload}
+          downloadFilename={`${(selectedFinding?.title || 'bounty_report').toLowerCase().replace(/\s+/g, '_')}.md`}
+          findings={report.findings}
+          selectedFindingId={selectedFindingId}
+          onSelectFinding={setSelectedFindingId}
+        />
       )}
 
       {subTab === 'html' && (

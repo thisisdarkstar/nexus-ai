@@ -1,4 +1,8 @@
-import { projectLocalStorage } from '../../core/storage/projectStorage';
+import {
+  getActiveProjectId,
+  projectLocalStorage,
+  setActiveProjectId,
+} from '../../core/storage/projectStorage';
 import { db } from '../db';
 import { workbenchBridge } from './workbenchBridge';
 import { storageManager } from '../../core/storage/StorageManager';
@@ -145,6 +149,12 @@ export async function importEngagementBundle(file: File): Promise<{
   // 1. Save Project
   await db.saveProject(bundle.project);
 
+  // Temporarily switch active storage scope to the imported project so its module state
+  // never overwrites whichever engagement happened to be open during import.
+  const previousProjectId = getActiveProjectId();
+  setActiveProjectId(bundle.project.id);
+  try {
+
   // 2. Save Chats
   let chatsCount = 0;
   if (bundle.chats && Array.isArray(bundle.chats)) {
@@ -212,12 +222,14 @@ export async function importEngagementBundle(file: File): Promise<{
       // ignore
     }
   }
-
   return {
     projectName: bundle.project.name,
     chatsCount,
     findingsCount,
     scopeCount,
   };
+  } finally {
+    setActiveProjectId(previousProjectId);
+  }
 }
 
