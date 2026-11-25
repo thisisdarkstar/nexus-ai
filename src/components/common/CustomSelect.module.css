@@ -73,18 +73,16 @@
 }
 
 .dropdownMenu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  width: 100%;
-  min-width: max-content;
-  max-width: 380px;
-  background: #0f172a; /* 100% Solid Opaque - zero background bleed */
+  position: fixed;
+  margin: 0;
+  width: max-content;
+  max-width: min(380px, calc(100vw - 16px));
+  background: var(--surface-menu, #0f172a);
   border: 1px solid rgba(56, 189, 248, 0.25);
   border-radius: 8px;
   padding: 0.35rem 0.35rem 0.5rem;
   box-shadow: 0 16px 45px -4px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08);
-  z-index: 10000;
+  z-index: 999999;
   max-height: min(380px, 55vh);
   overflow-y: auto;
   box-sizing: border-box;
@@ -95,8 +93,7 @@
 }
 
 .dropdownMenuUpwards {
-  top: auto;
-  bottom: calc(100% + 4px);
+  transform-origin: bottom center;
 }
 
 @keyframes dropdownFadeIn {
