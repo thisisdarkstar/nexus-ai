@@ -1,0 +1,338 @@
+.mindmapRoot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg-main, #020617);
+  overflow: hidden;
+  user-select: none;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.75rem;
+  background: var(--sd-80, rgba(15, 23, 42, 0.8));
+  border-bottom: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.toolGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  flex-wrap: wrap;
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.32rem 0.58rem;
+  border-radius: 6px;
+  border: 1px solid var(--wa-10, rgba(255, 255, 255, 0.1));
+  background: var(--wa-4, rgba(255, 255, 255, 0.04));
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.73rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.toolBtn:hover:not(:disabled) {
+  background: var(--wa-10, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #f8fafc);
+}
+
+.toolBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.toolBtnActive {
+  border-color: rgba(16, 185, 129, 0.55) !important;
+  background: rgba(16, 185, 129, 0.18) !important;
+  color: #34d399 !important;
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  background: var(--wa-12, rgba(255, 255, 255, 0.12));
+  margin: 0 0.15rem;
+}
+
+.workspaceRow {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg-main, #020617);
+  cursor: default;
+}
+
+.stageGrid {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.2) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.stagePanning {
+  cursor: grab;
+}
+
+.stagePanning:active {
+  cursor: grabbing;
+}
+
+.stageConnecting {
+  cursor: crosshair;
+}
+
+.world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.edgeSvg {
+  position: absolute;
+  top: -4000px;
+  left: -4000px;
+  width: 8000px;
+  height: 8000px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edgeClickable {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.nodeCard {
+  position: absolute;
+  border-radius: 10px;
+  border: 1.75px solid #475569;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.45rem 0.68rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
+  pointer-events: auto;
+  cursor: grab;
+  transition: box-shadow 0.14s ease, border-color 0.14s ease;
+  box-sizing: border-box;
+}
+
+.nodeCard:hover {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+.nodeCardSelected {
+  box-shadow: 0 0 0 2px #10b981, 0 12px 26px rgba(16, 185, 129, 0.25) !important;
+}
+
+.nodeCardConnectSource {
+  box-shadow: 0 0 0 2px #38bdf8, 0 12px 26px rgba(56, 189, 248, 0.28) !important;
+}
+
+.nodeCardMatch {
+  box-shadow: 0 0 0 2px #f59e0b, 0 10px 24px rgba(245, 158, 11, 0.3) !important;
+}
+
+.nodeHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.nodeTag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nodeTitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.28;
+  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nodeInlineInput {
+  width: 100%;
+  background: rgba(2, 6, 23, 0.7);
+  border: 1px solid #10b981;
+  border-radius: 5px;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.2rem 0.35rem;
+  outline: none;
+  resize: none;
+}
+
+.collapseBtn {
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.collapseBtn:hover {
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.inspector {
+  width: 268px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--wa-8, rgba(255, 255, 255, 0.08));
+  background: var(--bg-primary, #090d16);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  overflow-y: auto;
+  user-select: text;
+}
+
+.inspectorHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.28rem;
+}
+
+.fieldInput,
+.fieldTextarea {
+  width: 100%;
+  background: var(--input-bg, #0f172a);
+  border: 1px solid var(--input-border, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  color: var(--text-primary, #f8fafc);
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 0.42rem 0.55rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.fieldInput:focus,
+.fieldTextarea:focus {
+  border-color: #10b981;
+}
+
+.fieldTextarea {
+  min-height: 82px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.swatchRow {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.swatchActive {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.minimap {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 148px;
+  height: 92px;
+  border-radius: 8px;
+  border: 1px solid var(--wa-12, rgba(255, 255, 255, 0.12));
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.statusHint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 0.7rem;
+  pointer-events: none;
+  z-index: 4;
+}

@@ -14,6 +14,7 @@ import VoiceOverlay from './components/VoiceOverlay';
 import ConfirmModal from './components/ConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import ArtifactIngestModal from './components/security/ArtifactIngestModal';
+import NoteMapStudio from './components/notemap/NoteMapStudio';
 import { ToastProvider, useToast } from './lib/toast';
 import { useVoice } from './hooks/useVoice';
 import { useMediaQuery } from './hooks/useMediaQuery';
@@ -733,6 +734,11 @@ function AppContent() {
           />
         </Suspense>
       )}
+
+      <NoteMapStudio
+        projectId={currentProjectId}
+        onSendToAI={handleSendToAIFromSecurity}
+      />
     </div>
   );
 }
