@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Shield,
   Target,
   Search,
   UploadCloud,
@@ -12,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
+import NexusLogo from '../common/NexusLogo';
 import type { Project, SecurityTab } from '../../types';
 import styles from './WorkbenchHeader.module.css';
 
@@ -94,7 +94,7 @@ export default function WorkbenchHeader({
       <div className={styles.leftGroup}>
         <div className={styles.brand} onClick={() => onTabChange('dashboard')} title="Nexus AI Security Dashboard">
           <div className={styles.brandIcon}>
-            <Shield size={17} />
+            <NexusLogo size={30} variant="badge" title="Nexus AI Logo" />
           </div>
           <div className={styles.brandTextGroup}>
             <span className={styles.brandTitle}>NEXUS AI</span>

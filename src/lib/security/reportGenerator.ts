@@ -1,4 +1,5 @@
 import type { VAPTReport, VulnerabilityFinding } from '../../types';
+import { getNexusReportMarkSvg } from '../../components/common/NexusLogo';
 
 export function generateMarkdownReport(report: VAPTReport): string {
   const criticalCount = report.findings.filter((f) => f.severity === 'critical').length;
@@ -674,7 +675,7 @@ export function generateHTMLReport(report: VAPTReport, theme: 'dark' | 'light' =
   <div class="report-wrapper">
     <!-- Header Cover -->
     <div class="report-header">
-      <span class="report-brand">NEXUS AI SECURITY AUDIT</span>
+      <span class="report-brand" style="display:inline-flex;align-items:center;gap:8px;">${getNexusReportMarkSvg(18)}<span>NEXUS AI SECURITY AUDIT</span></span>
       <h1 class="report-main-title">${escapeHtml(report.title)}</h1>
       <span class="report-confidential-pill">STRICTLY CONFIDENTIAL</span>
     </div>

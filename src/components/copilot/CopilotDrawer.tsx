@@ -34,6 +34,7 @@ import { Virtuoso } from 'react-virtuoso';
 import TelemetryPanel from './TelemetryPanel';
 import VaultPanel from './VaultPanel';
 import PresetsPanel from './PresetsPanel';
+import NexusLogo from '../common/NexusLogo';
 import { useChatEngine } from '../../hooks/useChatEngine';
 import MessageItem from '../chat/MessageItem';
 import ModelMenu from '../chat/ModelMenu';
@@ -871,7 +872,7 @@ export default function CopilotDrawer({
             {messages.length === 0 ? (
               <div className={styles.welcomeState}>
                 <div className={styles.welcomeIconWrapper}>
-                  <Sparkles size={22} />
+                  <NexusLogo size={26} variant="mark" title="Nexus Security Copilot" />
                 </div>
                 <div>
                   <h3 className={styles.welcomeTitle}>Nexus Security Copilot</h3>

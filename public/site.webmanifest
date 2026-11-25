@@ -1,0 +1,17 @@
+{
+  "name": "Nexus AI — Security Workbench",
+  "short_name": "Nexus AI",
+  "description": "Local-first AI security engineering, recon, HTTP replay, and VAPT reporting workbench.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#060b14",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

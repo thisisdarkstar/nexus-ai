@@ -34,12 +34,11 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #0284c7, #6366f1);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
-  color: #fff;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.25), 0 0 8px rgba(16, 185, 129, 0.2);
   flex-shrink: 0;
 }
 
